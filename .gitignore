@@ -1,6 +1,5 @@
-# Compiled anthology and original sources: built locally (licensing + size; see README)
+# Compiled anthology: over GitHub's 100 MB per-file limit, published as a release asset instead (see README)
 /Mechanistic_Interpretability_Complete_Anthology.pdf
-/sources/
 *.part
 
 # Build cache: raw browser renders, metadata cache, QA previews

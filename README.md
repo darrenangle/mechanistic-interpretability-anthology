@@ -86,21 +86,20 @@ where it does not overlap content.
   (per-paper zoom log in build/metadata.json), and the gutter section numbers (§ 2.1) are printed inline.
   Interactive widgets appear in their default static state; use the URL/QR on the cover for the interactive
   versions. Fully blank pages emitted by Chrome at forced section breaks were removed (count in the manifest).
-  Distill articles are CC BY 4.0; the other sites publish no explicit licence, so those renders are for personal
-  study only.
+  Distill articles are CC BY 4.0; the other sites publish no explicit licence, and copyright remains with the
+  authors.
 - Paper 37 (Cammarata 2026, the conclusion) is an HTML essay on already-clean.goodfire.com, rendered the same
   way but with the page clamped to the printable width, reduced motion (animated figures print their final frame)
   and no lazy-load scrolling: scroll-mounted widgets wider than the page otherwise made Chrome shrink the whole
-  essay to ~6.6 pt. Body text prints at ≈9.9 pt. No explicit licence is published; personal study only.
+  essay to ~6.6 pt. Body text prints at ≈9.9 pt. No explicit licence is published.
 - Papers 20, 35, 36 are marked *optional* on their covers and in the indexes:
   kept in the anthology, but safe to skip when printing selectively.
 - Every cover carries an *In context* note situating the paper among the others in the collection, with
   cross-references by paper number. These notes are the compiler's commentary, not the authors'.
 - `30_representation_engineering.pdf` (and, marginally, 26 and 29) trigger non-fatal MuPDF warnings about
   dangling object references inside the original arXiv files; every page still renders without error.
-- Sources without a Creative Commons licence (arXiv's non-exclusive distribution licence, and HTML renders from
-  sites that publish none) are flagged in `paper_manifest.csv` (`redistribution_note`): keep this anthology for
-  personal use; do not redistribute it publicly.
+- Licences differ by paper: see `LICENSES.md` and the `license` / `redistribution_note` columns of
+  `paper_manifest.csv`. Copyright in every paper remains with its authors.
 
 ## Title / date discrepancies against the curriculum
 
@@ -144,20 +143,20 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 Rendering uses the system Google Chrome/Chromium if present (otherwise `.venv/bin/playwright install chromium`).
 A full build downloads or renders every source and takes several minutes.
 
-## What is in the repository
+## Where things are
 
-The git repository holds the build script, fonts, manifests, this README and `PRINT_INDEX.pdf`. The compiled
-anthology and `sources/` are not committed: many sources carry licences that do not permit public
-redistribution (see `redistribution_note` in the manifest), and the PDFs are several hundred MB. Run the build
-to produce them locally; `sha256sum -c --ignore-missing checksums.sha256` then verifies them against the
-files this README was generated from.
+- The compiled anthology is attached to the GitHub release: https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf
+  (it is larger than GitHub's 100 MB per-file limit for git, so it cannot live in the repository itself).
+- The original papers, exactly as included, are in `sources/`.
+- `sha256sum -c checksums.sha256` verifies a download or a local rebuild against this README.
 
 ## Files
 
-- `Mechanistic_Interpretability_Complete_Anthology.pdf` — master PDF (built locally)
+- `Mechanistic_Interpretability_Complete_Anthology.pdf` — master PDF (GitHub release asset)
 - `PRINT_INDEX.pdf` — standalone print index
 - `paper_manifest.csv`, `paper_manifest.json` — per-paper sources, licences, checksums, page ranges
-- `sources/` — the original PDFs exactly as included (built locally)
+- `sources/` — the original PDFs exactly as included
+- `LICENSES.md` — licence and copyright of every included work, fonts and editorial material
 - `scripts/build_anthology.py` — reproducible build; `requirements.txt` — Python dependencies
 - `scripts/fonts/` — Source Serif 4 and Inter (SIL Open Font License) used for covers, dividers and indexes
 - `checksums.sha256` — SHA-256 of every deliverable

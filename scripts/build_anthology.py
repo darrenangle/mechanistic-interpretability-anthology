@@ -45,6 +45,8 @@ BUILD = ROOT / "build"
 META_CACHE = BUILD / "metadata.json"
 MASTER = ROOT / "Mechanistic_Interpretability_Complete_Anthology.pdf"
 PRINT_INDEX = ROOT / "PRINT_INDEX.pdf"
+REPO_URL = "https://github.com/darrenangle/mechanistic-interpretability-anthology"
+RELEASE_PDF_URL = f"{REPO_URL}/releases/latest/download/{MASTER.name}"
 TITLE = "Mechanistic Interpretability"
 DISTILL_LICENSE = "CC BY 4.0 (Distill: text and diagrams)"
 UA = {"User-Agent": "mi-anthology-builder/1.0 (personal study print anthology)"}
@@ -950,8 +952,8 @@ def draw_title_page(pg: Pager, L: Layout, stats: dict):
               f"Bibliography p. {L.bib_start}"):
         text(c, ML, y, t, "Sans", 8, MUTED)
         y -= 13
-    text(c, ML, 64, f"Compiled {TODAY} for personal study. Original works © their respective authors; see the bibliography for "
-                    "sources and licences.", "Sans", 6.5, FAINT)
+    text(c, ML, 64, f"Compiled {TODAY}. Original works © their respective authors, under the licences listed in the "
+                    "bibliography and LICENSES.md.", "Sans", 6.5, FAINT)
     text(c, ML, 55, "Cover pages, dividers and indexes are editorial additions.", "Sans", 6.5, FAINT)
     pg.c.showPage()  # title page: no footer
     pg.phys += 1
@@ -1629,8 +1631,8 @@ def write_manifests(meta: dict, L: Layout, scales: dict, stamps: dict):
             first_posted=rec.get("first_posted", ""), version_date=rec.get("version_date", ""),
             arxiv_id=p["arxiv"] or "", source_type=rec.get("source_type", ""), source_url=rec.get("source_url", ""),
             pdf_url=rec.get("pdf_url", ""), license=rec.get("license", ""), license_url=rec.get("license_url", ""),
-            redistribution_note=("Personal-use copy; licence does not grant third-party redistribution — do not share the compiled PDF publicly."
-                                 if restricted else "CC BY 4.0: redistribution permitted with attribution."),
+            redistribution_note=("Not Creative Commons licensed: copyright remains with the authors; included as published."
+                                 if restricted else "Creative Commons licensed: redistribution permitted with attribution."),
             status=status, access_page_reason=rec.get("error", "") if status != "included" else "",
             identity_check=rec.get("identity", ""), local_file=f"sources/{p['file']}" if status == "included" else "",
             file_size_bytes=rec.get("size", 0), sha256=rec.get("sha256", ""), source_pages=rec.get("pages", 0),
@@ -1988,13 +1990,13 @@ def write_readme_and_checksums():
         "  (per-paper zoom log in build/metadata.json), and the gutter section numbers (§ 2.1) are printed inline.",
         "  Interactive widgets appear in their default static state; use the URL/QR on the cover for the interactive",
         "  versions. Fully blank pages emitted by Chrome at forced section breaks were removed (count in the manifest).",
-        "  Distill articles are CC BY 4.0; the other sites publish no explicit licence, so those renders are for personal",
-        "  study only.",
+        "  Distill articles are CC BY 4.0; the other sites publish no explicit licence, and copyright remains with the",
+        "  authors.",
         f"- Paper {BY_KEY['clean']['id']} (Cammarata 2026, the conclusion) is an HTML essay on already-clean.goodfire.com, "
         "rendered the same",
         "  way but with the page clamped to the printable width, reduced motion (animated figures print their final frame)",
         "  and no lazy-load scrolling: scroll-mounted widgets wider than the page otherwise made Chrome shrink the whole",
-        "  essay to ~6.6 pt. Body text prints at ≈9.9 pt. No explicit licence is published; personal study only.",
+        "  essay to ~6.6 pt. Body text prints at ≈9.9 pt. No explicit licence is published.",
         f"- Papers {', '.join(ids_where(lambda p: p['optional']))} are marked *optional* on their covers and in the indexes:",
         "  kept in the anthology, but safe to skip when printing selectively.",
         "- Every cover carries an *In context* note situating the paper among the others in the collection, with",
@@ -2002,9 +2004,8 @@ def write_readme_and_checksums():
         f"- `{BY_KEY['repe']['file']}` (and, marginally, {BY_KEY['mib']['id']} and {BY_KEY['weightsparse']['id']}) "
         "trigger non-fatal MuPDF warnings about",
         "  dangling object references inside the original arXiv files; every page still renders without error.",
-        "- Sources without a Creative Commons licence (arXiv's non-exclusive distribution licence, and HTML renders from",
-        "  sites that publish none) are flagged in `paper_manifest.csv` (`redistribution_note`): keep this anthology for",
-        "  personal use; do not redistribute it publicly.",
+        "- Licences differ by paper: see `LICENSES.md` and the `license` / `redistribution_note` columns of",
+        "  `paper_manifest.csv`. Copyright in every paper remains with its authors.",
         "",
         "## Title / date discrepancies against the curriculum", "",
     ]
@@ -2019,24 +2020,51 @@ def write_readme_and_checksums():
               ".venv/bin/python scripts/build_anthology.py build qa # re-assemble from cached sources", "```", "",
               "Rendering uses the system Google Chrome/Chromium if present (otherwise `.venv/bin/playwright install chromium`).",
               "A full build downloads or renders every source and takes several minutes.",
-              "", "## What is in the repository", "",
-              "The git repository holds the build script, fonts, manifests, this README and `PRINT_INDEX.pdf`. The compiled",
-              "anthology and `sources/` are not committed: many sources carry licences that do not permit public",
-              "redistribution (see `redistribution_note` in the manifest), and the PDFs are several hundred MB. Run the build",
-              "to produce them locally; `sha256sum -c --ignore-missing checksums.sha256` then verifies them against the",
-              "files this README was generated from.",
+              "", "## Where things are", "",
+              f"- The compiled anthology is attached to the GitHub release: {RELEASE_PDF_URL}",
+              "  (it is larger than GitHub's 100 MB per-file limit for git, so it cannot live in the repository itself).",
+              "- The original papers, exactly as included, are in `sources/`.",
+              "- `sha256sum -c checksums.sha256` verifies a download or a local rebuild against this README.",
               "", "## Files", "",
-              "- `Mechanistic_Interpretability_Complete_Anthology.pdf` — master PDF (built locally)",
+              "- `Mechanistic_Interpretability_Complete_Anthology.pdf` — master PDF (GitHub release asset)",
               "- `PRINT_INDEX.pdf` — standalone print index",
               "- `paper_manifest.csv`, `paper_manifest.json` — per-paper sources, licences, checksums, page ranges",
-              "- `sources/` — the original PDFs exactly as included (built locally)",
+              "- `sources/` — the original PDFs exactly as included",
+              "- `LICENSES.md` — licence and copyright of every included work, fonts and editorial material",
               "- `scripts/build_anthology.py` — reproducible build; `requirements.txt` — Python dependencies",
               "- `scripts/fonts/` — Source Serif 4 and Inter (SIL Open Font License) used for covers, dividers and indexes",
               "- `checksums.sha256` — SHA-256 of every deliverable", ""]
     (ROOT / "README.md").write_text("\n".join(lines))
+    write_licenses(man)
     files = [MASTER, PRINT_INDEX, ROOT / "paper_manifest.csv", ROOT / "paper_manifest.json", ROOT / "README.md",
-             ROOT / "scripts" / "build_anthology.py"] + sorted(FONT_DIR.glob("*.ttf")) + sorted(SOURCES.glob("*.pdf"))
+             ROOT / "LICENSES.md", ROOT / "scripts" / "build_anthology.py"] + sorted(FONT_DIR.glob("*.ttf")) \
+        + sorted(SOURCES.glob("*.pdf"))
     (ROOT / "checksums.sha256").write_text("".join(f"{sha256(f)}  {f.relative_to(ROOT)}\n" for f in files))
+
+
+def write_licenses(man: dict):
+    """LICENSES.md: the licence and copyright position of every work redistributed in this repository."""
+    rows = man["papers"]
+    cc = [r for r in rows if r["license"].startswith("CC")]
+    lines = [
+        "# Licences", "",
+        "This repository redistributes the original papers in `sources/` and the compiled anthology (GitHub release).",
+        "Copyright in every paper remains with its authors; each is included as published, under the terms below.",
+        f"{len(cc)} of {len(rows)} works carry a Creative Commons licence. The others are distributed by arXiv under its",
+        "non-exclusive distribution licence, or published on their authors' websites without an explicit licence.",
+        "", "| # | Work | Licence | Source |", "|---|---|---|---|",
+    ]
+    for r in rows:
+        lines.append(f"| {r['number']} | {r['curriculum_citation']}, *{r['curriculum_title']}* | {r['license']} | {r['source_url']} |")
+    lines += [
+        "", "## Fonts", "",
+        "`scripts/fonts/` contains Inter and Source Serif 4, both under the SIL Open Font License 1.1 "
+        "(`scripts/fonts/Inter-OFL.txt`, `scripts/fonts/SourceSerif4-OFL.md`).",
+        "", "## Editorial material", "",
+        "Cover pages, section dividers, indexes, the bibliography layout and the *In context* notes were written for this",
+        "anthology; they are not part of the original works.", "",
+    ]
+    (ROOT / "LICENSES.md").write_text("\n".join(lines))
 
 
 if __name__ == "__main__":
