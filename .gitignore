@@ -1,0 +1,18 @@
+# Compiled anthology and original sources: built locally (licensing + size; see README)
+/Mechanistic_Interpretability_Complete_Anthology.pdf
+/sources/
+*.part
+
+# Build cache: raw browser renders, metadata cache, QA previews
+/build/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
