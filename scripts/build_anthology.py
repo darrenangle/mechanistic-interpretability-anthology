@@ -2031,37 +2031,211 @@ def contents_markdown(L: Layout, for_single_file=False) -> str:
     return "\n".join(lines)
 
 
-HTML_CSS_PAGE = """
-@font-face{font-family:"Source Serif 4";src:url(assets/fonts/SourceSerif4-Regular.ttf)}
-@font-face{font-family:"Source Serif 4";font-style:italic;src:url(assets/fonts/SourceSerif4-It.ttf)}
-@font-face{font-family:"Source Serif 4";font-weight:600;src:url(assets/fonts/SourceSerif4-Semibold.ttf)}
-@font-face{font-family:"Source Serif 4 Display";font-weight:300;src:url(assets/fonts/SourceSerif4Display-Light.ttf)}
-@font-face{font-family:Inter;src:url(assets/fonts/Inter-Regular.ttf)}
-@font-face{font-family:Inter;font-weight:500;src:url(assets/fonts/Inter-Medium.ttf)}
-:root{--ink:#161616;--muted:#666;--rule:#d8d8d8}
-body{max-width:46rem;margin:3rem auto 6rem;padding:0 1.25rem;font:17px/1.62 "Source Serif 4",Georgia,serif;color:var(--ink)}
-h1{font:300 2.3rem/1.15 "Source Serif 4 Display","Source Serif 4",serif;margin:0 0 1rem}
-h2,h3,h4{font-weight:600;line-height:1.3;margin:2rem 0 .6rem}
-a{color:inherit;text-decoration-color:var(--rule);text-underline-offset:2px}
-nav,.meta,table,figcaption,code{font-family:Inter,system-ui,sans-serif}
-nav{font-size:.78rem;color:var(--muted);margin:1.5rem 0}
-hr{border:0;border-top:1px solid var(--rule);margin:2.5rem 0}
-img{max-width:100%;height:auto;display:block;margin:1rem auto}
-table{border-collapse:collapse;font-size:.8rem;display:block;overflow-x:auto;margin:1rem 0}
-td,th{border-bottom:1px solid var(--rule);padding:.3rem .6rem;text-align:left;vertical-align:top}
-code,pre{font-size:.82rem}pre{overflow-x:auto}
-ul{padding-left:1.2rem}li{margin:.25rem 0}
+# HTML edition design: mirrors the print editorial pages — Source Serif 4 Display Light for titles, Inter tracked
+# labels, hairline rules, generous whitespace. One shared stylesheet in html/assets/style.css.
+HTML_STYLE = """
+@font-face{font-family:"Source Serif 4";src:url(fonts/SourceSerif4-Regular.ttf);font-display:swap}
+@font-face{font-family:"Source Serif 4";font-style:italic;src:url(fonts/SourceSerif4-It.ttf);font-display:swap}
+@font-face{font-family:"Source Serif 4";font-weight:600;src:url(fonts/SourceSerif4-Semibold.ttf);font-display:swap}
+@font-face{font-family:"Display";font-weight:300;src:url(fonts/SourceSerif4Display-Light.ttf);font-display:swap}
+@font-face{font-family:Inter;src:url(fonts/Inter-Regular.ttf);font-display:swap}
+@font-face{font-family:Inter;font-weight:500;src:url(fonts/Inter-Medium.ttf);font-display:swap}
+:root{--ink:#1b1b1b;--muted:#6b6b6b;--faint:#9a9a9a;--rule:#e2e2e2;--rule-strong:#1b1b1b;
+  --serif:"Source Serif 4",Georgia,serif;--display:"Display","Source Serif 4",Georgia,serif;--sans:Inter,system-ui,sans-serif}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;color:var(--ink);background:#fff;font:18px/1.72 var(--serif);font-feature-settings:"onum" 0}
+a{color:inherit;text-decoration:underline;text-decoration-color:var(--rule);text-decoration-thickness:1px;text-underline-offset:3px}
+a:hover{text-decoration-color:var(--ink)}
+.page{max-width:44rem;margin:0 auto;padding:clamp(3rem,9vw,7.5rem) 1.5rem 8rem}
+.label{font:500 .68rem/1.4 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.rule{border:0;border-top:1px solid var(--rule);margin:0}
+.rule.strong{border-top-color:var(--rule-strong)}
+.sans{font-family:var(--sans)}
+/* priority markers: filled circle, open circle, open diamond (as in print) */
+.pri{display:inline-block;width:.5rem;height:.5rem;border:1.2px solid var(--ink);border-radius:50%;vertical-align:.08em}
+.pri.P0{background:var(--ink)}
+.pri.F{border-radius:0;transform:rotate(45deg) scale(.82)}
+/* ---------- landing ---------- */
+.hero{padding:clamp(2rem,10vh,7rem) 0 4.5rem}
+.hero h1{font:300 clamp(3rem,10vw,5.6rem)/.98 var(--display);letter-spacing:-.015em;margin:1.6rem 0 2rem}
+.hero .dek{font-style:italic;font-size:1.3rem;line-height:1.5;color:var(--muted);max-width:34rem;margin:0}
+.hero .actions{margin-top:2.6rem;display:flex;gap:1.8rem;flex-wrap:wrap}
+.hero .actions a{font:500 .74rem/1 var(--sans);letter-spacing:.12em;text-transform:uppercase;text-decoration:none;
+  border-bottom:1px solid var(--ink);padding-bottom:.4rem}
+.contents{margin:0 0 1.2rem}
+.contents .head{display:flex;justify-content:space-between;padding-bottom:.8rem}
+.contents a.row{display:grid;grid-template-columns:2rem 1fr auto;align-items:baseline;gap:.5rem;padding:1rem 0;
+  border-top:1px solid var(--rule);text-decoration:none}
+.contents a.row:hover .name{text-decoration:underline;text-decoration-color:var(--rule)}
+.contents .letter{font:600 1.15rem var(--serif)}
+.contents .name{font-size:1.15rem}
+.contents .count{font:400 .72rem var(--sans);color:var(--faint);margin-left:.6rem}
+.contents .pages{font:400 .82rem var(--sans);color:var(--muted);font-variant-numeric:tabular-nums}
+.facts{font:400 .8rem/1.9 var(--sans);color:var(--muted);margin:2.2rem 0 0}
+.section{margin-top:6.5rem;scroll-margin-top:2rem}
+.section .sec-head{display:flex;align-items:flex-end;gap:1.4rem;padding-bottom:1.6rem;border-bottom:1px solid var(--rule-strong)}
+.section .sec-letter{font:300 4.6rem/.8 var(--display)}
+.section .sec-name{font:300 1.75rem/1.2 var(--display);padding-bottom:.15rem}
+.paper{display:grid;grid-template-columns:2.6rem 1rem 1fr;gap:0 .6rem;padding:1.35rem 0;border-bottom:1px solid var(--rule);
+  text-decoration:none}
+.paper .num{font:500 .78rem/2.1 var(--sans);color:var(--muted);font-variant-numeric:tabular-nums}
+.paper .mark{line-height:2.05}
+.paper .t{font-size:1.12rem;line-height:1.45}
+.paper:hover .t{text-decoration:underline;text-decoration-color:var(--rule)}
+.paper .by{display:block;font:400 .76rem/1.6 var(--sans);color:var(--faint);margin-top:.35rem}
+.legend{display:flex;gap:1.6rem;flex-wrap:wrap;margin-top:1.6rem}
+.legend span{display:inline-flex;align-items:center;gap:.5rem}
+footer.site{margin-top:7rem;padding-top:1.4rem;border-top:1px solid var(--rule);font:400 .74rem/1.8 var(--sans);color:var(--faint)}
+/* ---------- paper pages ---------- */
+.topbar{display:flex;justify-content:space-between;gap:1rem;padding-bottom:.9rem;border-bottom:1px solid var(--rule)}
+.topbar a{text-decoration:none}
+.cover .numeral{font:300 clamp(5rem,16vw,8.5rem)/.9 var(--display);margin:3.2rem 0 1.4rem;letter-spacing:-.02em}
+.cover .tag{display:flex;align-items:center;gap:.6rem}
+.cover h1{font:300 clamp(2.1rem,5.5vw,3rem)/1.12 var(--display);letter-spacing:-.008em;margin:1.4rem 0 1.2rem}
+.cover .cite{font-style:italic;font-size:1.2rem;color:var(--muted);margin:0}
+.cover .authors{font:400 .78rem/1.7 var(--sans);color:var(--faint);margin:.5rem 0 0}
+.notes{margin:3.6rem 0 0}
+.notes .note{margin:0 0 2.4rem}
+.notes .note p{margin:.65rem 0 0;font-size:1.06rem;line-height:1.7}
+dl.meta{display:grid;grid-template-columns:8.5rem 1fr;gap:.55rem 1rem;margin:3rem 0 0;padding-top:1.6rem;
+  border-top:1px solid var(--rule);font:400 .8rem/1.6 var(--sans)}
+dl.meta dt{font:500 .64rem/2.1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+dl.meta dd{margin:0;overflow-wrap:anywhere}
+.pager{display:grid;grid-template-columns:1fr auto 1fr;gap:1rem;margin:4rem 0 0;padding:1.2rem 0;
+  border-top:1px solid var(--rule-strong);border-bottom:1px solid var(--rule);font:400 .8rem/1.5 var(--sans)}
+.pager a{text-decoration:none}.pager .next{text-align:right}.pager .mid{color:var(--muted)}
+.pager small{display:block;font:500 .62rem/1.8 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.disclaimer{font-style:italic;font-size:.9rem;color:var(--faint);margin:3rem 0 4rem}
+/* extracted paper text */
+article{font-size:1.02rem}
+article p{margin:0 0 1.25em}
+article h1,article h2,article h3,article h4,article h5{font-weight:600;line-height:1.3;letter-spacing:-.003em}
+article h1{font:300 2.1rem/1.15 var(--display);margin:4.5rem 0 1.6rem}
+article h2{font-size:1.45rem;margin:4rem 0 1.1rem}
+article h3{font-size:1.18rem;margin:3rem 0 .9rem}
+article h4,article h5{font-size:1rem;margin:2.4rem 0 .7rem}
+article img{display:block;max-width:100%;height:auto;margin:2.4rem auto}
+article ul,article ol{padding-left:1.3rem;margin:0 0 1.4em}article li{margin:.45em 0}
+article table{display:block;overflow-x:auto;border-collapse:collapse;margin:2rem 0;font:400 .78rem/1.5 var(--sans)}
+article td,article th{border-bottom:1px solid var(--rule);padding:.45rem .75rem;text-align:left;vertical-align:top}
+article code,article pre{font-size:.82rem}article pre{overflow-x:auto;padding:1rem 0}
+article hr{border:0;border-top:1px solid var(--rule);margin:3rem 0}
+@media (max-width:560px){body{font-size:17px}.paper{grid-template-columns:2.2rem .9rem 1fr}dl.meta{grid-template-columns:1fr}
+  .pager{grid-template-columns:1fr 1fr}.pager .mid{display:none}.topbar a.label{display:none}.topbar{justify-content:flex-end}
+  .hero .actions{gap:1.4rem}}
 """
 
 
-def html_page(title: str, body_md: str) -> str:
+def _md_to_html(md: str, inline=False) -> str:
     from markdown_it import MarkdownIt
-    html = MarkdownIt("commonmark", {"html": True}).enable("table").render(body_md)
-    html = re.sub(r'href="(\d\d_[a-z0-9_]+)\.md', r'href="\1.html', html).replace('href="README.md"', 'href="index.html"')
-    html = html.replace('src="images/', 'src="../markdown/images/')
-    return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
-            f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>'
-            f"<style>{HTML_CSS_PAGE}</style></head><body>\n{html}</body></html>\n")
+    mdi = MarkdownIt("commonmark", {"html": True}).enable("table")
+    html = mdi.renderInline(md) if inline else mdi.render(md)
+    html = re.sub(r'href="(\d\d_[a-z0-9_]+)\.md"', r'href="\1.html"', html)
+    return html.replace('src="images/', 'src="../markdown/images/')
+
+
+def html_shell(title: str, inner: str) -> str:
+    return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>{title}</title>\n'
+            f'<link rel="stylesheet" href="assets/style.css">\n</head><body>\n<main class="page">\n{inner}\n</main>\n'
+            "</body></html>\n")
+
+
+def pri_html(pri: str) -> str:
+    return f'<span class="pri {pri}" aria-hidden="true"></span>'
+
+
+def html_paper(p: dict, rec: dict, pl: dict, body_md: str) -> str:
+    i = CATALOG.index(p)
+    prev_, next_ = (CATALOG[i - 1] if i else None), (CATALOG[i + 1] if i + 1 < N else None)
+    link = lambda q: f"{md_name(q)[:-3]}.html"
+    url = p["html"] or rec.get("source_url", "")
+    authors = ", ".join(rec.get("authors") or [])
+    notes = [("Why read this", p["why"]), ("Reading focus", p["focus"]),
+             ("In context", _md_to_html(md_refs(CONTEXT[p["key"]]), inline=True))]
+    if p["optional"]:
+        notes.append(("Optional", _md_to_html(md_refs(p["optional_raw"]), inline=True)))
+    if p["note"]:
+        notes.append(("Note", p["note"]))
+    src = f'<a href="{url}">{url}</a>' + (f' &nbsp;·&nbsp; arXiv:{p["arxiv"]}' if p["arxiv"] else f' &nbsp;·&nbsp; {p["venue"]}')
+    pager = (
+        '<nav class="pager">'
+        + (f'<a class="prev" href="{link(prev_)}"><small>Previous · {prev_["id"]}</small>{prev_["short"]}</a>' if prev_ else "<span></span>")
+        + '<a class="mid" href="index.html#section-' + p["sec"] + '">Contents</a>'
+        + (f'<a class="next" href="{link(next_)}"><small>Next · {next_["id"]}</small>{next_["short"]}</a>' if next_ else "<span></span>")
+        + "</nav>")
+    inner = f"""
+<div class="topbar"><a class="label" href="index.html">{TITLE}</a>
+<span class="label">Paper {p['id']} / {N} &nbsp;·&nbsp; Section {p['sec']}</span></div>
+<header class="cover">
+<div class="numeral">{p['id']}</div>
+<div class="tag">{pri_html(p['pri'])}<span class="label" style="color:var(--ink)">{PRIORITY[p['pri']][0]}</span>
+{'<span class="label">&nbsp;·&nbsp; Optional</span>' if p['optional'] else ''}</div>
+<h1>{p['title']}</h1>
+<p class="cite">{p['cite']} — {p['year']}</p>
+{f'<p class="authors">{authors}</p>' if authors else ''}
+</header>
+<section class="notes">
+{''.join(f'<div class="note"><div class="label">{k}</div><p>{v}</p></div>' for k, v in notes)}
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>{p['sec']} — {SECTIONS[p['sec']]}</dd>
+<dt>Source</dt><dd>{src}</dd>
+<dt>Licence</dt><dd>{rec.get('license', '—')}</dd>
+<dt>In print</dt><dd>PDF pages {pl['cover']}–{pl['end']} &nbsp;·&nbsp; <a href="{RELEASE_PDF_URL}">download the anthology</a></dd>
+</dl>
+{pager}
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+{_md_to_html(body_md)}
+</article>
+{pager}
+"""
+    return html_shell(f"{p['id']} · {p['title']} — {TITLE}", inner)
+
+
+def html_index(L: Layout) -> str:
+    rows = []
+    for sec, name in SECTIONS.items():
+        s = L.sections[sec]
+        n = sum(1 for p in CATALOG if p["sec"] == sec)
+        rows.append(f'<a class="row" href="#section-{sec}"><span class="letter">{sec}</span>'
+                    f'<span><span class="name">{name}</span><span class="count">{"1 paper" if n == 1 else f"{n} papers"}</span></span>'
+                    f'<span class="pages">pp. {s["divider"]}–{s["end"]}</span></a>')
+    sections = []
+    for sec, name in SECTIONS.items():
+        items = []
+        for p in (q for q in CATALOG if q["sec"] == sec):
+            opt = " &nbsp;·&nbsp; optional" if p["optional"] else ""
+            items.append(f'<a class="paper" href="{md_name(p)[:-3]}.html"><span class="num">{p["id"]}</span>'
+                         f'<span class="mark">{pri_html(p["pri"])}</span>'
+                         f'<span><span class="t">{p["title"]}</span><span class="by">{p["cite"]}, {p["year"]}{opt}</span></span></a>')
+        sections.append(f'<section class="section" id="section-{sec}"><div class="sec-head"><span class="sec-letter">{sec}</span>'
+                        f'<span class="sec-name">{name}</span></div>{"".join(items)}</section>')
+    legend = "".join(f'<span class="label">{pri_html(k)} {v[0]}</span>' for k, v in PRIORITY.items())
+    inner = f"""
+<header class="hero">
+<div class="label">A research anthology &nbsp;·&nbsp; online edition</div>
+<h1>Mechanistic<br>Interpretability</h1>
+<p class="dek">{number_words(N - 1).capitalize()} original papers on circuits, superposition, sparse autoencoders and
+alignment — and a concluding essay.</p>
+<div class="actions"><a href="{RELEASE_PDF_URL}">Download the print PDF</a><a href="{REPO_URL}">Source &amp; Markdown</a></div>
+</header>
+<section class="contents">
+<div class="head"><span class="label">Contents</span><span class="label">Print pages</span></div>
+{''.join(rows)}
+<hr class="rule">
+<p class="facts">{N} papers &nbsp;·&nbsp; {L.total} pages in print &nbsp;·&nbsp; each paper opens with reading notes and links
+to the papers it speaks to. Text here is extracted from the PDFs; the print edition is authoritative.</p>
+<div class="legend">{legend}</div>
+</section>
+{''.join(sections)}
+<footer class="site">Original works © their respective authors; licences in
+<a href="{REPO_URL}/blob/main/LICENSES.md">LICENSES.md</a>. Reading notes and design are editorial additions.</footer>
+"""
+    return html_shell(TITLE, inner)
 
 
 def stage_export():
@@ -2112,14 +2286,16 @@ def stage_export():
     for p in CATALOG:
         md = paper_markdown(p, meta[p["id"]], L.papers[p["id"]], relink_images(cached[p["slug"]], p["slug"]))
         (MD_DIR / md_name(p)).write_text(md)
-        (HTML_DIR / f"{md_name(p)[:-3]}.html").write_text(html_page(f"{p['id']} · {p['title']}", md))
+        body = relink_images(cached[p["slug"]], p["slug"])
+        (HTML_DIR / f"{md_name(p)[:-3]}.html").write_text(html_paper(p, meta[p["id"]], L.papers[p["id"]], body))
         anchor = md_name(p)[:-3]
         single.append(f'<a id="{anchor}"></a>\n\n' + re.sub(r"\]\((\d\d_[a-z0-9_]+)\.md\)", r"](#\1)", md)
                       .replace("(README.md)", "(#top)"))
     contents = contents_markdown(L)
     (MD_DIR / "README.md").write_text(contents)
     (MD_DIR / "anthology.md").write_text('<a id="top"></a>\n\n' + "\n\n".join(single))
-    (HTML_DIR / "index.html").write_text(html_page(TITLE, contents))
+    (HTML_DIR / "index.html").write_text(html_index(L))
+    (HTML_DIR / "assets" / "style.css").write_text(HTML_STYLE)
     check_export(meta)
 
 
