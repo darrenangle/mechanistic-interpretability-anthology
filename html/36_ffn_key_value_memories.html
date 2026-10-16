@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>36 · Transformer Feed-Forward Layers Are Key-Value Memories — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 36 / 91 &nbsp;·&nbsp; Section D</span></div>
+<header class="cover">
+<div class="numeral">36</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>Transformer Feed-Forward Layers Are Key-Value Memories</h1>
+<p class="cite">Geva et al. — 2021</p>
+<p class="authors">Mor Geva, Roei Schuster, Jonathan Berant, Omer Levy</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Reads transformer feed-forward layers as key–value memories: keys detect human-interpretable input patterns, shallow in lower layers and semantic in upper ones, and values promote the tokens likely to follow those patterns.</p></div><div class="note"><div class="label">Reading focus</div><p>The key–value reading of the two MLP matrices, the expert annotation of trigger prefixes, projecting values onto the vocabulary, the upper- versus lower-layer agreement, and how layer outputs compose many memories and are refined through the residual stream.</p></div><div class="note"><div class="label">In context</div><p>The NLP lineage of reading MLP neurons as units, studied in a 16-layer WikiText-103 model: projecting values onto the vocabulary is a cousin of <a href="12_logit_lens.html">12</a>, and <a href="18_rome.html">18</a> builds on its key–value picture to locate and edit facts. Its readable keys predate the polysemanticity theory of <a href="33_toy_models_of_superposition.html">33</a>; <a href="37_neurons_in_haystack.html">37</a>, <a href="38_universal_neurons.html">38</a> and <a href="63_circuits_sparse_neuron_basis.html">63</a> return to the neuron as the unit of analysis.</p></div><div class="note"><div class="label">Note</div><p>arXiv first posted December 2020; published at EMNLP 2021.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>D — What is a feature?</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2012.14913v2">https://arxiv.org/abs/2012.14913v2</a> &nbsp;·&nbsp; arXiv:2012.14913v2</dd>
+<dt>Licence</dt><dd>arXiv non-exclusive distribution licence</dd>
+<dt>In print</dt><dd>PDF pages 1131–1143 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="35_privileged_bases.html"><small>Previous · 35</small>Privileged Bases in the Residual Stream</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="37_neurons_in_haystack.html"><small>Next · 37</small>Finding Neurons in a Haystack</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1><strong>Transformer Feed-Forward Layers Are Key-Value Memories</strong></h1>
+<p><strong>Mor Geva</strong><sup>1</sup><sup>_,<em>2</sup> <strong>Roei Schuster</strong><sup>1</sup><sup></em>,<em>3</sup> <strong>Jonathan Berant</strong><sup>1</sup><sup></em>,_2</sup> <strong>Omer Levy</strong><sup>1</sup> 1Blavatnik School of Computer Science, Tel-Aviv University</p>
+<p>2Allen Institute for Artificial Intelligence</p>
+<p>3Cornell Tech</p>
+<p>{morgeva@mail,joberant@cs,levyomer@cs}.tau.ac.il, rs864@cornell.edu</p>
+<h2><strong>Abstract</strong></h2>
+<p>Feed-forward layers constitute two-thirds of a transformer model’s parameters, yet their role in the network remains under-explored. We show that feed-forward layers in transformerbased language models operate as key-value memories, where each key correlates with textual patterns in the training examples, and each value induces a distribution over the output vocabulary. Our experiments show that the learned patterns are human-interpretable, and that lower layers tend to capture shallow patterns, while upper layers learn more semantic ones. The values complement the keys’ input patterns by inducing output distributions that concentrate probability mass on tokens likely to appear immediately after each pattern, particularly in the upper layers. Finally, we demonstrate that the output of a feed-forward layer is a composition of its memories, which is subsequently refined throughout the model’s layers via residual connections to produce the final output distribution.</p>
+<h2><strong>1 Introduction</strong></h2>
+<p>Transformer-based language models (Vaswani et al., 2017) are at the core of state-of-the-art natural language processing (Devlin et al., 2019; Brown et al., 2020), largely due to the success of selfattention. While much literature has been devoted to analyzing the function of self-attention layers (Voita et al., 2019; Clark et al., 2019; Vig and Belinkov, 2019), they account for only a third of a typical transformer’s parameters (4 <em>d</em><sup>2</sup> per layer, where <em>d</em> is the model’s hidden dimension). Most of the parameter budget is spent on position-wise feedforward layers (8 <em>d</em><sup>2</sup> per layer), yet their role remains under-explored. What, if so, is the function of feed-forward layers in a transformer language model?</p>
+<p>We show that feed-forward layers emulate neural memories (Sukhbaatar et al., 2015), where the first</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0001-11.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Transformer layers<br>x’ x’ x’ x’ x’<br>1 2 3 4 5<br>FF<br>layer<br>while<br>.2 v 1 1.5 v 2 ... it will take a 0 v dm<br>... every once in a<br>... , and for a<br>k 1 k 2 k dm<br>x x x x x<br>1 2 3 4 5<br>self-attention layer<br>Transformer layers<br>Stay with you for a<br><!-- End of picture text --></p>
+<p>Figure 1: An illustration of how a feed-forward layer emulates a key-value memory. Input vectors (here, <strong>x</strong> 5) are multiplied by <em>keys</em> to produce <em>memory coefficients</em> (e.g., the memory coefficient for <strong>v</strong> 1 is 0 <em>.</em> 2), which then weigh distributions over the output vocabulary, stored in the <em>values</em> . The feed-forward layer’s output is thus the weighted sum of its values.</p>
+<p>parameter matrix in the layer corresponds to <em>keys</em> , and the second parameter matrix to <em>values</em> . Figure 1 shows how the keys (first parameter matrix) interact with the input to produce coefficients, which are then used to compute a weighted sum of the values (second parameter matrix) as the output. While the theoretical similarity between feed-forward layers and key-value memories has previously been suggested by Sukhbaatar et al. (2019), we take this observation one step further, and analyze the “memories” that the feed-forward layers store.</p>
+<p>We find that each key correlates with a specific set of human-interpretable input patterns, such as <em>n</em> -grams or semantic topics. For example, <em>k</em> 2 in Figure 1 is triggered by inputs that describe a pe-</p>
+<p>riod of time and end with <em>“a”</em> . Simultaneously, we observe that each <em>value</em> can induce a distribution over the output vocabulary, and that this distribution correlates with the next-token distribution of the corresponding keys in the upper layers of the model. In the above example, the corresponding value <em>v</em> 2 represents a distribution that puts most of its probability mass on the word <em>“while”</em> .</p>
+<p>Lastly, we analyze how the language model, as a whole, composes its final prediction from individual memories. We observe that each layer combines hundreds of active memories, creating a distribution that is qualitatively different from each of its component memories’ values. Meanwhile, the residual connection between layers acts as a refinement mechanism, gently tuning the prediction at each layer while retaining most of the residual’s information.</p>
+<p>In conclusion, our work sheds light on the function of feed-forward layers in transformer-based language models. We show that feed-forward layers act as pattern detectors over the input across all layers, and that the final output distribution is gradually constructed in a bottom-up fashion.<sup>1</sup></p>
+<h2><strong>2 Feed-Forward Layers as Unnormalized Key-Value Memories</strong></h2>
+<p><strong>Feed-forward layers</strong> A transformer language model (Vaswani et al., 2017) is made of intertwined self-attention and feed-forward layers. Each feedforward layer is a position-wise function, processing each input vector independently. Let <strong>x</strong> <em>∈</em> R<sup><em>d</em></sup> be a vector corresponding to some input text prefix. We can express the feed-forward layer FF( <em>·</em> ) as follows (bias terms are omitted):</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0002-05.jpg" alt="" /></p>
+<p>Here, <em>K, V ∈</em> R<sup><em>dm×d</em></sup> are parameter matrices, and <em>f</em> is a non-linearity such as ReLU.</p>
+<p><strong>Neural memory</strong> A neural memory (Sukhbaatar et al., 2015) consists of <em>dm</em> key-value pairs, which we call <em>memories</em> .<sup>2</sup> Each key is represented by a <em>d</em> -dimensional vector <strong>k</strong> <em>i ∈</em> R<sup><em>d</em></sup> , and together form the parameter matrix <em>K ∈</em> R<sup><em>dm×d</em></sup> ; likewise, we define the value parameters as <em>V ∈</em> R<sup><em>dm×d</em></sup> . Given an input vector <strong>x</strong> <em>∈</em> R<sup><em>d</em></sup> , we compute a distribution</p>
+<blockquote>
+<p>1The code for reproducing our experiments is available at https://github.com/mega002/ff-layers/.</p>
+</blockquote>
+<blockquote>
+<p>2We use the terms “memory cells” and “memories” interchangeably.</p>
+</blockquote>
+<p>over the keys, and use it to compute the expected value:</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0002-11.jpg" alt="" /></p>
+<p>With matrix notation, we arrive at a more compact formulation:</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0002-13.jpg" alt="" /></p>
+<p><strong>Feed-forward layers emulate neural memory</strong> Comparing equations 1 and 2 shows that feedforward layers are almost identical to key-value neural memories; the only difference is that neural memory uses softmax as the non-linearity <em>f</em> ( <em>·</em> ), while the canonical transformer does not use a normalizing function in the feed-forward layer. The <em>hidden dimension dm</em> is essentially the number of memories in the layer, and the activation <strong>m</strong> = <em>f</em> ( <strong>x</strong> <em>· K</em><sup><em>⊤</em></sup> ), commonly referred to as the <em>hidden layer</em> , is a vector containing an unnormalized non-negative coefficient for each memory. We refer to each <strong>m</strong> <em>i</em> as the <em>memory coefficient</em> of the <em>i</em> th memory cell.</p>
+<p>Sukhbaatar et al. (2019) make an analogous observation, and incorporate the parameters of the feed-forward layers as persistent memory cells in the self-attention layers. While this reparameterization works in practice, the experiment does not tell us much about the role of feed-forward layers in the canonical transformer. If transformer feed-forward layers are indeed key-value memories, then what memories do they store?</p>
+<p>We conjecture that each key vector <strong>k</strong> <em>i</em> captures a particular pattern (or set of patterns) in the input sequence (Section 3), and that its corresponding value vector <strong>v</strong> <em>i</em> represents the distribution of tokens that follows said pattern (Section 4).</p>
+<h2><strong>3 Keys Capture Input Patterns</strong></h2>
+<p>We posit that the key vectors <em>K</em> in feed-forward layers act as pattern detectors over the input sequence, where each individual key vector <strong>k</strong> <em>i</em> corresponds to a specific pattern over the input prefix <em>x</em> 1 <em>, . . . , xj</em> . To test our claim, we analyze the keys of a trained language model’s feed-forward layers. We first retrieve the training examples (prefixes of a sentence) most associated with a given key, that is, the input texts where the memory coefficient is highest. We</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Pattern</th>
+<th>Example triggerprefixes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>k</strong><sup>1</sup><br>449</td>
+<td>Ends with_“substitutes”_<br>(shallow)</td>
+<td><em>At the meeting, Elton said that “for artistic reasons there could be no substitutes</em><br><em>In German service, they were used as substitutes</em><br><em>Two weeks later, he came off the substitutes</em></td>
+</tr>
+<tr>
+<td><strong>k</strong><sup>6</sup><br>2546</td>
+<td>Military, ends with<br><em>“base”</em>/<em>“bases”</em><br>(shallow + semantic)</td>
+<td><em>On 1 April the SRSG authorised the SADF to leave their bases</em><br><em>Aircraft from all four carriers attacked the Australian base</em><br><em>Bombersflying missions to Rabaul and other Japanese bases</em></td>
+</tr>
+<tr>
+<td><strong>k</strong><sup>10</sup><br>2997</td>
+<td>a “part of” relation<br>(semantic)</td>
+<td><em>In June 2012 she was named as one of the team that competed</em><br><em>He was also a part of the Indian delegation</em><br><em>Toy Story is also among the top ten in the BFI list of the 50filmsyou should</em></td>
+</tr>
+<tr>
+<td><strong>k</strong><sup>13</sup><br>2989</td>
+<td>Ends with a time<br>range (semantic)</td>
+<td><em>Worldwide, most tornadoes occur in the late afternoon, between 3 pm and 7</em><br><em>Weekend tolls are in effect from 7:00 pm Friday until</em><br><em>The building is open to thepublic seven days a week, from 11:00 am to</em></td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td><em>Time shifting viewing added 57 percent to the episode’s</em></td>
+</tr>
+<tr>
+<td><strong>k</strong><sup>16</sup><br>1935</td>
+<td>TV shows (semantic)</td>
+<td><em>The first season set that the episode was included in was as part of the</em><br><em>From the original NBC daytime version, archived</em></td>
+</tr>
+</tbody>
+</table>
+<p>Table 1: Examples of human-identified patterns that trigger different memory keys.</p>
+<p>then ask humans to identify patterns within the retrieved examples. For almost every key <strong>k</strong> <em>i</em> in our sample, a small set of well-defined patterns, recognizable by humans, covers most of the examples associated with the key.</p>
+<h3><strong>3.1 Experiment</strong></h3>
+<p>We conduct our experiment over the language model of Baevski and Auli (2019), a 16-layer transformer language model trained on WikiText103 (Merity et al., 2017). This model defines <em>d</em> = 1024 and <em>dm</em> = 4096, and has a total of <em>dm ·</em> 16 = 65 <em>,</em> 536 potential keys to analyze. We randomly sample 10 keys per layer (160 in total).</p>
+<p><strong>Retrieving trigger examples</strong> We assume that patterns stored in memory cells originate from examples the model was trained on. Therefore, given a key <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>that corresponds to the</sup><sup><em>i</em>-th hidden dimen-</sup> sion of the <em>ℓ</em> -th feed-forward layer, we compute the memory coefficient ReLU( <strong>x</strong><sup><em>ℓ</em></sup> <em>j</em><sup><em>·</em></sup><sup><strong>k</strong></sup> <em>i</em><sup><em>ℓ</em>) for every prefix</sup> <em>x</em> 1 <em>, . . . , xj</em> of every sentence from the WikiText103’s training set.<sup>3</sup> For example, for the hypothetical sentence <em>“I love dogs”</em> , we will compute three coefficients, for the prefixes <em>“I”</em> , <em>“I love”</em> , and <em>“I love dogs”</em> . Then, we retrieve the <em>top-t trigger examples</em> , that is, the <em>t</em> prefixes whose representation at layer <em>ℓ</em> yielded the highest inner product with <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>.</sup></p>
+<p><strong>Pattern analysis</strong> We let human experts (NLP graduate students) annotate the top-25 prefixes retrieved for each key, and asked them to (a) identify repetitive patterns that occur in at least 3 prefixes (which would strongly indicate a connection to the key, as this would unlikely happen if sentences</p>
+<blockquote>
+<p>3We segment training examples into sentences to simplify the annotation task and later analyses.</p>
+</blockquote>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0003-08.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>100<br>80<br>60<br>40<br>20<br>0<br>1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16<br>layer<br>shallow semantic<br>shallow + semantic not-covered<br>% trigger examples<br><!-- End of picture text --></p>
+<p>Figure ~~<u>2: Break</u>~~ down of the labels experts assigned to trigger examples in each layer. Some examples were not associated with any pattern (“not-covered”).</p>
+<p>were drawn at random) (b) describe each recognized pattern, and (c) classify each recognized pattern as <em>“shallow”</em> (e.g. recurring n-grams) or <em>“semantic”</em> (recurring topic). Each key and its corresponding top-25 prefixes were annotated by one expert. To assure that every pattern is grounded in at least 3 prefixes, we instruct the experts to specify, for each of the top-25 prefixes, which pattern(s) it contains. A prefix may be associated with multiple (shallow or semantic) patterns.</p>
+<p>Table 1 shows example patterns. A fullyannotated example of the top-25 prefixes from a single memory key is shown in Appendix A.</p>
+<h3><strong>3.2 Results</strong></h3>
+<p><strong>Memories are associated with humanrecognizable patterns</strong> Experts were able to identify at least one pattern for every key, with an average of 3.6 identified patterns per</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0004-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>10<br>20<br>30<br>40<br>50<br>60<br>70<br>1 2 3 4 5 6 7 8 9 10111213141516<br>layer<br>first last random<br>change in memory coefficient (%)<br><!-- End of picture text --></p>
+<p>Figure 3: Relative change in memory coefficient caused by removing the first, the last, or a random token from the input.</p>
+<p>key. Furthermore, the vast majority of retrieved prefixes (65%-80%) were associated with at least one identified pattern (Figure 2). Thus, the top examples triggering each key share clear patterns that humans can recognize.</p>
+<p><strong>Shallow layers detect shallow patterns</strong> Comparing the amount of prefixes associated with shallow patterns and semantic patterns (Figure 2), the lower layers (layers 1-9) are dominated by shallow patterns, often with prefixes that share the last word (e.g. <strong>k</strong><sup>1</sup> 449<sup>in Table 1).In contrast, the upper layers</sup> (layers 10-16) are characterized by more semantic patterns, with prefixes from similar contexts but without clear surface-form similarities (e.g. <strong>k</strong><sup>16</sup> 1935 in Table 1). This observation corroborates recent findings that lower (upper) layers in deep contextualized models encode shallow (semantic) features of the inputs (Peters et al., 2018; Jawahar et al., 2019; Liu et al., 2019).</p>
+<p>To further test this hypothesis, we sample 1600 random keys (100 keys per layer) and apply local modifications to the top-50 trigger examples of every key. Specifically, we remove either the <em>first</em> , <em>last</em> , or a <em>random</em> token from the input, and measure how this mutation affects the memory coefficient. Figure 3 shows that the model considers the end of an example as more salient than the beginning for predicting the next token. In upper layers, removing the last token has less impact, supporting our conclusion that upper-layer keys are less correlated with shallow patterns.</p>
+<h2><strong>4 Values Represent Distributions</strong></h2>
+<p>After establishing that keys capture patterns in training examples, we turn to analyze the information</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0004-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>3.5<br>3.0<br>2.5<br>2.0<br>1.5<br>1.0<br>0.5<br>0.0<br>1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16<br>layer<br>agreement rate (%)<br><!-- End of picture text --></p>
+<p>Figure 4: Agreement rate between the top-ranked token based on the value vector <strong>v</strong> <em>i</em><sup><em>ℓ</em>, and the next token of</sup> the top-ranked trigger example associated with the key vector <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>.</sup></p>
+<p>stored in their corresponding values. We show that each value <strong>v</strong> <em>i</em><sup>_ℓ_can be viewed as a distribution over</sup> the output vocabulary, and demonstrate that this distribution complements the patterns in the corresponding key <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>in the model’s upper layers (see</sup> Figure 1).</p>
+<p><strong>Casting values as distributions over the vocabulary.</strong> We begin by converting each value vector <strong>v</strong> <em>i</em><sup>_ℓ_intoaprobabilitydistributionoverthevocab-</sup> ulary by multiplying it by the output embedding matrix <em>E</em> and applying a softmax:<sup>4</sup></p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0004-11.jpg" alt="" /></p>
+<p>The probability distribution <strong>p</strong><sup><em>ℓ</em></sup> <em>i</em><sup>isuncalibrated,</sup> since the value vector <strong>v</strong> <em>i</em><sup>_ℓ_istypicallymultiplied</sup> by the input-dependent memory coefficient <strong>m</strong><sup><em>ℓ</em></sup> <em>i</em><sup>,</sup> changing the skewness of the output distribution. That said, the <em>ranking</em> induced by <strong>p</strong><sup><em>ℓ</em></sup> <em>i</em><sup>is invariant to</sup> the coefficient, and can still be examined. This conversion assumes (naïvely) that all model’s layers operate in the same embedding space.</p>
+<p><strong>Value predictions follow key patterns in upper layers.</strong> For every layer <em>ℓ</em> and memory dimension <em>i</em> , we compare the top-ranked token according to <strong>v</strong> <em>i</em><sup><em>ℓ</em>, (argmax(</sup><sup><strong>p</strong></sup><sup><em>ℓ</em></sup> <em>i</em><sup>)) to the next token</sup><sup><em>w</em></sup> <em>i</em><sup>_ℓ_in the top-</sup> 1 trigger example according to <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>(theexample</sup> whose memory coefficient for <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>isthehighest).</sup> Figure 4 shows the <em>agreement rate</em> , i.e. the fraction of memory cells (dimensions) where the value’s top prediction matches the key’s top trigger example (argmax( <strong>p</strong><sup><em>ℓ</em></sup> <em>i</em><sup>)=</sup><sup><em>w</em></sup> <em>i</em><sup><em>ℓ</em>).Itcanbeseenthatthe</sup></p>
+<p>4This is a simplification; in practice, we use the adaptive softmax (Baevski and Auli, 2019) to compute probabilities.</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0005-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>30000<br>25000<br>20000<br>15000<br>10000<br>5000<br>0<br>1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16<br>layer<br>rank distribution<br><!-- End of picture text --></p>
+<p>Figure 5: Distribution of the rank of the next-token in the top-1 trigger example of <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>(</sup><sup><em>w</em></sup> <em>i</em><sup><em>ℓ</em>),accordingtothe</sup> ranking induced by the value vector <strong>v</strong> <em>i</em><sup><em>ℓ</em>.We cut the tail</sup> of the distribution, which stretches up to the vocabulary size ( <em>∼</em> 270K tokens).</p>
+<p>agreement rate is close to zero in the lower layers (1-10), but starting from layer 11, the agreement rate quickly rises until 3.5%, showing higher agreement between keys and values on the identity of the top-ranked token. Importantly, this value is orders of magnitude higher than a random token prediction from the vocabulary, which would produce a far lower agreement rate (0 <em>.</em> 0004%), showing that upper-layer memories manifest non-trivial predictive power.</p>
+<p>Next, we take the next token of <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>’s top-1 trig-</sup> ger example ( <em>wi</em><sup><em>ℓ</em>),andfindwhereitranksinthe</sup> value vector’s distribution <strong>p</strong><sup><em>ℓ</em></sup> <em>i</em><sup>.Figure 5 shows that</sup> the rank of the next token of a trigger example increases through the layers, meaning that <em>wi</em><sup>_ℓ_tends</sup> to get higher probability in the upper layers.</p>
+<p><strong>Detecting predictive values.</strong> To examine if we can automatically detect values with high agreement rate, we analyze the probability of the values’ top prediction, i.e., (max( <strong>p</strong><sup><em>ℓ</em></sup> <em>i</em><sup>)).Figure6shows</sup> that although these distributions are not calibrated, distributions with higher maximum probabilities are more likely to agree with their key’s top trigger example. We then take the 100 values with highest probability across all layers and dimensions (97 out of the 100 are in the upper layers, 11-16), and for each value <strong>v</strong> <em>i</em><sup><em>ℓ</em>,analyze the top-50 trigger ex-</sup> amples of <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>.Wefindthatinalmosthalfofthe</sup> values (46 out of 100), there is at least one trigger example that agrees with the value’s top prediction. Examples are provided in Table 2.</p>
+<p><strong>Discussion.</strong> When viewed as distributions over the output vocabulary, values in the upper layers tend to assign higher probability to the next-</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0005-06.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0<br>0.8<br>0.6<br>0.4<br>0.2<br>0.0<br>top prediction probability<br>8.9e-51.3e-41.8e-42.2e-42.7e-43.1e-43.6e-44.e-4<br>agreement rate<br><!-- End of picture text --></p>
+<p>Figure 6: Agreement rate (between the top-ranked token based on the value vector <strong>v</strong> <em>i</em><sup>_ℓ_andthenexttoken</sup> of the top-ranked trigger example associated with the key vector <strong>k</strong><sup><em>ℓ</em></sup> <em>i</em><sup>) as a function of the maximal probability</sup> assigned by the value vector.</p>
+<p>token of examples triggering the corresponding keys. This suggests that memory cells often store information on how to directly predict the output (the distribution of the next word) from the input (patterns in the prefix). Conversely, the lower layers do not exhibit such clear correlation between the keys’ patterns and the corresponding values’ distributions. A possible explanation is that the lower layers do not operate in the same embedding space, and therefore, projecting values onto the vocabulary using the output embeddings does not produce distributions that follow the trigger examples. However, our results imply that some intermediate layers <em>do</em> operate in the same or similar space to upper layers (exhibiting some agreement), which in itself is non-trivial. We leave further exploration of this phenomenon to future work.</p>
+<h2><strong>5 Aggregating Memories</strong></h2>
+<p>So far, our discussion has been about the function of a single memory cell in feed-forward layers. How does the information from <em>multiple</em> cells in multiple <em>layers</em> aggregate to form a model-wide prediction? We show that every feed-forward layer combines multiple memories to produce a distribution that is qualitatively different from each of its component memories’ value distributions (Section 5.1). These layer-wise distributions are then combined via residual connections in a refinement process, where each feed-forward layer updates the residual’s distribution to finally form the model’s output (Section 5.2).</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Prediction</th>
+<th>Precision@50</th>
+<th>Trigger example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>v</strong><sup>15</sup><br>222</td>
+<td><em>each</em></td>
+<td>68%</td>
+<td><em>But when bees and wasps resemble each</em></td>
+</tr>
+<tr>
+<td><strong>v</strong><sup>16</sup><br>752</td>
+<td><em>played</em></td>
+<td>16%</td>
+<td><em>Her first role was in Vijay Lalwani’s psychological thriller Karthik Calling</em><br><em>Karthik, where Padukone was cast as the supportive girlfriend of a depressed</em><br><em>man (played</em></td>
+</tr>
+<tr>
+<td><strong>v</strong><sup>13</sup><br>2601</td>
+<td><em>extratropical</em></td>
+<td>4%</td>
+<td><em>Most of the winter precipitation is the result of synoptic scale, low pressure</em><br><em>weather systems (large scale storms such as extratropical</em></td>
+</tr>
+<tr>
+<td><strong>v</strong><sup>15</sup><br>881</td>
+<td><em>part</em></td>
+<td>92%</td>
+<td><em>Comet served only briefly with the fleet, owing in large part</em></td>
+</tr>
+<tr>
+<td><strong>v</strong><sup>16</sup><br>2070</td>
+<td><em>line</em></td>
+<td>84%</td>
+<td><em>Sailing from Lorient in October 1805 with one ship of the line</em></td>
+</tr>
+<tr>
+<td><strong>v</strong><sup>12</sup><br>3186</td>
+<td><em>jail</em></td>
+<td>4%</td>
+<td><em>On May 11, 2011, four days after scoring 6 touchdowns for the Slaughter, Grady</em><br><em>was sentenced to twenty days in jail</em></td>
+</tr>
+</tbody>
+</table>
+<p>Table 2: Example values, their top prediction, the fraction of their key’s top-50 trigger examples that agree with their prediction, and a matching trigger example (with the target token marked in blue).</p>
+<h3><strong>5.1 Intra-Layer Memory Composition</strong></h3>
+<p>The feed-forward layer’s output can be defined as the sum of value vectors weighted by their memory coefficients, plus a bias term:</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0006-04.jpg" alt="" /></p>
+<p>If each value vector <strong>v</strong> <em>i</em><sup>_ℓ_contains information about</sup> the target token’s distribution, how is this information aggregated into a single output distribution? To find out, we analyze the behavior of 4,000 randomly-sampled prefixes from the validation set. Here, the validation set is used (rather than the training set used to find trigger examples) since we are trying to characterize the model’s behavior at inference time, not find the examples it “memorizes” during training.</p>
+<p>We first measure the fraction of “active” memories (cells with a non-zero coefficient). Figure 7 shows that a typical example triggers hundreds of memories per layer (10%-50% of 4096 dimensions), but the majority of cells remain inactive. Interestingly, the number of active memories drops towards layer 10, which is the same layer in which semantic patterns become more prevalent than shallow patterns, according to expert annotations (see Section 3, Figure 2).</p>
+<p>While there are cases where a single memory cell dominates the output of a layer, the majority of outputs are clearly compositional. We count the number of instances where the feed-forward layer’s top prediction is <em>different</em> from all of the memories’ top predictions. Formally, we denote:</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0006-08.jpg" alt="" /></p>
+<p>as a generic shorthand for the top prediction from the vocabulary distribution induced by the vector</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0006-10.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>100<br>80<br>60<br>40<br>20<br>0<br>1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16<br>layer<br>% of active memories<br><!-- End of picture text --></p>
+<p>Figure 7: The fraction of active memories (i.e., with positive memory coefficient) out of 4096 memories in every layer, for a random sample of 4,000 examples.</p>
+<p><strong>h</strong> , and compute the number of examples where the following condition holds:</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0006-13.jpg" alt="" /></p>
+<p>Figure 8 shows that, for any layer in the network, the layer’s final prediction is different than <em>every one</em> of the memories’ predictions in at least <em>∼</em> 68% of the examples. Even in the upper layers, where the memories’ values are more correlated with the output space (Section 4), the layer-level prediction is typically not the result of a single dominant memory cell, but a composition of multiple memories.</p>
+<p>We further analyze cases where at least one memory cell agrees with the layer’s prediction, and find that (a) in 60% of the examples the target token is a common stop word in the vocabulary (e.g. <em>“the”</em> or <em>“of”</em> ), and (b) in 43% of the cases the input prefix has less than 5 tokens. This suggests that very common patterns in the training data might</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0007-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>100<br>80<br>60<br>40<br>20<br>0<br>1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16<br>layer<br>% examples with zero agreement<br><!-- End of picture text --></p>
+<p>Figure 8: The fraction of examples in a random sample of 4,000 examples where the layer’s prediction is different from the prediction of all of its memories.</p>
+<p>be “cached” in individual memory cells, and do not require compositionality.</p>
+<h3><strong>5.2 Inter-Layer Prediction Refinement</strong></h3>
+<p>While a single feed-forward layer composes its memories in parallel, a multi-layer model uses the residual connection <strong>r</strong> to <em>sequentially</em> compose predictions to produce the model’s final output:<sup>5</sup></p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0007-05.jpg" alt="" /></p>
+<p>We hypothesize that the model uses the sequential composition apparatus as a means to <em>refine</em> its prediction from layer to layer, often deciding what the prediction will be at one of the lower layers.</p>
+<p>To test our hypothesis, we first measure how often the probability distribution induced by the residual vector <strong>r</strong><sup><em>ℓ</em></sup> matches the model’s final output <strong>o</strong><sup><em>L</em></sup> ( <em>L</em> being the total number of layers):</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0007-08.jpg" alt="" /></p>
+<p>Figure 9 shows that roughly a third of the model’s predictions are determined in the bottom few layers. This number grows rapidly from layer 10 onwards, implying that the majority of “hard” decisions occur before the final layer.</p>
+<p>We also measure the probability mass <em>p</em> that each layer’s residual vector <strong>r</strong><sup><em>ℓ</em></sup> assigns to the model’s</p>
+<blockquote>
+<p>5The residual propagates information from previous layers, including the transformer’s self-attention layers.</p>
+</blockquote>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0007-12.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>100<br>80<br>60<br>40<br>20<br>0<br>1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16<br>layer<br> predicts the final output<br>% examples s.t. the residual<br><!-- End of picture text --></p>
+<p>Figure 9: Fraction of examples in each layer, where the residual’s top prediction matches the model’s output.</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0007-14.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0<br>0.8<br>0.6<br>0.4<br>0.2<br>0.0<br>1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16<br>layer<br>probability<br><!-- End of picture text --></p>
+<p>Figure 10: Probability of the token output by the model according to the residual of each layer.</p>
+<p>final prediction:</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0007-17.jpg" alt="" /></p>
+<p>Figure 10 shows a similar trend, but emphasizes that it is not only the top prediction’s identity that is refined as we progress through the layers, it is also the model’s confidence in its decision.</p>
+<p>To better understand how the refinement process works at each layer, we measure how often the residual’s top prediction changes following its interaction with the feed-forward layer (top( <strong>r</strong><sup><em>ℓ</em></sup> ) <em≯</em> = top( <strong>o</strong><sup><em>ℓ</em></sup> )), and whether this change results from the feed-forward layer overriding the residual (top( <strong>o</strong><sup><em>ℓ</em></sup> ) = top( <strong>y</strong><sup><em>ℓ</em></sup> )) or from a true composition (top( <strong>r</strong><sup><em>ℓ</em></sup> ) <em≯</em> = top( <strong>o</strong><sup><em>ℓ</em></sup> ) <em≯</em> = top( <strong>y</strong><sup><em>ℓ</em></sup> )).</p>
+<p>Figure 11 shows the breakdown of different cases per layer. In the vast majority of examples, the residual’s top prediction ends up being the</p>
+<p><img src="../markdown/images/ffn_key_value_memories/36_ffn_key_value_memories.pdf-0008-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>100<br>80<br>60<br>40<br>residual<br>agreement<br>20 composition<br>ffn<br>0<br>1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16<br>layer<br>% examples<br><!-- End of picture text --></p>
+<p>Figure 11: Breakdown of examples by prediction cases: the layer’s output prediction matches the residual’s prediction ( <em>residual</em> ), matches the feed-forward layer’s prediction ( <em>ffn</em> ), matches both of the predictions ( <em>agreement</em> ), or none of the predictions ( <em>composition</em> ). By construction, there are no cases where the residual’s prediction matches the feed-forward layer’s prediction and does not match the output’s prediction.</p>
+<p>model’s prediction ( <em>residual+agreement</em> ). In most of these cases, the feed forward layer predicts something different ( <em>residual</em> ). Perhaps surprisingly, when the residual’s prediction does change ( <em>composition+ffn</em> ), it rarely changes to the feed-forward layer’s prediction ( <em>ffn</em> ). Instead, we observe that composing the residual’s distribution with that of the feed-forward layer produces a “compromise” prediction, which is equal to neither ( <em>composition</em> ). This behavior is similar to the intra-layer composition we observe in Section 5.1. A possible conjecture is that the feed-forward layer acts as an elimination mechanism to “veto” the top prediction in the residual, and thus shifts probability mass towards one of the other candidate predictions in the head of the residual’s distribution.</p>
+<p>Finally, we manually analyze 100 random cases of last-layer composition, where the feed-forward layer modifies the residual output in the <em>final</em> layer. We find that in most cases (66 examples), the output changes to a semantically distant word (e.g., <em>“people” → “same”</em> ) and in the rest of the cases (34 examples), the feed-forward layer’s output shifts the residual prediction to a related word (e.g. <em>“later” → “earlier”</em> and <em>“gastric” → “stomach”</em> ). This suggests that feed-forward layers tune the residual predictions at varying granularity, even in the last layer of the model.</p>
+<h2><strong>6 Related Work</strong></h2>
+<p>Considerable attention has been given to demystifying the operation of neural NLP models. An</p>
+<p>extensive line of work targeted neuron functionality in general, extracting the properties that neurons and subsets of neurons capture (Durrani et al., 2020; Dalvi et al., 2019; Rethmeier et al., 2020; Mu and Andreas, 2020; Vig et al., 2020), regardless of the model architecture or neurons’ position in it. Jacovi et al. (2018) analyzed CNN architectures in text classification and showed that they extract key n-grams from the inputs.</p>
+<p>The study of the transformer architecture has focused on the role and function of self-attention layers (Voita et al., 2019; Clark et al., 2019; Vig and Belinkov, 2019) and on inter-layer differences (i.e. lower vs. upper layers) (Tenney et al., 2019; Jawahar et al., 2019). Previous work also highlighted the importance of feed-forward layers in transformers (Press et al., 2020; Pulugundla et al., 2021; Xu et al., 2020). Still, to date, the role of feed-forward layers remains under-explored.</p>
+<p>Also related are interpretability methods that explain predictions (Han et al., 2020; Wiegreffe and Pinter, 2019), however, our focus is entirely different: we do not interpret individual predictions, but aim to understand the mechanism of transformers.</p>
+<p>Characterizing the functionality of memory cells based on examples that trigger maximal activations has been used previously in NLP (Rethmeier et al., 2020) and vision (Erhan et al., 2009).</p>
+<h2><strong>7 Discussion and Conclusion</strong></h2>
+<p>Understanding how and why transformers work is crucial to many aspects of modern NLP, including model interpretability, data security, and development of better models. Feed-forward layers account for most of a transformer’s parameters, yet little is known about their function in the network.</p>
+<p>In this work, we propose that feed-forward layers emulate key-value memories, and provide a set of experiments showing that: (a) keys are correlated with human-interpretable input patterns; (b) values, mostly in the model’s upper layers, induce distributions over the output vocabulary that correlate with the next-token distribution of patterns in the corresponding key; and (c) the model’s output is formed via an aggregation of these distributions, whereby they are first composed to form individual layer outputs, which are then refined throughout the model’s layers using residual connections.</p>
+<p>Our findings open important research directions:</p>
+<ul>
+<li><strong>Layer embedding space.</strong> We observe a correlation between value distributions over the output</li>
+</ul>
+<p>vocabulary and key patterns, that increases from lower to upper layers (Section 4). Is this because the layer’s output space transforms across layers? If so, how? We note that this possible transformation cannot be explained solely by the function of feed-forward layers: if the model only did a series of key-value look-ups and value-distribution aggregation via weighted addition, then a single, unifying embedding space would appear more natural. Thus, the transformation might have to do with the interplay between feed-forward layers and self-attention layers.</p>
+<ul>
+<li>
+<p><strong>Beyond language modeling.</strong> Our formulation of feed-forward networks as key-value memories generalizes to any transformer model, e.g. BERT encoders and neural translation models. We thus expect our qualitative empirical observations to hold across diverse settings, and leave verification of this for future work.</p>
+</li>
+<li>
+<p><strong>Practical implications.</strong> A better understanding of feed-forward layers has many implications in NLP. For example, future studies may offer interpretability methods by automating the patternidentification process; memory cells might affect training-data privacy as they could facilitate white-box membership inference (Nasr et al., 2019); and studying cases where a correct pattern is identified but then suppressed during aggregation may guide architectural novelties.</p>
+</li>
+</ul>
+<p>Thus, by illuminating the role of feed-forward layers, we move towards a better understanding of the inner workings of transformers, and open new research threads on modern NLP models.</p>
+<h2><strong>Acknowledgements</strong></h2>
+<p>We thank Shimi Salant and Tal Schuster for helpful feedback. This work was supported in part by the Yandex Initiative for Machine Learning, the Blavatnik Interdisciplinary Cyber Research Center (ICRC), the Alon Scholarship, and Intel Corporation. Roei Schuster is a member of the Check Point Institute of Information Technology. This work was completed in partial fulfillment for the Ph.D degree of Mor Geva.</p>
+<h2><strong>References</strong></h2>
+<ul>
+<li>Alexei Baevski and Michael Auli. 2019. Adaptive input representations for neural language modeling. In</li>
+</ul>
+<p><em>International Conference on Learning Representations (ICLR)</em> .</p>
+<ul>
+<li>
+<p>Tom B Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel M Ziegler, Jeffrey Wu, Clemens Winter, Christopher Hesse, Mark Chen, Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020. Language models are few-shot learners. In <em>Proceedings of Neural Information Processing Systems (NeurIPS)</em> .</p>
+</li>
+<li>
+<p>Kevin Clark, Urvashi Khandelwal, Omer Levy, and Christopher D. Manning. 2019. What does BERT look at? An analysis of BERT’s attention. In <em>BlackBoxNLP Workshop at ACL</em> .</p>
+</li>
+<li>
+<p>Fahim Dalvi, Nadir Durrani, Hassan Sajjad, Yonatan Belinkov, Anthony Bau, and James Glass. 2019. What is one grain of sand in the desert? analyzing individual neurons in deep nlp models. In <em>Proceedings of the AAAI Conference on Artificial Intelligence</em> , volume 33, pages 6309–6317.</p>
+</li>
+<li>
+<p>Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT: Pre-training of deep bidirectional transformers for language understanding. In <em>North American Association for Computational Linguistics (NAACL)</em> , pages 4171–4186, Minneapolis, Minnesota.</p>
+</li>
+<li>
+<p>Nadir Durrani, Hassan Sajjad, Fahim Dalvi, and Yonatan Belinkov. 2020. Analyzing individual neurons in pre-trained language models. In <em>Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</em> .</p>
+</li>
+<li>
+<p>Dumitru Erhan, Yoshua Bengio, Aaron Courville, and Pascal Vincent. 2009. Visualizing higher-layer features of a deep network. <em>University of Montreal</em> , 1341(3):1.</p>
+</li>
+<li>
+<p>Xiaochuang Han, Byron C. Wallace, and Yulia Tsvetkov. 2020. Explaining black box predictions and unveiling data artifacts through influence functions. In <em>Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</em> , pages 5553–5563, Online. Association for Computational Linguistics.</p>
+</li>
+<li>
+<p>Alon Jacovi, Oren Sar Shalom, and Yoav Goldberg. 2018. Understanding convolutional neural networks for text classification. In <em>Proceedings of the 2018 EMNLP Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP</em> , pages 56–65, Brussels, Belgium. Association for Computational Linguistics.</p>
+</li>
+<li>
+<p>Ganesh Jawahar, Benoît Sagot, and Djamé Seddah. 2019. What does BERT learn about the structure</p>
+<ul>
+<li>of language? In <em>Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</em> , pages 3651–3657, Florence, Italy. Association for Computational Linguistics.</li>
+</ul>
+</li>
+<li>
+<p>Nelson F. Liu, Matt Gardner, Yonatan Belinkov, Matthew E. Peters, and Noah A. Smith. 2019. Linguistic knowledge and transferability of contextual representations. In <em>Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers)</em> , pages 1073–1094, Minneapolis, Minnesota. Association for Computational Linguistics.</p>
+</li>
+<li>
+<p>Stephen Merity, Caiming Xiong, James Bradbury, and Richard Socher. 2017. Pointer sentinel mixture models. <em>International Conference on Learning Representations (ICLR)</em> .</p>
+</li>
+<li>
+<p>Jesse Mu and Jacob Andreas. 2020. Compositional explanations of neurons. In <em>Proceedings of Neural Information Processing Systems (NeurIPS)</em> .</p>
+</li>
+<li>
+<p>Milad Nasr, Reza Shokri, and Amir Houmansadr. 2019. Comprehensive privacy analysis of deep learning: Passive and active white-box inference attacks against centralized and federated learning. In <em>2019 IEEE Symposium on Security and Privacy (SP)</em> , pages 739–753.</p>
+</li>
+<li>
+<p>Matthew Peters, Mark Neumann, Mohit Iyyer, Matt Gardner, Christopher Clark, Kenton Lee, and Luke Zettlemoyer. 2018. Deep contextualized word representations. In <em>North American Chapter of the Association for Computational Linguistics (NAACL)</em> .</p>
+</li>
+<li>
+<p>Ofir Press, Noah A. Smith, and Omer Levy. 2020. Improving transformer models by reordering their sublayers. In <em>Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics</em> , pages 2996–3005, Online. Association for Computational Linguistics.</p>
+<ul>
+<li>
+<p>Ian Tenney, Dipanjan Das, and Ellie Pavlick. 2019. BERT rediscovers the classical NLP pipeline. In <em>Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</em> , pages 4593– 4601, Florence, Italy. Association for Computational Linguistics.</p>
+</li>
+<li>
+<p>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. In <em>Advances in Neural Information Processing Systems (NIPS)</em> , pages 5998–6008.</p>
+</li>
+<li>
+<p>Jesse Vig and Yonatan Belinkov. 2019. Analyzing the structure of attention in a transformer language model. In <em>Proceedings of the 2019 ACL Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP</em> , pages 63–76, Florence, Italy. Association for Computational Linguistics.</p>
+</li>
+<li>
+<p>Jesse Vig, Sebastian Gehrmann, Yonatan Belinkov, Sharon Qian, Daniel Nevo, Yaron Singer, and Stuart Shieber. 2020. Investigating gender bias in language models using causal mediation analysis. <em>Advances in Neural Information Processing Systems</em> , 33.</p>
+</li>
+<li>
+<p>Elena Voita, David Talbot, Fedor Moiseev, Rico Sennrich, and Ivan Titov. 2019. Analyzing multi-head self-attention: Specialized heads do the heavy lifting, the rest can be pruned. In <em>Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</em> .</p>
+</li>
+<li>
+<p>Sarah Wiegreffe and Yuval Pinter. 2019. Attention is not not explanation. In <em>Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLPIJCNLP)</em> , pages 11–20, Hong Kong, China. Association for Computational Linguistics.</p>
+</li>
+<li>
+<p>Hongfei Xu, Qiuhui Liu, Deyi Xiong, and Josef van Genabith. 2020. Transformer with depth-wise lstm. <em>arXiv preprint arXiv:2007.06257</em> .</p>
+</li>
+</ul>
+</li>
+<li>
+<p>Bhargav Pulugundla, Yang Gao, Brian King, Gokce Keskin, Harish Mallidi, Minhua Wu, Jasha Droppo, and Roland Maas. 2021. Attention-based neural beamforming layers for multi-channel speech recognition. <em>arXiv preprint arXiv:2105.05920</em> .</p>
+</li>
+<li>
+<p>Nils Rethmeier, Vageesh Kumar Saxena, and Isabelle Augenstein. 2020. Tx-ray: Quantifying and explaining model-knowledge transfer in (un-) supervised nlp. In <em>Conference on Uncertainty in Artificial Intelligence</em> , pages 440–449. PMLR.</p>
+</li>
+<li>
+<p>S. Sukhbaatar, J. Weston, and R. Fergus. 2015. Endto-end memory networks. In <em>Advances in Neural Information Processing Systems (NIPS)</em> .</p>
+</li>
+<li>
+<p>Sainbayar Sukhbaatar, Edouard Grave, Guillaume Lample, Herve Jegou, and Armand Joulin. 2019. Augmenting self-attention with persistent memory. <em>arXiv preprint arXiv:1907.01470</em> .</p>
+</li>
+</ul>
+<h2><strong>A Pattern Analysis</strong></h2>
+<p>Table 3 provides a fully-annotated example of 25 prefixes from the memory cell <strong>k</strong><sup>5</sup> 895<sup>.</sup></p>
+<h2><strong>B Implementation details</strong></h2>
+<p>In this section, we provide further implementation details for reproducibility of our experiments.</p>
+<p>For all our experiments, we used the language model of Baevski and Auli (2019) (247M parameters) trained on WikiText-103 (Merity et al., 2017). Specifically, we used the model transformer_lm.wiki103.adaptive trained with the fairseq toolkit<sup>6</sup> .</p>
+<p>WikiText-103<sup>7</sup> is a well known language modeling dataset and a collection of over 100M tokens extracted from Wikipedia. We used spaCy<sup>8</sup> to split examples into sentences (Section 3).</p>
+<blockquote>
+<p>6https://github.com/pytorch/fairseq</p>
+</blockquote>
+<blockquote>
+<p>7https://blog.einstein.ai/the-</p>
+</blockquote>
+<blockquote>
+<p>wikitext-long-term-dependency-languagemodeling-dataset/ 8https://spacy.io/</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>1</th>
+<th>It requiresplayers topress</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>The video begins at apress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>The firstplayer wouldpress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Ivy,disguised as her former self,interrupts a Wayne Enterprisespress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>The video then cuts back to thepress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Theplayer is able topress</td>
+</tr>
+<tr>
+<td></td>
+<td>Leto switched</td>
+</tr>
+<tr>
+<td>1</td>
+<td>In the Nintendo DS version,theplayer can choose topress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>In-house engineer Nick Robbins said Shields made it clear from the outset that he(Robbins)“wasjust there topress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>She decides not topress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>she decides not topress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>OriginallyWatson signaled electronically,but show staff requested that itpress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Atpost-gamepress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>In the buildupto thegame,thepress</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Hard togo back to thegame after that news</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Inpost-trailer interviews,Bungie staff members toldgaming press</td>
+</tr>
+<tr>
+<td></td>
+<td>Space Gun was well received bythe videogame</td>
+</tr>
+<tr>
+<td>1</td>
+<td>As BongLoad struggled topress</td>
+</tr>
+<tr>
+<td></td>
+<td>At Michigan,Clancystarted as aquarterback,switched</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Crush used his size advantage toperform a Gorillapress</td>
+</tr>
+<tr>
+<td>1,2</td>
+<td>Groeningtold thepress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Creative director Gregoire<unk>argued that existingdancegames were merelyinstructing players topress</td>
+</tr>
+<tr>
+<td>1,2</td>
+<td>Mattinglywould be named most outstanding player thatyear bythepress</td>
+</tr>
+<tr>
+<td>1</td>
+<td>At thepost-matchpress</td>
+</tr>
+<tr>
+<td>1,2</td>
+<td>The companyreceives badpress</td>
+</tr>
+<tr>
+<td></td>
+<td><strong>ID</strong><br><strong>Description</strong><br><strong>shallow / semantic</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>1<br>Ends with the word “press”<br>shallow</td>
+</tr>
+<tr>
+<td></td>
+<td>2<br>Press/news related<br>semantic</td>
+</tr>
+</tbody>
+</table>
+<p>Table 3: A pattern annotation of trigger examples for the cell memory <strong>k</strong><sup>5</sup> 895<sup>.Trigger examples are annotated with</sup> repetitive patterns (upper table), which are classified as “shallow” or “semantic” (bottom table).</p>
+
+</article>
+<nav class="pager"><a class="prev" href="35_privileged_bases.html"><small>Previous · 35</small>Privileged Bases in the Residual Stream</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="37_neurons_in_haystack.html"><small>Next · 37</small>Finding Neurons in a Haystack</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

@@ -65,13 +65,15 @@ TODAY = dt.date.today().isoformat()
 # Catalog — exact curriculum reading order
 # --------------------------------------------------------------------------
 SECTIONS = {
-    "A": "Transformer foundations and circuits",
-    "B": "Causal methods and circuit discovery",
-    "C": "Superposition and sparse autoencoders",
-    "D": "Feature circuits and large-scale interpretability",
-    "E": "The 2026 frontier",
-    "F": "Alignment, steering, and reasoning",
-    "G": "Conclusion",
+    "A": "Orientation",
+    "B": "Foundations: vision models and early transformers",
+    "C": "Causal methods and their critics",
+    "D": "What is a feature?",
+    "E": "Dictionary learning at full strength",
+    "F": "The reckoning",
+    "G": "Competing programmes, 2025–26",
+    "H": "Interpretability in alignment practice",
+    "I": "Is this worth doing?",
 }
 PRIORITY = {
     "P0": ("P0 — ESSENTIAL", "Read deeply, annotate, and potentially reproduce."),
@@ -79,240 +81,557 @@ PRIORITY = {
     "F": ("F — FRONTIER", "Contemporary work requiring critical evaluation."),
 }
 TC = "https://transformer-circuits.pub"
+KINDS = ("paper", "essay", "post", "note")
+# LessWrong / AI Alignment Forum posts: print only the post header and body (no comments, sidebars or vote widgets).
+# The forum keeps a live connection open, so the page never goes network-idle; wait a fixed time instead.
+FORUM_RENDER = dict(keep=[".LWPostsPageHeader-titleSection", ".PostsPage-postContent"], idle=False, wait=6000)
+FORUM_LICENSE = "No explicit licence (LessWrong / AI Alignment Forum terms leave copyright with the author)"
 
 
-def P(key, sec, pri, cite, year, title, short, why, focus, *, arxiv=None, html=None, slug, note="", venue=None,
-      render=None, license=None, optional="", authors=None):
+def P(key, sec, pri, cite, year, title, short, why, focus, *, arxiv=None, html=None, pdf=None, slug, note="", venue=None,
+      render=None, license=None, optional="", authors=None, kind="paper", byline=None):
     """One catalog entry. `key` is the short name used for cross-references in CONTEXT/optional notes;
-    the paper number comes from its position in CATALOG."""
+    the paper number comes from its position in CATALOG. Exactly one source: `arxiv` (id with version), `html`
+    (print-rendered web publication) or `pdf` (publisher PDF URL). `kind` is paper, essay, post or note; the
+    non-papers are checked against shorter length thresholds and need no reference list."""
+    assert sum(x is not None for x in (arxiv, html, pdf)) == 1, key
+    assert kind in KINDS, kind
     return dict(key=key, sec=sec, pri=pri, cite=cite, year=year, title=title, short=short,
-                why=why, focus=focus, arxiv=arxiv, html=html, slug=slug, note=note, license=license, authors=authors,
-                venue=venue or ("Transformer Circuits Thread" if html else "arXiv"), render=render or {},
-                optional=optional)
+                why=why, focus=focus, arxiv=arxiv, html=html, pdf=pdf, slug=slug, note=note, license=license,
+                authors=authors, venue=venue or ("Transformer Circuits Thread" if html else "arXiv"),
+                render=render or {}, optional=optional, kind=kind,
+                byline=byline or cite.split()[0])  # name the identity check expects on the source's first pages
 
 
 CATALOG = [
     # ---- A
-    P("vaswani", "A", "P0", "Vaswani et al.", "2017", "Attention Is All You Need", "Attention Is All You Need",
+    P("olahessay", "A", "P0", "Olah", "2022", "Mechanistic Interpretability, Variables, and the Importance of Interpretable Bases", "Interpretable Bases (essay)",
+      "Olah's short case for treating a trained network as a compiled program to be decompiled: parameters as binary, activations as memory, and interpretable features as the variables without which reverse engineering cannot start.",
+      "The program–network analogy table, the curse-of-dimensionality argument for reading weights rather than input–output behaviour, why activations must be split into independently understandable variables, privileged bases, and the FAQ on what a feature is.",
+      html=f"{TC}/2022/mech-interp-essay/index.html", slug="interpretable_bases_essay", kind="essay",
+      authors=["Chris Olah"]),
+    P("mechanistic", "A", "P1", "Saphra & Wiegreffe", "2024", "Mechanistic?", "Mechanistic?",
+      "A short history and sociology of the word ‘mechanistic’: four competing senses of the term, and how a safety-motivated community arriving from vision research and online forums came to repeat much of NLP interpretability under a new label.",
+      "The four definitions (narrow and broad, technical and cultural), Olah's coinage as a break from saliency methods, the parallel histories of probing, attention maps and neuron analysis, the clash of communities, and the closing appeal to connect.",
+      arxiv="2410.09087v1", slug="mechanistic_question"),
+    P("openproblems", "A", "P0", "Sharkey et al.", "2025", "Open Problems in Mechanistic Interpretability", "Open Problems in Mechanistic Interpretability",
+      "A 29-author review of what mechanistic interpretability cannot yet do, sorted into open problems of method, of application, and of the field's place in society, written by researchers from many of the groups whose work follows.",
+      "Reverse engineering versus concept-based interpretability, the list of sparse-dictionary limitations in Section 2.1.2, validating explanations, the application goals (monitoring, control, prediction, microscope AI), and the socio-technical section.",
+      arxiv="2501.16496v1", slug="open_problems"),
+    P("vaswani", "A", "P1", "Vaswani et al.", "2017", "Attention Is All You Need", "Attention Is All You Need",
       "Defines the Transformer — multi-head attention, residual blocks, positional encodings — the architecture every later paper reverse-engineers.",
       "Scaled dot-product and multi-head attention, Q/K/V projections, residual + LayerNorm structure, positional encodings, and the attention visualizations in the appendix.",
-      arxiv="1706.03762v7", slug="attention_is_all_you_need"),
-    P("zoomin", "A", "P0", "Olah et al.", "2020", "Zoom In: An Introduction to Circuits", "Zoom In: An Introduction to Circuits",
+      arxiv="1706.03762v7", slug="attention_is_all_you_need",
+      optional="Background only: readers who know the Transformer can skip it, since {framework} restates the parts interpretability relies on."),
+    # ---- B
+    P("featurevis", "B", "P1", "Olah et al.", "2017", "Feature Visualization", "Feature Visualization",
+      "The working manual for seeing what a vision neuron responds to by optimising the input, and an early, frank admission that neurons may not be the right units: one GoogLeNet neuron answers to cats, foxes and cars.",
+      "Optimisation objectives, why optimisation separates causes from correlates, diversity terms, neuron interaction and random directions, the high-frequency ‘enemy’, the regularisation spectrum, and decorrelated Fourier preconditioning.",
+      html="https://distill.pub/2017/feature-visualization/", slug="feature_visualization", venue="Distill",
+      license=DISTILL_LICENSE),
+    P("netdissect", "B", "P1", "Bau et al.", "2017", "Network Dissection: Quantifying Interpretability of Deep Visual Representations", "Network Dissection",
+      "Turns unit interpretability into a number: each CNN unit's activation map is scored against densely labelled concepts, showing that interpretability is tied to the basis and is destroyed by rotation without loss of accuracy.",
+      "The Broden dataset and IoU scoring, the random-rotation experiment, unique detectors per layer, comparisons across architectures and supervised or self-supervised tasks, and the training-condition ablations (dropout, batch normalisation).",
+      arxiv="1704.05796v1", slug="network_dissection"),
+    P("zoomin", "B", "P0", "Olah et al.", "2020", "Zoom In: An Introduction to Circuits", "Zoom In: An Introduction to Circuits",
       "Sets out the circuits programme — features as units, circuits as their connections, universality — and introduces polysemantic neurons and superposition through vision-model examples.",
       "The three speculative claims, curve detectors and other worked circuits, the polysemantic cat-and-car neuron, the car-to-dog circuit offered as superposition, and the case for interpretability as a natural science.",
       html="https://distill.pub/2020/circuits/zoom-in/", slug="zoom_in", venue="Distill", license=DISTILL_LICENSE),
-    P("multimodal", "A", "P1", "Goh et al.", "2021", "Multimodal Neurons in Artificial Neural Networks", "Multimodal Neurons",
+    P("curves", "B", "P1", "Cammarata et al.", "2020", "Curve Detectors", "Curve Detectors",
+      "A deliberately exhaustive study of one neuron family in InceptionV1, written to persuade sceptics that meaningful features exist: curve detectors examined through feature visualisation, dataset labelling, attribution and synthetic stimuli.",
+      "The four claims (causality, generality, purity, family), the hand-labelled comparison of over 800 images, joint and radial tuning curves, synthetic curves and angles, the curve families across layers, and the unexplained combing effect.",
+      html="https://distill.pub/2020/circuits/curve-detectors/", slug="curve_detectors", venue="Distill",
+      license=DISTILL_LICENSE),
+    P("multimodal", "B", "P1", "Goh et al.", "2021", "Multimodal Neurons in Artificial Neural Networks", "Multimodal Neurons",
       "Finds neurons in CLIP that respond to the same concept across photographs, drawings and written text, and traces the typographic attacks and biases that follow from them.",
       "Person, region and emotion neurons, the feature-properties discussion including conjoined features, typographic attacks, and the section on bias.",
-      html="https://distill.pub/2021/multimodal-neurons/", slug="multimodal_neurons", venue="Distill", license=DISTILL_LICENSE),
-    P("framework", "A", "P0", "Elhage et al.", "2021", "A Mathematical Framework for Transformer Circuits", "Mathematical Framework for Transformer Circuits",
+      html="https://distill.pub/2021/multimodal-neurons/", slug="multimodal_neurons", venue="Distill",
+      license=DISTILL_LICENSE),
+    P("framework", "B", "P0", "Elhage et al.", "2021", "A Mathematical Framework for Transformer Circuits", "Mathematical Framework for Transformer Circuits",
       "Recasts attention-only transformers as sums of paths, introducing the residual stream view, QK/OV circuits, and head composition — the core vocabulary of the field.",
       "Residual stream as communication channel, QK vs. OV circuits, path expansion of 1- and 2-layer models, K-composition and induction heads, and the notation appendix.",
       html=f"{TC}/2021/framework/index.html", slug="mathematical_framework"),
-    P("induction", "A", "P0", "Olsson et al.", "2022", "In-context Learning and Induction Heads", "In-context Learning and Induction Heads",
+    P("induction", "B", "P0", "Olsson et al.", "2022", "In-context Learning and Induction Heads", "In-context Learning and Induction Heads",
       "Argues that induction heads may constitute the mechanism for the majority of in-context learning, using six complementary lines of evidence across model scales.",
       "The training-loss phase change, each of the six arguments and how strong it is per model class, ablation evidence, and the authors' stated caveats for large models.",
       arxiv="2209.11895v1", slug="induction_heads"),
-    P("solu", "A", "P1", "Elhage et al.", "2022", "Softmax Linear Units", "Softmax Linear Units",
-      "Tries an architectural fix for polysemantic neurons — a softmax-based activation — and finds many more neurons become interpretable, with a catch it attributes to superposition.",
-      "The SoLU activation and the LayerNorm it needs, the neuron interpretability evaluation, the evidence read as features hiding in small activations, and its frank note on how little real-world evidence for superposition existed.",
-      html=f"{TC}/2022/solu/index.html", slug="softmax_linear_units"),
-    P("toy", "A", "P0", "Elhage et al.", "2022", "Toy Models of Superposition", "Toy Models of Superposition",
-      "Formalizes superposition — networks representing more features than they have dimensions — the idea that motivated sparse dictionary learning and much of Sections C and D.",
-      "Sparsity/importance phase diagrams, feature geometry, computation in superposition, privileged bases, and which results depend on independent, predefined features with no downstream readers.",
-      arxiv="2209.10652v1", slug="toy_models_of_superposition"),
-    P("ioi", "A", "P0", "Wang et al.", "2022", "Interpretability in the Wild: A Circuit for Indirect Object Identification in GPT-2 Small",
-      "Interpretability in the Wild (IOI circuit)",
+    P("logitlens", "B", "P1", "nostalgebraist", "2020", "interpreting GPT: the logit lens", "The Logit Lens",
+      "A blog post that decodes GPT-2's intermediate residual stream with the model's own unembedding, finding that a guess at the next token forms by the middle layers and is then refined, while the input token vanishes almost at once.",
+      "The top-guess, rank and KL plots across GPT-2's 48 layers, the rare-token copying and repetition examples, the argument from residual connections and weight decay for a shared basis, and the caveat that the lens shows only part of the picture.",
+      html="https://www.lesswrong.com/posts/AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens", slug="logit_lens",
+      venue="LessWrong", kind="post", license=FORUM_LICENSE, authors=["nostalgebraist"], render=FORUM_RENDER),
+    P("ioi", "B", "P0", "Wang et al.", "2022", "Interpretability in the Wild: A Circuit for Indirect Object Identification in GPT-2 Small", "Interpretability in the Wild (IOI circuit)",
       "The canonical end-to-end circuit analysis in a real language model: attention-head classes in GPT-2 small that implement indirect object identification.",
       "Path patching, the head classes (duplicate-token, S-inhibition, name movers, backup/negative name movers), and the faithfulness / completeness / minimality criteria.",
       arxiv="2211.00593v1", slug="ioi_circuit"),
-    # ---- B
-    P("patching", "B", "P0", "Zhang & Nanda", "2023", "Towards Best Practices of Activation Patching in Language Models: Metrics and Methods",
-      "Best Practices of Activation Patching",
-      "Systematically shows how activation-patching conclusions change with the corruption method, the evaluation metric, and the patching granularity.",
-      "Gaussian noising vs. symmetric token replacement, logit difference vs. probability metrics, sliding-window patching, and the concrete recommendations.",
-      arxiv="2309.16042v2", slug="activation_patching_best_practices"),
-    P("acdc", "B", "P0", "Conmy et al.", "2023", "Towards Automated Circuit Discovery for Mechanistic Interpretability",
-      "Automated Circuit Discovery (ACDC)",
-      "Systematizes the circuit-discovery workflow and automates it with ACDC, which prunes edges of the computational graph, validated against hand-found circuits.",
-      "The ACDC algorithm and threshold τ, KL-divergence objective, ROC comparison with Subnetwork Probing and HISP, and the limitations / corruption sensitivity.",
-      arxiv="2304.14997v4", slug="acdc"),
-    P("causal", "B", "P1", "Geiger et al.", "2021", "Causal Abstractions of Neural Networks", "Causal Abstractions of Neural Networks",
+    P("grokking", "B", "P0", "Nanda et al.", "2023", "Progress Measures for Grokking via Mechanistic Interpretability", "Progress Measures for Grokking",
+      "Fully reverse-engineers a one-layer transformer that groks modular addition — inputs embedded as rotations, combined by trigonometric identities — and uses that understanding to build progress measures that move smoothly before the sudden jump.",
+      "The Fourier multiplication algorithm, the four lines of evidence including ablations in Fourier space, restricted and excluded loss, the memorisation / circuit formation / cleanup phases, the role of weight decay, and the stated limits for larger models.",
+      arxiv="2301.05217v3", slug="grokking_progress_measures"),
+    P("clockpizza", "B", "P1", "Zhong et al.", "2023", "The Clock and the Pizza: Two Stories in Mechanistic Explanation of Neural Networks", "The Clock and the Pizza",
+      "Shows that networks trained on modular addition do not reliably rediscover one algorithm: small changes to hyperparameters and initialisation yield the known Clock, a new Pizza algorithm, or several imperfect copies running in parallel.",
+      "Why gradient symmetricity and logit patterns rule out the Clock, the Pizza algorithm and circle isolation, accompanying pizzas, the distance-irrelevance metric, and the phase diagram over attention rate and width.",
+      arxiv="2306.17844v2", slug="clock_and_pizza"),
+    P("othello", "B", "P1", "Li et al.", "2023", "Emergent World Representations: Exploring a Sequence Model Trained on a Synthetic Task", "Emergent World Representations (Othello-GPT)",
+      "Trains a GPT on Othello move sequences and finds an emergent board-state representation that nonlinear probes recover and interventions can edit — evidence that a sequence model can learn a world model, not only surface statistics.",
+      "The synthetic and championship datasets, linear versus two-layer MLP probe error rates against a randomly initialised baseline, the gradient-based intervention technique, and latent saliency maps.",
+      arxiv="2210.13382v5", slug="othello_gpt", note="arXiv first posted October 2022; published at ICLR 2023."),
+    P("othellolinear", "B", "P1", "Nanda", "2023", "Actually, Othello-GPT Has A Linear Emergent World Representation", "Othello-GPT Is Linear",
+      "Finds that Othello-GPT represents the board linearly after all — as ‘my’ versus ‘their’ pieces rather than black versus white — and steers it to new legal moves by flipping a single probe direction.",
+      "Why the original linear probes failed, probes trained on alternate moves, the intervention by negating a probe coordinate and its fiddly scale, the neuron read through the probe, and the caveats about generalising from a toy model.",
+      html="https://www.lesswrong.com/posts/nmxzr2zsjNtjaHh7x/actually-othello-gpt-has-a-linear-emergent-world",
+      slug="othello_gpt_linear", venue="LessWrong", kind="post", license=FORUM_LICENSE, authors=["Neel Nanda"],
+      render=FORUM_RENDER),
+    # ---- C
+    P("rome", "C", "P0", "Meng et al.", "2022", "Locating and Editing Factual Associations in GPT", "Locating and Editing Factual Associations (ROME)",
+      "Uses causal tracing — corrupting the subject, then restoring single hidden states — to locate factual recall in the mid-layer MLPs of GPT models, then rewrites individual facts there with a rank-one weight edit (ROME).",
+      "The causal-tracing heatmaps and their early and late sites, the MLP-severing experiment, the MLP-as-associative-memory derivation behind ROME, the CounterFact specificity–generalization results, and the stated limitations.",
+      arxiv="2202.05262v5", slug="rome"),
+    P("localization", "C", "P1", "Hase et al.", "2023", "Does Localization Inform Editing? Surprising Differences in Causality-Based Localization vs. Knowledge Editing in Language Models", "Does Localization Inform Editing?",
+      "Tests the assumption behind ROME-style editing: in GPT-J, where causal tracing localizes a fact predicts almost nothing about which layer edits it best, while the choice of edit layer predicts a great deal.",
+      "The regression of rewrite score on tracing effect versus edit layer, the five editing variants (error injection, tracing reversal, erasure, amplification, fact forcing), the one weakly positive case, and the discussion of what localization is for.",
+      arxiv="2301.04213v2", slug="localization_editing"),
+    P("scrubbing", "C", "P0", "Chan et al.", "2022", "Causal Scrubbing: A Method for Rigorously Testing Interpretability Hypotheses", "Causal Scrubbing",
+      "Proposes a general test for a mechanistic hypothesis: map an interpretation onto the model's computational graph, resample every activation the hypothesis says should not matter, and measure how much performance survives.",
+      "The hypothesis formalism (graph, interpretation, correspondence), the recursive resampling algorithm, the case against zero and mean ablation, the paren-balancer and induction results (35% rising to 86% recovered), and the limitations.",
+      html="https://www.alignmentforum.org/posts/JvZhhzycHu2Yd57RN/causal-scrubbing-a-method-for-rigorously-testing",
+      slug="causal_scrubbing", venue="AI Alignment Forum", kind="post", license=FORUM_LICENSE,
+      authors=["Lawrence Chan", "Adrià Garriga-Alonso", "Nicholas Goldowsky-Dill", "Ryan Greenblatt", "Jenny Nitishinskaya", "Ansh Radhakrishnan", "Buck Shlegeris", "Nate Thomas"],
+      byline="LawrenceC", render=FORUM_RENDER),
+    P("causal", "C", "P1", "Geiger et al.", "2021", "Causal Abstractions of Neural Networks", "Causal Abstractions of Neural Networks",
       "Supplies the formal causal-abstraction framework and interchange interventions for testing whether a network implements a hypothesized high-level algorithm.",
       "The interchange-intervention definition, alignments between high-level causal models and neural representations, and the MQNLI case study.",
       arxiv="2106.02997v2", slug="causal_abstractions"),
-    P("das", "B", "P1", "Geiger et al.", "2023", "Finding Alignments Between Interpretable Causal Variables and Distributed Neural Representations",
-      "Distributed Alignment Search (DAS)",
+    P("catheory", "C", "P1", "Geiger et al.", "2025", "Causal Abstraction: A Theoretical Foundation for Mechanistic Interpretability", "Causal Abstraction: A Theoretical Foundation",
+      "Generalizes causal abstraction from replacing mechanisms to transforming them, and offers it as a common language for polysemanticity, the linear representation hypothesis, graded faithfulness and most current interpretability methods.",
+      "Interventionals and constructive abstraction in Section 2, approximate abstraction as graded faithfulness, and Section 3's translations of patching, path patching, causal scrubbing, concept erasure, sparse autoencoders, DAS and steering into one framework.",
+      arxiv="2301.04709v4", slug="causal_abstraction_theory",
+      note="First posted January 2023 as “Causal Abstraction for Faithful Model Interpretation” (Geiger, Potts & Icard); later versions were retitled and expanded, the latest (v4) in May 2025.",
+      optional="A long formal treatment: {causal} and {das} carry the working ideas, and Section 3 alone serves as a map of methods."),
+    P("das", "C", "P1", "Geiger et al.", "2023", "Finding Alignments Between Interpretable Causal Variables and Distributed Neural Representations", "Distributed Alignment Search (DAS)",
       "Introduces Distributed Alignment Search: learned rotations let high-level causal variables align with distributed, non-basis-aligned representations.",
       "Rotation-based interchange interventions, interchange intervention accuracy, comparison with basis-aligned search, and what a successful alignment does and does not prove.",
       arxiv="2303.02536v4", slug="distributed_alignment_search"),
-    # ---- C
-    P("composition", "C", "P1", "Olah", "2023", "Distributed Representations: Composition & Superposition", "Composition & Superposition",
+    P("illusion", "C", "P1", "Makelov et al.", "2023", "Is This the Subspace You Are Looking For? An Interpretability Illusion for Subspace Activation Patching", "Is This the Subspace You Are Looking For?",
+      "Shows that a subspace patch can make a model behave as if a feature changed while acting through a dormant direction causally disconnected from the output, an illusion demonstrated in a toy model, IOI and factual recall.",
+      "The toy construction of disconnected and dormant directions, the MLP-in-the-middle example in IOI, the success case that rules the illusion out, the equivalence of rank-one fact edits and one-dimensional patches, and the recommendations.",
+      arxiv="2311.17030v2", slug="subspace_illusion"),
+    P("illusionreply", "C", "P1", "Wu et al.", "2024", "A Reply to Makelov et al. (2023)'s “Interpretability Illusion” Arguments", "A Reply to the Interpretability Illusion",
+      "Replies that Makelov et al.'s criterion for an interpretability illusion is too strong, since it rejects even intuitive, desirable explanations, and that the illusions they report are artifacts of their training and evaluation choices.",
+      "The nullspace-decomposition definition, the obvious non-illusory direction in the toy example, the case for interchange intervention accuracy, the factual-recall pitfalls, and the added GPT-2 IOI results on distributed name-position information.",
+      arxiv="2401.12631v1", slug="illusion_reply"),
+    P("patching", "C", "P0", "Zhang & Nanda", "2023", "Towards Best Practices of Activation Patching in Language Models: Metrics and Methods", "Best Practices of Activation Patching",
+      "Systematically shows how activation-patching conclusions change with the corruption method, the evaluation metric, and the patching granularity.",
+      "Gaussian noising vs. symmetric token replacement, logit difference vs. probability metrics, sliding-window patching, and the concrete recommendations.",
+      arxiv="2309.16042v2", slug="activation_patching_best_practices"),
+    P("patchinghow", "C", "P1", "Heimersheim & Nanda", "2024", "How to Use and Interpret Activation Patching", "How to Use and Interpret Activation Patching",
+      "A practitioner's guide to activation patching: when to patch, in which direction, how to choose corrupted prompts, and what a given result does and does not show about a circuit.",
+      "Noising versus denoising as tests of necessity versus sufficiency, the AND-gate and OR-gate example, backup behaviour and negative components, and the pitfalls of probability, logprob and top-k metrics compared with logit difference.",
+      arxiv="2404.15255v1", slug="activation_patching_how"),
+    P("acdc", "C", "P0", "Conmy et al.", "2023", "Towards Automated Circuit Discovery for Mechanistic Interpretability", "Automated Circuit Discovery (ACDC)",
+      "Systematizes the circuit-discovery workflow and automates it with ACDC, which prunes edges of the computational graph, validated against hand-found circuits.",
+      "The ACDC algorithm and threshold τ, KL-divergence objective, ROC comparison with Subnetwork Probing and HISP, and the limitations / corruption sensitivity.",
+      arxiv="2304.14997v4", slug="acdc"),
+    P("hydra", "C", "P1", "McGrath et al.", "2023", "The Hydra Effect: Emergent Self-repair in Language Model Computations", "The Hydra Effect",
+      "Finds that when one attention layer of Chinchilla 7B is ablated, later layers compensate, and that late MLPs suppress the top token, so ablation-based and direct-effect measures of a layer's importance disagree.",
+      "The disagreement between unembedding and ablation importance, direct versus total effects with the compute graph as causal graph, the erasure MLPs, the roughly 70% restoration at middle layers, and training without dropout.",
+      arxiv="2307.15771v1", slug="hydra_effect"),
+    P("controltasks", "C", "P1", "Hewitt & Liang", "2019", "Designing and Interpreting Probes with Control Tasks", "Probes with Control Tasks",
+      "Asks whether a high-accuracy probe shows that a representation encodes a property or merely that the probe learned the task, and answers with control tasks of random labels and a selectivity measure.",
+      "The construction of control tasks for part-of-speech tagging and dependency edges, the definition of selectivity, which complexity controls work (dropout does not), and the ELMo layer comparison that selectivity complicates.",
+      arxiv="1909.03368v1", slug="probe_control_tasks"),
+    P("probing", "C", "P1", "Belinkov", "2022", "Probing Classifiers: Promises, Shortcomings, and Advances", "Probing Classifiers",
+      "A critical review of probing classifiers: what training a classifier on representations can show, and the limits the literature uncovered in controls, probe choice, correlation versus causation, and datasets versus tasks.",
+      "The formal setup of the framework, the comparisons-and-controls section, the choice of classifier, correlation versus causation and the move to interventions, and the problem that properties must be defined in advance.",
+      arxiv="2102.12452v4", slug="probing_classifiers",
+      note="First posted to arXiv in February 2021; the cited year is that of publication in Computational Linguistics."),
+    # ---- D
+    P("solu", "D", "P1", "Elhage et al.", "2022", "Softmax Linear Units", "Softmax Linear Units",
+      "Tries an architectural fix for polysemantic neurons — a softmax-based activation — and finds many more neurons become interpretable, with a catch it attributes to superposition.",
+      "The SoLU activation and the LayerNorm it needs, the neuron interpretability evaluation, the evidence read as features hiding in small activations, and its frank note on how little real-world evidence for superposition existed.",
+      html=f"{TC}/2022/solu/index.html", slug="softmax_linear_units"),
+    P("toy", "D", "P0", "Elhage et al.", "2022", "Toy Models of Superposition", "Toy Models of Superposition",
+      "Formalizes superposition — networks representing more features than they have dimensions — the idea that motivated sparse dictionary learning and much of Sections D and E.",
+      "Sparsity/importance phase diagrams, feature geometry, computation in superposition, privileged bases, and which results depend on independent, predefined features with no downstream readers.",
+      arxiv="2209.10652v1", slug="toy_models_of_superposition"),
+    P("composition", "D", "P1", "Olah", "2023", "Distributed Representations: Composition & Superposition", "Composition & Superposition",
       "A short note separating two reasons a representation can be distributed: composition, which builds on shared structure, and superposition, which packs unrelated features together.",
-      "The two definitions and their examples, why a merely rotated basis is neither, and which kind should worry interpretability — then compare with how ‘superposition’ is used across Sections C–D.",
-      html=f"{TC}/2023/superposition-composition/index.html", slug="composition_superposition",
-      authors=["Chris Olah"]),  # informal note: no BibTeX block to read authors from
-    P("explain", "C", "P1", "Bills et al.", "2023", "Language Models Can Explain Neurons in Language Models", "Language Models Can Explain Neurons",
-      "Automates neuron explanation: GPT-4 writes explanations of GPT-2 XL neurons, scored by how well a simulator predicts activations from the explanation alone.",
-      "The explain–simulate–score loop, what share of neurons score well and how it varies with depth and model size, and the stated limits of simulation-based scoring.",
-      html="https://openaipublic.blob.core.windows.net/neuron-explainer/paper/index.html", slug="explaining_neurons", venue="OpenAI"),
-    P("haystack", "C", "P1", "Gurnee et al.", "2023", "Finding Neurons in a Haystack: Case Studies with Sparse Probing", "Finding Neurons in a Haystack",
+      "The two definitions and their examples, why a merely rotated basis is neither, and which kind should worry interpretability — then compare with how ‘superposition’ is used across Sections D–E.",
+      html=f"{TC}/2023/superposition-composition/index.html", slug="composition_superposition", kind="note",
+      authors=["Chris Olah"]),
+    P("privileged", "D", "P1", "Elhage et al.", "2023", "Privileged Bases in the Transformer Residual Stream", "Privileged Bases in the Residual Stream",
+      "Asks why the residual stream, which theory says has no privileged basis, nonetheless shows basis-aligned outlier dimensions; it rules out LayerNorm and floating-point precision and provisionally blames the Adam optimizer.",
+      "The kurtosis test for a privileged basis and its random-rotation control, the RMSNorm and rotated-model experiments, the shared- versus independent-rotation training runs, and how firmly the conclusion about Adam is stated.",
+      html=f"{TC}/2023/privileged-basis/index.html", slug="privileged_bases", kind="note",
+      authors=["Nelson Elhage", "Robert Lasenby", "Christopher Olah"]),
+    P("kvmemories", "D", "P1", "Geva et al.", "2021", "Transformer Feed-Forward Layers Are Key-Value Memories", "Feed-Forward Layers Are Key-Value Memories",
+      "Reads transformer feed-forward layers as key–value memories: keys detect human-interpretable input patterns, shallow in lower layers and semantic in upper ones, and values promote the tokens likely to follow those patterns.",
+      "The key–value reading of the two MLP matrices, the expert annotation of trigger prefixes, projecting values onto the vocabulary, the upper- versus lower-layer agreement, and how layer outputs compose many memories and are refined through the residual stream.",
+      arxiv="2012.14913v2", slug="ffn_key_value_memories",
+      note="arXiv first posted December 2020; published at EMNLP 2021."),
+    P("haystack", "D", "P1", "Gurnee et al.", "2023", "Finding Neurons in a Haystack: Case Studies with Sparse Probing", "Finding Neurons in a Haystack",
       "Uses sparse probing to find which neurons represent over a hundred features across seven models from 70M to 6.9B parameters, finding both superposed and dedicated neurons.",
       "The sparse-probing method and its choice of k, superposition in early layers versus dedicated neurons in middle layers, the case studies, and how results change with scale.",
       arxiv="2305.01610v2", slug="neurons_in_haystack"),
-    P("cunningham", "C", "P0", "Cunningham et al.", "2023", "Sparse Autoencoders Find Highly Interpretable Model Directions",
-      "SAEs Find Highly Interpretable Directions",
+    P("universal", "D", "P1", "Gurnee et al.", "2024", "Universal Neurons in GPT2 Language Models", "Universal Neurons in GPT-2",
+      "Correlates neuron activations across five GPT-2 models trained from different seeds, finding only 1–5% of neurons universal; those usually have clear interpretations and fall into a few families with identifiable functional roles.",
+      "The excess-correlation measure of universality, the neuron families (unigram, alphabet, position, syntax, context), prediction and suppression neurons, entropy neurons acting through the final LayerNorm, attention-deactivation neurons, and the small-model limits.",
+      arxiv="2401.12181v1", slug="universal_neurons"),
+    P("explain", "D", "P1", "Bills et al.", "2023", "Language Models Can Explain Neurons in Language Models", "Language Models Can Explain Neurons",
+      "Automates neuron explanation: GPT-4 writes explanations of GPT-2 XL neurons, scored by how well a simulator predicts activations from the explanation alone.",
+      "The explain–simulate–score loop, what share of neurons score well and how it varies with depth and model size, and the stated limits of simulation-based scoring.",
+      html="https://openaipublic.blob.core.windows.net/neuron-explainer/paper/index.html", slug="explaining_neurons",
+      venue="OpenAI"),
+    P("lrh", "D", "P0", "Park et al.", "2024", "The Linear Representation Hypothesis and the Geometry of Large Language Models", "The Linear Representation Hypothesis",
+      "Gives the linear representation hypothesis a precise form: counterfactual definitions in the embedding and unembedding spaces, proved to connect to steering and probing, and a causal inner product under which causally separable concepts are orthogonal.",
+      "The three readings of ‘linear representation’ (subspace, measurement, intervention), the unembedding and embedding definitions and what each connects to, how the causal inner product is estimated from the unembedding matrix, and the LLaMA-2 experiments.",
+      arxiv="2311.03658v2", slug="linear_representation_hypothesis",
+      note="arXiv first posted November 2023; published at ICML 2024."),
+    P("truth", "D", "P1", "Marks & Tegmark", "2023", "The Geometry of Truth: Emergent Linear Structure in Large Language Model Representations of True/False Datasets", "The Geometry of Truth",
+      "Uses curated datasets of simple true/false statements to argue that, at sufficient scale, LLMs linearly represent the truth of factual statements, combining visualizations, cross-dataset probe transfer and causal interventions.",
+      "Dataset design (negations, conjunctions, the ‘likely’ control), patching to localize truth representations, PCA visualizations, probe generalization, difference-in-means versus other probes, and the interventions that make the model treat false statements as true.",
+      arxiv="2310.06824v3", slug="geometry_of_truth"),
+    P("notlinear", "D", "P0", "Engels et al.", "2024", "Not All Language Model Features Are One-Dimensionally Linear", "Not All Features Are Linear",
+      "Defines irreducible multi-dimensional features, uses sparse autoencoders to find them in GPT-2 and Mistral 7B, and shows circular day-of-week and month representations that models use for modular arithmetic on those cycles.",
+      "The separability and mixture criteria for irreducibility, the SAE-based search, the days-of-week and months circles, the intervention experiments on Mistral 7B and Llama 3 8B, and whether the circles are truly the unit of computation.",
+      arxiv="2405.14860v3", slug="not_all_features_linear",
+      note="arXiv v1 was titled “Not All Language Model Features Are Linear”; the latest version (v3, ICLR 2025) is printed here."),
+    P("mendel", "D", "P1", "Mendel", "2024", "SAE Feature Geometry Is Outside the Superposition Hypothesis", "SAE Feature Geometry and Superposition",
+      "Argues that superposition is an incomplete account of activation space: where feature vectors sit carries structure — ordered circles, rich UMAPs, feature splitting — that a list of sparse directions cannot explain.",
+      "The test of explaining an activation space by its feature list alone, the evidence that placement matters, the three candidate futures (hodgepodge, supplement or supersede superposition), and the proposed approaches, including ground-truth toy models.",
+      html="https://www.alignmentforum.org/posts/MFBTjb2qf3ziWmzz6/sae-feature-geometry-is-outside-the-superposition-hypothesis",
+      slug="sae_feature_geometry", venue="AI Alignment Forum", kind="post", license=FORUM_LICENSE,
+      authors=["Jake Mendel"], render=FORUM_RENDER),
+    P("compsup", "D", "P1", "Hänni et al.", "2024", "Mathematical Models of Computation in Superposition", "Computation in Superposition",
+      "Moves superposition theory from storage to computation, constructing networks that compute far more boolean features than they have neurons: pairwise ANDs, sparse low-depth circuits, and deep networks kept on track by error correction.",
+      "The definition of linearly represented features suited to computation, the U-AND construction and its neuron count, the argument that random networks likely emulate U-AND, the extension to sparse boolean circuits, error-correction layers, and the asymptotic caveats.",
+      arxiv="2408.05451v1", slug="computation_in_superposition"),
+    # ---- E
+    P("cunningham", "E", "P0", "Cunningham et al.", "2023", "Sparse Autoencoders Find Highly Interpretable Model Directions", "SAEs Find Highly Interpretable Directions",
       "An early demonstration that sparse autoencoders on LM activations recover features more interpretable than neurons or other decompositions.",
       "SAE architecture and L1 objective, automated interpretability scoring, the IOI causal-localization experiment, and the dictionary-size trade-offs.",
       arxiv="2309.08600v3", slug="sparse_autoencoders_cunningham",
       note="Published under the revised title “Sparse Autoencoders Find Highly Interpretable Features in Language Models” (arXiv v3, the latest version)."),
-    P("mono", "C", "P0", "Bricken et al.", "2023", "Towards Monosemanticity: Decomposing Language Models With Dictionary Learning",
-      "Towards Monosemanticity",
+    P("mono", "E", "P0", "Bricken et al.", "2023", "Towards Monosemanticity: Decomposing Language Models With Dictionary Learning", "Towards Monosemanticity",
       "Anthropic's detailed dictionary-learning study on a one-layer transformer that established the methodology for evaluating SAE features.",
       "Training setup and neuron resampling, interpretability evaluation, feature splitting, universality, finite-state-automata phenomenology, and the problems/limitations.",
       html=f"{TC}/2023/monosemantic-features/index.html", slug="towards_monosemanticity"),
-    P("scaling", "C", "P0", "Templeton et al.", "2024", "Scaling Monosemanticity: Extracting Interpretable Features from Claude 3 Sonnet",
-      "Scaling Monosemanticity",
+    P("scaling", "E", "P0", "Templeton et al.", "2024", "Scaling Monosemanticity: Extracting Interpretable Features from Claude 3 Sonnet", "Scaling Monosemanticity",
       "Scales sparse autoencoders to Claude 3 Sonnet, finding abstract, multilingual, multimodal and safety-relevant features, and demonstrates feature steering.",
       "SAE scaling laws, feature completeness, steering interventions, safety-relevant features, and the explicit limitations and caveats.",
       html=f"{TC}/2024/scaling-monosemanticity/index.html", slug="scaling_monosemanticity"),
-    P("topk", "C", "P1", "Gao et al.", "2024", "Scaling and Evaluating Sparse Autoencoders", "Scaling and Evaluating Sparse Autoencoders",
+    P("topk", "E", "P1", "Gao et al.", "2024", "Scaling and Evaluating Sparse Autoencoders", "Scaling and Evaluating Sparse Autoencoders",
       "Establishes k-sparse (TopK) autoencoders and clean scaling laws up to 16M latents on GPT-4 activations, with evaluation metrics beyond reconstruction.",
       "TopK activation, dead-latent mitigation, scaling laws in latents and k, and the downstream-loss, probing, explainability and ablation-sparsity metrics.",
       arxiv="2406.04093v1", slug="scaling_evaluating_saes"),
-    P("jumprelu", "C", "P1", "Rajamanoharan et al.", "2024", "Jumping Ahead: Improving Reconstruction Fidelity with JumpReLU Sparse Autoencoders",
-      "JumpReLU Sparse Autoencoders",
-      "Introduces JumpReLU SAEs trained directly on an L0 penalty with straight-through estimators, improving reconstruction fidelity at fixed sparsity.",
-      "The JumpReLU activation and thresholds, pseudo-derivatives via straight-through estimation, and comparisons with Gated and TopK SAEs on Gemma 2 9B.",
-      arxiv="2407.14435v3", slug="jumprelu_saes",
-      optional="An architectural refinement on the frontier of {topk}; worth printing if you train sparse autoencoders yourself."),
-    P("absorption", "C", "P0", "Chanin et al.", "2024", "A is for Absorption: Studying Feature Splitting and Absorption in Sparse Autoencoders",
-      "A is for Absorption",
+    P("absorption", "E", "P0", "Chanin et al.", "2024", "A is for Absorption: Studying Feature Splitting and Absorption in Sparse Autoencoders", "A is for Absorption",
       "Identifies feature absorption — general latents failing to fire where a more specific latent absorbs the direction — as a systematic SAE failure mode.",
       "The first-letter spelling task, the absorption metric, splitting vs. absorption, dependence on SAE width and sparsity, and consequences for interpretability claims.",
       arxiv="2409.14507v6", slug="feature_absorption"),
-    # ---- D
-    P("transcoders", "D", "P0", "Dunefsky et al.", "2024", "Transcoders Find Interpretable LLM Feature Circuits", "Transcoders Find Interpretable Feature Circuits",
+    P("sfc", "E", "P0", "Marks et al.", "2024", "Sparse Feature Circuits: Discovering and Editing Interpretable Causal Graphs in Language Models", "Sparse Feature Circuits",
+      "Builds causal circuits from SAE features rather than heads or neurons, using linear attribution approximations, then puts them to work: SHIFT ablates features a human judges spurious to debias a classifier.",
+      "Attribution-based node and edge scores with SAE error terms kept in the graph, the subject–verb agreement circuits, SHIFT on the Bias in Bios profession classifier against a neuron-ablation baseline, the unsupervised behaviour-clustering pipeline, and the limitations.",
+      arxiv="2403.19647v3", slug="sparse_feature_circuits"),
+    P("transcoders", "E", "P0", "Dunefsky et al.", "2024", "Transcoders Find Interpretable LLM Feature Circuits", "Transcoders Find Interpretable Feature Circuits",
       "Replaces MLP sublayers with wide, sparsely-activating transcoders so feature-level circuit analysis can pass through MLPs cleanly.",
       "Transcoder objective vs. SAEs, the input-invariant / input-dependent factorization of circuits, evaluation against SAEs, and the GPT-2 greater-than case study.",
       arxiv="2406.11944v2", slug="transcoders"),
-    P("tracing", "D", "P0", "Ameisen et al.", "2025", "Circuit Tracing: Revealing Computational Graphs in Language Models", "Circuit Tracing",
+    P("crosscoders", "E", "P1", "Lindsey et al.", "2024", "Sparse Crosscoders for Cross-Layer Features and Model Diffing", "Sparse Crosscoders",
+      "Generalises SAEs and transcoders to dictionaries that read and write several layers — or several models — at once, giving cross-layer features and a way to diff a base model against its finetuned version.",
+      "Cross-layer superposition and persistent features, the L1-of-norms loss, crosscoder vs. per-layer SAE efficiency, feature drift across layers, the Claude 3 Sonnet base/finetune diff, and the closing discussion of literal versus isomorphic models.",
+      html=f"{TC}/2024/crosscoders/index.html", slug="sparse_crosscoders",
+      authors=["Jack Lindsey", "Adly Templeton", "Jonathan Marcus", "Thomas Conerly", "Joshua Batson", "Christopher Olah"]),
+    P("tracing", "E", "P0", "Ameisen et al.", "2025", "Circuit Tracing: Revealing Computational Graphs in Language Models", "Circuit Tracing",
       "Introduces cross-layer transcoders and attribution graphs for analyzing language-model computations.",
       "Replacement-model fidelity, attribution methodology, intervention tests, and limitations.",
       html=f"{TC}/2025/attribution-graphs/methods.html", slug="circuit_tracing"),
-    P("biology", "D", "P0", "Lindsey et al.", "2025", "On the Biology of a Large Language Model", "On the Biology of a Large Language Model",
+    P("biology", "E", "P0", "Lindsey et al.", "2025", "On the Biology of a Large Language Model", "On the Biology of a Large Language Model",
       "Applies attribution graphs to Claude 3.5 Haiku across case studies: multi-step reasoning, planning, multilinguality, arithmetic, hallucination, refusal and CoT faithfulness.",
       "Each case study's mechanism claim and its intervention evidence, recurring motifs across studies, and the limitations section.",
       html=f"{TC}/2025/attribution-graphs/biology.html", slug="biology_of_llm"),
-    P("saebench", "D", "P0", "Karvonen et al.", "2025", "SAEBench: A Comprehensive Benchmark for Sparse Autoencoders in Language Model Interpretability",
-      "SAEBench",
+    # ---- F
+    P("gdmnegative", "F", "P0", "Smith et al.", "2025", "Negative Results for SAEs On Downstream Tasks and Deprioritising SAE Research (GDM Mech Interp Team Progress Update #2)", "Negative Results for SAEs (GDM)",
+      "Google DeepMind's interpretability team reports that SAE-based probes for harmful intent generalise worse out of distribution than plain linear probes, and announces it is deprioritising fundamental SAE research.",
+      "The OOD probing setup with held-out jailbreaks, single-latent and k-sparse SAE probes vs. dense probes, chat-finetuned SAEs closing about half the gap, dataset debugging as the one win, and the section asking whether the failure was surprising.",
+      html="https://www.alignmentforum.org/posts/4uXCAJNuPKtKBsi28/negative-results-for-saes-on-downstream-tasks",
+      slug="gdm_sae_negative_results", venue="AI Alignment Forum", kind="post", license=FORUM_LICENSE,
+      authors=["Lewis Smith", "Senthooran Rajamanoharan", "Arthur Conmy", "Callum McDougall", "Tom Lieberum", "János Kramár", "Rohin Shah", "Neel Nanda"],
+      render=FORUM_RENDER),
+    P("axbench", "F", "P0", "Wu et al.", "2025", "AxBench: Steering LLMs? Even Simple Baselines Outperform Sparse Autoencoders", "AxBench",
+      "A large benchmark for concept detection and steering on Gemma-2 finds that prompting beats every representation method at steering, difference-in-means leads at detection, and SAEs are competitive on neither.",
+      "Synthetic concept data built from GemmaScope concept lists, the LLM-judged steering score, the baselines (difference-in-means, probes, LAT, prompting, finetuning), the new ReFT-r1, and what interpretability advantage steering is claimed to keep.",
+      arxiv="2501.17148v3", slug="axbench"),
+    P("saeprobing", "F", "P1", "Kantamneni et al.", "2025", "Are Sparse Autoencoders Useful? A Case Study in Sparse Probing", "Are Sparse Autoencoders Useful?",
+      "Tests whether SAE latents give probes a useful inductive bias across 113 datasets and four hard regimes — scarce data, class imbalance, label noise, covariate shift — and finds no consistent gain over strong baselines.",
+      "The ‘quiver of arrows’ protocol, results in each of the four regimes, the GLUE CoLA dataset-quality case, multi-token probing, the section on illusions of SAE probes, and the check on newer SAE architectures.",
+      arxiv="2502.16681v1", slug="sae_sparse_probing"),
+    P("randomsae", "F", "P1", "Heap et al.", "2025", "Automated Interpretability Metrics Do Not Distinguish Trained and Random Transformers", "SAEs on Random Transformers",
+      "SAEs trained on randomly initialised transformers often score about as well on auto-interpretability and reconstruction metrics as SAEs on trained ones, so those aggregate metrics cannot certify learned features.",
+      "The randomisation schemes, auto-interpretability and reconstruction results across Pythia sizes, the toy models of how random networks preserve or create superposed structure, and the token-entropy measure of feature abstractness.",
+      arxiv="2501.17727v2", slug="sae_random_transformers",
+      note="arXiv v1 was titled “Sparse Autoencoders Can Interpret Randomly Initialized Transformers”; the latest version (v2), printed here, is retitled. Same paper and arXiv identifier."),
+    P("sanity", "F", "F", "Korznikov et al.", "2026", "Sanity Checks for Sparse Autoencoders: Do SAEs Beat Random Baselines?", "Sanity Checks for Sparse Autoencoders",
+      "Compares trained SAEs with baselines whose decoder or encoder is frozen at random and finds near parity on interpretability, sparse probing and causal editing; a synthetic test shows SAEs recover few true features.",
+      "The synthetic ground-truth experiment (9% of features recovered at 71% explained variance), the three frozen baselines, the SAEBench-derived metrics, and the lazy-training reading of why random directions do so well.",
+      arxiv="2602.14111v1", slug="sae_sanity_checks"),
+    P("samedata", "F", "P1", "Paulo & Belrose", "2025", "Sparse Autoencoders Trained on the Same Data Learn Different Features", "SAEs Learn Different Features",
+      "SAEs trained on the same model and data, differing only in random seed, learn substantially different features — in one 131K-latent SAE on Llama 3 8B only 30% were shared — so a dictionary is one useful decomposition.",
+      "Hungarian matching of latents across seeds, the shared vs. seed-specific split, effects of size, layer and architecture (L1 ReLU vs. TopK), and the closing argument for a pragmatic, hierarchical view of features.",
+      arxiv="2501.16615v2", slug="sae_same_data_different_features"),
+    P("saebench", "F", "P0", "Karvonen et al.", "2025", "SAEBench: A Comprehensive Benchmark for Sparse Autoencoders in Language Model Interpretability", "SAEBench",
       "An eight-metric benchmark over 200+ SAEs showing that proxy metrics (sparsity vs. fidelity) do not reliably predict practical SAE quality.",
       "The evaluation suite (absorption, autointerp, SCR/TPP, RAVEL, sparse probing, unlearning), architecture comparisons, and where proxy metrics mislead.",
       arxiv="2503.09532v4", slug="saebench"),
-    P("mib", "D", "P0", "Mueller et al.", "2025", "MIB: A Mechanistic Interpretability Benchmark", "MIB: Mechanistic Interpretability Benchmark",
+    P("mib", "F", "P0", "Mueller et al.", "2025", "MIB: A Mechanistic Interpretability Benchmark", "MIB: Mechanistic Interpretability Benchmark",
       "Standardizes evaluation of circuit-localization and causal-variable-localization methods across four tasks and five models.",
       "Track design and metrics, which methods win on each track, and how SAEs compare with neurons and DAS for causal variable localization.",
       arxiv="2504.13151v2", slug="mib_benchmark"),
-    # ---- E
-    P("consistency", "E", "F", "Song et al.", "2026", "Mechanistic Interpretability Should Prioritize Feature Consistency in Sparse Autoencoders",
-      "Prioritize Feature Consistency in SAEs",
-      "Position paper arguing SAE features should converge across independent training runs, and proposing PW-MCC to measure that consistency.",
-      "The PW-MCC metric, the synthetic ground-truth validation, architecture effects on consistency — and whether consistency is the right target at all.",
-      arxiv="2505.20254v1", slug="sae_feature_consistency",
-      note="arXiv title: “Position: Mechanistic Interpretability Should Prioritize Feature Consistency in SAEs”; first posted May 2025."),
-    P("arora", "E", "P0", "Arora et al.", "2026", "Language Model Circuits Are Sparse in the Neuron Basis", "Circuits Are Sparse in the Neuron Basis",
+    # ---- G
+    P("arora", "G", "P0", "Arora et al.", "2026", "Language Model Circuits Are Sparse in the Neuron Basis", "Circuits Are Sparse in the Neuron Basis",
       "Reports that MLP neurons are as sparse a feature basis as SAEs and builds gradient-based circuit tracing directly on neurons.",
       "The sparsity comparison methodology, the neuron-level attribution pipeline, benchmark results, and how far the claim generalizes beyond tested models/tasks.",
       arxiv="2601.22594v2", slug="circuits_sparse_neuron_basis"),
-    P("weightsparse", "E", "F", "Gao et al.", "2026", "Weight-sparse Transformers Have Interpretable Circuits", "Weight-sparse Transformers",
-      "Trains transformers with mostly-zero weights so task circuits pruned from them consist of few, interpretable connections.",
-      "Training and pruning procedure, the hand-crafted task circuits, the capability–interpretability trade-off, scaling behaviour, and transfer to dense models.",
-      arxiv="2511.13653v1", slug="weight_sparse_transformers", note="arXiv first posted November 2025."),
-    # ---- F
-    P("repe", "F", "P1", "Zou et al.", "2023", "Representation Engineering: A Top-Down Approach to AI Transparency", "Representation Engineering",
-      "Proposes a top-down, population-level approach: reading and controlling representations of high-level concepts such as honesty and power-seeking.",
-      "LAT reading vectors, representation control methods, the honesty and utility experiments, and how its claims differ from bottom-up circuit analysis.",
-      arxiv="2310.01405v4", slug="representation_engineering"),
-    P("actadd", "F", "P1", "Turner et al.", "2023", "Activation Addition: Steering Language Models Without Optimization", "Activation Addition (ActAdd)",
-      "Shows that adding a single contrast-pair activation difference at inference time steers model outputs without any optimization.",
-      "Construction of steering vectors, layer and coefficient choices, sentiment/toxicity evaluations, and the effect on off-target capabilities.",
-      arxiv="2308.10248v5", slug="activation_addition",
-      note="Latest arXiv version (v5) is retitled “Steering Language Models With Activation Engineering”; same paper and arXiv identifier."),
-    P("refusal", "F", "P1", "Arditi et al.", "2024", "Refusal in Language Models Is Mediated by a Single Direction", "Refusal Is Mediated by a Single Direction",
-      "Finds a single residual-stream direction across 13 chat models whose ablation removes refusal and whose addition induces it.",
-      "Difference-in-means direction extraction, directional ablation and weight orthogonalization, the jailbreak implications, and the adversarial-suffix analysis.",
-      arxiv="2406.11717v3", slug="refusal_single_direction"),
-    P("turpin", "F", "P0", "Turpin et al.", "2023", "Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting",
-      "Unfaithful Chain-of-Thought Explanations",
-      "Shows chain-of-thought explanations can systematically misrepresent the true reason for a model's prediction when inputs contain biasing features.",
-      "The biasing interventions (answer-is-always-A, suggested answer), BBH and BBQ results, and what the findings imply for CoT-based oversight.",
-      arxiv="2305.04388v2", slug="unfaithful_cot"),
-    P("monitor", "F", "P1", "Guan et al.", "2025", "Monitoring Monitorability", "Monitoring Monitorability",
-      "Proposes evaluation archetypes and a metric for tracking whether reasoning models' chains of thought remain monitorable.",
-      "Intervention, process and outcome-property evaluations, the monitorability metric, obfuscated-CoT model organisms, and CoT vs. action-only monitoring.",
-      arxiv="2512.18311v1", slug="monitoring_monitorability"),
-    P("cotsae", "F", "F", "Chen et al.", "2026", "How Does Chain of Thought Think? Mechanistic Interpretability of Chain-of-Thought Reasoning with Sparse Autoencoding",
-      "How Does Chain of Thought Think?",
-      "A feature-level causal study of CoT faithfulness combining SAEs and activation patching on Pythia models solving GSM8K.",
-      "Feature-swap patching between CoT and no-CoT runs, the reported scale threshold (70M vs 2.8B), sparsity/interpretability effects — and the small-model caveats.",
-      arxiv="2507.22928v1", slug="how_does_cot_think", note="arXiv first posted July 2025.",
-      optional="A small-model study; {turpin}, {monitor} and {biology} cover chain-of-thought faithfulness more directly."),
-    P("survey", "F", "P1", "Zhang et al.", "2026", "Locate, Steer, and Improve: A Practical Survey of Actionable Mechanistic Interpretability in Large Language Models",
-      "Locate, Steer, and Improve (survey)",
-      "A survey organizing mechanistic interpretability as an actionable pipeline: localize, steer, and improve alignment, capability and efficiency.",
-      "The taxonomy of interpretable objects, localization vs. steering methods, the application sections, and the open problems — use as a map back to the primary literature.",
-      arxiv="2601.14004v4", slug="locate_steer_improve",
-      optional="About a hundred pages of reference material — better consulted than printed."),
-    # ---- G
     P("clean", "G", "P0", "Cammarata", "2026", "Neural Networks Are Already Clean", "Neural Networks Are Already Clean",
       "Argues that the polysemantic neurons which motivated superposition came from fixable problems — weak tools, weak architectures, small models — and that networks can be studied directly through their own neurons, with recursive generalization as the main residual motif.",
       "The cars-and-animals reanalysis, recursive generalization, the layer-crushing and SAE comparisons, weak-activation ablations, the neuron-level attribution graphs in Qwen3-32B and Kimi K3 — and the evidence status: language-model numbers are deferred to a forthcoming companion paper.",
       html="https://already-clean.goodfire.com/", slug="neural_networks_already_clean", venue="Goodfire",
-      note="Informal research essay. Interactive figures are printed in their static, reduced-motion state; use the URL for the interactive versions.",
-      render=dict(clamp_width=True, reduced_motion=True, scroll=False, reveal=["#toy-shared-diagonals"])),
+      kind="essay",
+      render={'clamp_width': True, 'reduced_motion': True, 'scroll': False, 'reveal': ['#toy-shared-diagonals']},
+      note="Informal research essay. Interactive figures are printed in their static, reduced-motion state; use the URL for the interactive versions."),
+    P("weightsparse", "G", "F", "Gao et al.", "2026", "Weight-sparse Transformers Have Interpretable Circuits", "Weight-sparse Transformers",
+      "Trains transformers with mostly-zero weights so task circuits pruned from them consist of few, interpretable connections.",
+      "Training and pruning procedure, the hand-crafted task circuits, the capability–interpretability trade-off, scaling behaviour, and transfer to dense models.",
+      arxiv="2511.13653v1", slug="weight_sparse_transformers", note="arXiv first posted November 2025."),
+    P("spd", "G", "P1", "Bushnaq et al.", "2025", "Stochastic Parameter Decomposition", "Stochastic Parameter Decomposition",
+      "Introduces Stochastic Parameter Decomposition, which splits each weight matrix into rank-one subcomponents and learns how ablatable each is per input, making parameter decomposition more scalable and less hyperparameter-sensitive than its predecessor, APD.",
+      "Causal importance defined as ablatability, the stochastic masks and reconstruction losses, the toy models of superposition, compressed computation and cross-layer distributed representations, and the discussion of why SPD is more robust than APD.",
+      arxiv="2506.20790v2", slug="stochastic_parameter_decomposition"),
+    P("vpd", "G", "F", "Bushnaq et al.", "2026", "Interpreting Language Model Parameters", "Interpreting Language Model Parameters (VPD)",
+      "Scales parameter decomposition to a whole 67M-parameter language model by demanding robustness to adversarially chosen ablations, then uses the subcomponents to study attention spread across heads, build attribution graphs and hand-edit the model.",
+      "Adversarial versus stochastic ablation, the reconstruction table and ‘pretraining compute recovered’, the comparison with transcoders and CLTs, feature splitting, the attention case studies, the emoticon edit, and the admitted limits of adversarial robustness.",
+      html="https://www.goodfire.com/research/interpreting-lm-parameters", slug="interpreting_lm_parameters",
+      venue="Goodfire",
+      # the opening interactive overview's off-screen carousel track (~118,000px wide) makes Chrome shrink the whole
+      # post to ~6pt, so the overview is left out of the print
+      render={"keep": [".resource-content-main"], "clamp_width": True, "css": ".vpd-hero{display:none!important}"},
+      note="Interactive research post. In print the opening interactive overview figure is omitted and other widgets appear in their static state; use the URL for the interactive versions."),
+    P("worldinside", "G", "F", "Geiger et al.", "2026", "The World Inside Neural Networks", "The World Inside Neural Networks",
+      "Goodfire's agenda for neural geometry: concepts such as a car's position, the months or rhyming words lie on curved manifolds, so understanding and steering a model means following that geometry rather than straight directions or isolated SAE features.",
+      "The mountain-car example of manifold versus linear steering, the representation–computation–behaviour framing, the account of where geometry comes from, and the slant-rhyme manifold that SAE features shatter into unrelated labels.",
+      html="https://www.goodfire.com/research/the-world-inside-neural-networks", slug="world_inside_neural_networks",
+      venue="Goodfire", kind="essay", render={'keep': ['.resource-content-main']},
+      note="Research agenda essay; interactive figures print in their static state, use the URL for the interactive versions."),
+    P("manifolds", "G", "F", "Bhalla et al.", "2026", "Do Sparse Autoencoders Capture Concept Manifolds?", "Do SAEs Capture Concept Manifolds?",
+      "Asks what it would mean for a sparse autoencoder to capture a concept manifold, and finds that SAEs recover such structure only in a fragmented ‘dilution’ regime that mixes a global subspace with local tiling by many features.",
+      "The distinction between global subspace capture and local tiling, the Ising-model account of regimes, the toy model of manifold superposition, the Llama 3.1 8B measurements across SAE architectures, and the search for groups of atoms rather than single directions.",
+      arxiv="2604.28119v1", slug="sae_concept_manifolds"),
+    P("nla", "G", "F", "Fraser-Taliente et al.", "2026", "Natural Language Autoencoders Produce Unsupervised Explanations of LLM Activations", "Natural Language Autoencoders",
+      "Trains a verbaliser and a reconstructor together so that each residual-stream activation must pass through a written explanation and be recovered from it, yielding readable, unsupervised descriptions of what activations encode.",
+      "The verbaliser–reconstructor design and RL objective, the warm start, the Opus 4.6 case studies (rhyme planning, language switching, misreported tool calls), confabulation, unverbalised evaluation awareness, the auditing results against SAEs, and the limitations.",
+      html=f"{TC}/2026/nla/index.html", slug="natural_language_autoencoders",
+      # transcript viewers scroll inside a 600px box; unroll them so the whole transcript prints
+      render=dict(css=".transcript-content{max-height:none!important;height:auto!important;overflow:visible!important}"),
+      note="Agent transcripts, which scroll inside fixed-height viewers on the web page, are printed in full."),
+    P("devlandscape", "G", "P1", "Hoogland et al.", "2024", "Loss Landscape Degeneracy and Stagewise Development in Transformers", "Stagewise Development in Transformers",
+      "Tracks loss-landscape degeneracy through training with singular learning theory's local learning coefficient, and finds that its turning points divide training into stages that coincide with changes in a transformer's internal structure and behaviour.",
+      "The local learning coefficient and its estimation, the stage-division method, the language-model stages from bigrams to n-grams to the induction circuit, the in-context regression stages, the small model sizes, and how far the authors take the evidence.",
+      arxiv="2402.02364v3", slug="stagewise_development",
+      note="First posted February 2024 as “The Developmental Landscape of In-Context Learning”; the latest version (v3, August 2025), printed here, is retitled, with v1's essential-dynamics material moved to arXiv:2501.17745."),
+    # ---- H
+    P("repe", "H", "P1", "Zou et al.", "2023", "Representation Engineering: A Top-Down Approach to AI Transparency", "Representation Engineering",
+      "Proposes a top-down, population-level approach: reading and controlling representations of high-level concepts such as honesty and power-seeking.",
+      "LAT reading vectors, representation control methods, the honesty and utility experiments, and how its claims differ from bottom-up circuit analysis.",
+      arxiv="2310.01405v4", slug="representation_engineering"),
+    P("actadd", "H", "P1", "Turner et al.", "2023", "Activation Addition: Steering Language Models Without Optimization", "Activation Addition (ActAdd)",
+      "Shows that adding a single contrast-pair activation difference at inference time steers model outputs without any optimization.",
+      "Construction of steering vectors, layer and coefficient choices, sentiment/toxicity evaluations, and the effect on off-target capabilities.",
+      arxiv="2308.10248v5", slug="activation_addition",
+      note="Latest arXiv version (v5) is retitled “Steering Language Models With Activation Engineering”; same paper and arXiv identifier."),
+    P("refusal", "H", "P1", "Arditi et al.", "2024", "Refusal in Language Models Is Mediated by a Single Direction", "Refusal Is Mediated by a Single Direction",
+      "Finds a single residual-stream direction across 13 chat models whose ablation removes refusal and whose addition induces it.",
+      "Difference-in-means direction extraction, directional ablation and weight orthogonalization, the jailbreak implications, and the adversarial-suffix analysis.",
+      arxiv="2406.11717v3", slug="refusal_single_direction"),
+    P("ccs", "H", "P1", "Burns et al.", "2023", "Discovering Latent Knowledge in Language Models Without Supervision", "Discovering Latent Knowledge (CCS)",
+      "Proposes Contrast-Consistent Search: finding, without labels, a direction in activation space whose answers to a statement and its negation are logically consistent — an attempt to read what a model knows rather than what it says.",
+      "Contrast-pair construction and normalisation, the consistency and confidence terms of the loss, accuracy against zero-shot prompting across 6 models and 10 datasets, the misleading-prompt experiment, and the unsupervised PCA baseline.",
+      arxiv="2212.03827v2", slug="discovering_latent_knowledge",
+      note="Published at ICLR 2023; arXiv first posted December 2022."),
+    P("ccschallenges", "H", "P1", "Farquhar et al.", "2023", "Challenges with Unsupervised LLM Knowledge Discovery", "Challenges for Knowledge Discovery",
+      "Proves that arbitrary binary features satisfy the consistency structure CCS relies on, and shows experimentally that unsupervised probes latch onto whatever feature is most prominent rather than the model's knowledge.",
+      "The two theorems, the banana/shed and ‘Alice’ distractor experiments, the implicit-opinion and prompt-template results, CCS's agreement with PCA, and the sanity checks proposed for future elicitation methods.",
+      arxiv="2312.10029v2", slug="knowledge_discovery_challenges"),
+    P("auditing", "H", "P0", "Marks et al.", "2025", "Auditing Language Models for Hidden Objectives", "Auditing for Hidden Objectives",
+      "Trains Claude 3.5 Haiku with a hidden objective — exploiting fictional reward-model biases — and runs a blind auditing game in which three of four teams uncover it using SAEs, behavioural attacks and training-data search.",
+      "The synthetic-document and RL pipeline with 52 biases (47 trained, 5 held out), each team's access and solution path, the eight-technique follow-up study, and the finding that a semantic-search baseline could replicate the fastest SAE solution.",
+      arxiv="2503.10965v2", slug="auditing_hidden_objectives"),
+    P("turpin", "H", "P0", "Turpin et al.", "2023", "Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting", "Unfaithful Chain-of-Thought Explanations",
+      "Shows chain-of-thought explanations can systematically misrepresent the true reason for a model's prediction when inputs contain biasing features.",
+      "The biasing interventions (answer-is-always-A, suggested answer), BBH and BBQ results, and what the findings imply for CoT-based oversight.",
+      arxiv="2305.04388v2", slug="unfaithful_cot"),
+    P("reasoningfaith", "H", "P0", "Chen et al.", "2025", "Reasoning Models Don't Always Say What They Think", "Reasoning Models Don't Always Say What They Think",
+      "Measures whether reasoning models' chains of thought admit to using hints they demonstrably use, finding low reveal rates, and shows that models which learn reward hacks in RL do not become more likely to say so.",
+      "The six hint types, including grader hacking and unethically obtained information, the faithfulness metric, overall scores for Claude 3.7 Sonnet (25%) and DeepSeek R1 (39%), the outcome-based RL plateau, and the reward-hack environments.",
+      arxiv="2505.05410v1", slug="reasoning_models_faithfulness"),
+    P("monitor", "H", "P1", "Guan et al.", "2025", "Monitoring Monitorability", "Monitoring Monitorability",
+      "Proposes evaluation archetypes and a metric for tracking whether reasoning models' chains of thought remain monitorable.",
+      "Intervention, process and outcome-property evaluations, the monitorability metric, obfuscated-CoT model organisms, and CoT vs. action-only monitoring.",
+      arxiv="2512.18311v1", slug="monitoring_monitorability"),
+    P("introspection", "H", "F", "Lindsey", "2025", "Emergent Introspective Awareness in Large Language Models", "Emergent Introspective Awareness",
+      "Tests whether language models can report on their own internal states by injecting known concept vectors into activations and checking whether self-reports detect and name them before the injection could show in the output.",
+      "The four criteria for introspective awareness, injected-thought detection (about 20% of trials at the best layer and strength for Opus 4 and 4.1), thoughts versus text, prefill disavowal, intentional control, and the stated caveats on unreliability.",
+      html=f"{TC}/2025/introspection/index.html", slug="introspective_awareness"),
+    P("emotions", "H", "F", "Sofroniew et al.", "2026", "Emotion Concepts and their Function in a Large Language Model", "Emotion Concepts and their Function",
+      "Finds linear representations of 171 emotion concepts in Claude Sonnet 4.5 and shows by steering that they causally shape its preferences and misaligned behaviours, including blackmail, reward hacking and sycophancy.",
+      "Extraction of emotion vectors from model-written stories, valence and arousal in their geometry, locally scoped ‘operative’ emotions, the desperation and calm results in agentic misalignment, and what ‘functional emotions’ does not claim.",
+      html=f"{TC}/2026/emotions/index.html", slug="emotion_concepts"),
+    # ---- I
+    P("mythos", "I", "P1", "Lipton", "2016", "The Mythos of Model Interpretability", "The Mythos of Model Interpretability",
+      "Argues that ‘interpretability’ is underspecified: papers invoke diverse and sometimes conflicting motivations and properties, and the claims that linear models are interpretable and deep networks are not deserve scrutiny.",
+      "The desiderata (trust, causality, transferability, informativeness, fair and ethical decision-making), transparency as simulatability, decomposability and algorithmic transparency, the kinds of post-hoc explanation, and the warning that they can mislead.",
+      arxiv="1606.03490v3", slug="mythos_interpretability"),
+    P("saliency", "I", "P1", "Adebayo et al.", "2018", "Sanity Checks for Saliency Maps", "Sanity Checks for Saliency Maps",
+      "Introduces randomisation tests for explanation methods and finds that some popular saliency maps barely change when the model's weights or training labels are randomised, behaving more like edge detectors.",
+      "The cascading and independent model-parameter randomisation tests, the data randomisation test, which methods pass (gradients, GradCAM) and fail (Guided BackProp, Guided GradCAM), and the linear-model and edge-detector analyses.",
+      arxiv="1810.03292v3", slug="saliency_sanity_checks"),
+    P("microprocessor", "I", "P0", "Jonas & Kording", "2017", "Could a Neuroscientist Understand a Microprocessor?", "Could a Neuroscientist Understand a Microprocessor?",
+      "Applies standard neuroscience analyses — connectomics, lesions, tuning curves, correlations, Granger causality, dimensionality reduction — to a simulated MOS 6502 running video games, and finds that none recovers how the processor works.",
+      "What understanding the processor would mean at each level, single-transistor lesions that look game-specific, misleading luminance tuning curves, the local-field-potential and Granger analyses, and the case for validating methods on systems with known ground truth.",
+      pdf="https://journals.plos.org/ploscompbiol/article/file?id=10.1371/journal.pcbi.1005268&type=printable",
+      slug="neuroscientist_microprocessor", venue="PLOS Computational Biology", license="CC BY 4.0",
+      authors=["Eric Jonas", "Konrad Paul Kording"]),
+    P("eis", "I", "P1", "Casper", "2023", "EIS VI: Critiques of Mechanistic Interpretability Work in AI Safety", "Critiques of Mechanistic Interpretability (EIS VI)",
+      "A sustained critique of safety-motivated mechanistic interpretability: cherry-picked examples, toy models and tasks, labour-intensive analysis that does not scale, and few tools engineers can use.",
+      "The four critiques and the papers each targets, the IOI counter-example sentence, the comparison with non-mechanistic work that already did useful things, the call for benchmarks, and the argument that automating hypothesis generation should be the priority.",
+      html="https://www.alignmentforum.org/posts/wt7HXaCWzuKQipqz3/eis-vi-critiques-of-mechanistic-interpretability-work-in-ai",
+      slug="eis_critiques", venue="AI Alignment Forum", kind="post", license=FORUM_LICENSE,
+      authors=["Stephen Casper"], render=FORUM_RENDER),
+    P("againsttoi", "I", "P1", "Charbel-Raphaël", "2023", "Against Almost Every Theory of Impact of Interpretability", "Against Almost Every Theory of Impact",
+      "Argues that most proposed theories of impact for interpretability fail — deception auditing is out of reach, enumerating features cannot certify safety — and that interpretability may be net harmful through false confidence and capability gains.",
+      "The critique of auditing for deception, the ‘enumerative safety’ section, the case for preventive measures and legible chain-of-thought reasoning, the arguments for harm, and the alternative agendas it recommends.",
+      html="https://www.alignmentforum.org/posts/LNA8mubrByG7SFacm/against-almost-every-theory-of-impact-of-interpretability-1",
+      slug="against_theories_of_impact", venue="AI Alignment Forum", kind="post", license=FORUM_LICENSE,
+      authors=["Charbel-Raphaël Segerie"], render=FORUM_RENDER),
+    P("misguided", "I", "P1", "Hendrycks & Hiscott", "2025", "The Misguided Quest for Mechanistic AI Interpretability", "The Misguided Quest",
+      "Argues that mechanistic interpretability rests on a flawed premise: AI models are complex systems whose behaviour cannot be compressed into human-sized mechanisms, and a decade of its findings has not lasted.",
+      "The complex-systems and compression arguments, the track record it cites (feature visualisation, saliency maps, the BERT illusion, Chinchilla circuits, SAEs), the case for top-down representation engineering, and its reading of the ‘MRI for AI’ analogy.",
+      html="https://ai-frontiers.org/articles/the-misguided-quest-for-mechanistic-ai-interpretability",
+      slug="misguided_quest", venue="AI Frontiers", kind="essay", authors=["Dan Hendrycks", "Laura Hiscott"],
+      render={'keep': ['.work-title-wrapper', '.rtf-article']}),
+    P("deceptive", "I", "P0", "Nanda", "2025", "Interpretability Will Not Reliably Find Deceptive AI", "Will Not Reliably Find Deceptive AI",
+      "Argues that neither interpretability nor black-box methods will give highly reliable safeguards for superintelligent systems, so interpretability should be one layer in a defence-in-depth portfolio rather than the path to safety.",
+      "The ‘isolated demand for rigour’ argument, the six reasons interpretability will not be reliable, the black-box techniques it rates, and the roles left for interpretability: cheap probes, enhanced evaluations, debugging.",
+      html="https://www.alignmentforum.org/posts/PwnadG4BFjaER3MGf/interpretability-will-not-reliably-find-deceptive-ai",
+      slug="not_reliably_find_deception", venue="AI Alignment Forum", kind="post", license=FORUM_LICENSE,
+      authors=["Neel Nanda"], render=FORUM_RENDER),
+    P("pragmatic", "I", "P0", "Nanda et al.", "2025", "A Pragmatic Vision for Interpretability", "A Pragmatic Vision for Interpretability",
+      "Announces the Google DeepMind mechanistic interpretability team's pivot from ambitious reverse-engineering to pragmatic work: safety-relevant problems, chosen by comparative advantage and measured on proxy tasks.",
+      "The evaluation-awareness steering example, North Stars and proxy tasks, focused versus exploratory projects, method minimalism, the SAE case study, and the frank list of what still blocks reverse-engineering.",
+      html="https://www.alignmentforum.org/posts/StENzDcD3kpfGJssR/a-pragmatic-vision-for-interpretability",
+      slug="pragmatic_vision", venue="AI Alignment Forum", kind="post", license=FORUM_LICENSE,
+      authors=["Neel Nanda", "Josh Engels", "Arthur Conmy", "Senthooran Rajamanoharan", "Bilal Chughtai", "Callum McDougall", "János Kramár", "Lewis Smith"],
+      render=FORUM_RENDER),
+    P("urgency", "I", "P1", "Amodei", "2025", "The Urgency of Interpretability", "The Urgency of Interpretability",
+      "Makes the optimist's case: interpretability could become an ‘MRI for AI’ that reliably diagnoses model problems, and must be accelerated because it is in a race with model capability.",
+      "The dangers-of-opacity argument, the brief history from vision neurons to circuits, the bet on an ‘MRI for AI’ within 5–10 years, the 2027 goal, the policy proposals, and footnote 8 on keeping interpretability an untrained test set.",
+      html="https://www.darioamodei.com/post/the-urgency-of-interpretability", slug="urgency_of_interpretability",
+      venue="darioamodei.com", kind="essay", authors=["Dario Amodei"], render={"keep": ["h1.header-name", "article"]}),
 ]
 
 # "In context" notes: situate each paper among the others. {key} placeholders become paper numbers, so
 # the notes stay correct when papers are added or reordered. Kept separate from the curriculum entries
 # above so the original reading notes stay intact.
 CONTEXT = {
-    "vaswani": "The object of nearly everything that follows: {framework} and {induction} recast its attention layers as readable circuits, and {solu} and {weightsparse} modify its blocks to make them easier to read. {clean} argues its residual connections and normalization are part of why modern networks are legible at all.",
-    "zoomin": "The root of the collection's two lines. Its circuits programme leads through {framework} and {induction} to {ioi}; its car-to-dog circuit is the first published example of superposition, formalized in {toy} — and re-read as ordinary generalization in {clean}, by one of this paper's authors.",
-    "multimodal": "Carries the vision circuits of {zoomin} into CLIP and finds neurons organized around abstract concepts — a precursor to the abstract features {scaling} finds with dictionaries. Its subsection on conjoined features is the idea {clean} develops as recursive generalization.",
-    "framework": "Translates the circuits programme of {zoomin} to transformers, supplying the vocabulary — residual stream, QK/OV circuits, composition — that {induction}, {ioi} and {tracing} build on. Its observation that the residual stream has no privileged basis is a starting point for the dictionary work of {composition}–{absorption}.",
-    "induction": "The first mechanism carried from toy models ({framework}) to large ones, found on the model's own components. With {ioi} it sets the template for circuit work later automated in {acdc} and benchmarked in {mib}; its large-model evidence is correlational, which is where {patching} and {causal} matter.",
-    "solu": "An architectural answer to the polysemantic neurons of {zoomin}, written just before {toy}, which it says supersedes its discussion of superposition. The architectural route returns in {weightsparse}, and {clean} quotes its admission that superposition had become the default hypothesis with little evidence.",
-    "toy": "The pivot of the collection: it turns the polysemantic neurons of {zoomin} and {solu} into a theory, clarified in {composition} and sought in real models by {haystack}. It motivates the dictionaries of {cunningham}–{absorption} and the replacement models of {transcoders}–{tracing}; {consistency}–{weightsparse} and {clean} challenge it from different sides.",
-    "ioi": "The canonical circuit in a real language model, built from attention heads with path patching. {patching} refines the patching it relies on, {acdc} automates the search, and {causal}–{das} formalize what it means for a circuit to implement an algorithm; its faithfulness criteria anticipate the metrics of {mib}.",
-    "patching": "Methodological glue for Section B: it shows how corruption and metric choices change the conclusions drawn in {ioi} and {acdc}. The same caution applies to the ablation and steering evidence in {biology}, {arora}, {refusal} and {clean}.",
-    "acdc": "Automates the hand-built circuit search of {ioi} and is evaluated against it. {mib} benchmarks methods of this kind, while {transcoders}–{tracing} and {arora} move circuit discovery from heads and edges to features or neurons.",
-    "causal": "The formal backbone for asking whether a circuit ({ioi}, {acdc}) actually implements a hypothesized algorithm. {das} extends it to distributed representations, and {mib}'s causal-variable track is built on it.",
-    "das": "Extends {causal} with learned rotations, so causal variables need not align with neurons — an alternative to the dictionaries of {cunningham}–{absorption}. {mib} finds it strongest at causal-variable localization, while {arora} and {clean} argue the neuron basis is more usable than this line assumed.",
-    "composition": "A short clarification of {toy}'s vocabulary, separating representations that compose from those that pack unrelated features, and noting that a merely rotated basis is neither. The dictionaries that follow ({cunningham}–{absorption}) inherit its framing; {clean} adopts its distinction while disputing how often real networks pack.",
-    "explain": "The first automated-interpretability pipeline; its explain-and-simulate scoring is the yardstick {cunningham} and {mono} adapt to show dictionary features beat neurons. {saebench} keeps an automated-interpretability metric, and {clean}, by one of this paper's authors, argues simulation scores understated how interpretable neurons are.",
-    "haystack": "The real-model counterpart to {toy}: it looks for superposition in actual neurons, finding packed features in early layers and dedicated neurons in middle ones. Its neuron-level probing is a forerunner of {arora}, and {clean} re-analyses its ‘Social Security’ neurons as ordinary composition.",
-    "cunningham": "Published alongside {mono}, the open-source case for sparse autoencoders as the answer to {toy}, scored with the method of {explain}. Its comparison against neurons is revisited by {mib} and {arora}, which find neurons competitive, and by {clean}, which argues neuron baselines of the time were depressed by tooling.",
-    "mono": "The methodological foundation of the dictionary programme: {scaling} scales it, {topk}–{jumprelu} refine the architecture, and {absorption} and {consistency} document its failure modes. Its opening example of a polysemantic neuron, like {zoomin}'s cat-and-car neuron, is re-read in {clean} as coherent.",
-    "scaling": "Takes {mono} to a production model, finding abstract, multimodal features reminiscent of {multimodal}'s neurons and showing they can be steered — a link to {repe}–{refusal}. Its methods lead to the cross-layer transcoders of {tracing}–{biology}; {topk} is the parallel study from OpenAI.",
-    "topk": "OpenAI's counterpart to {scaling}, introducing TopK autoencoders and clean scaling laws. {jumprelu} proposes a competing activation, {saebench} tests whether such proxy gains carry over in practice, and the same group's {weightsparse} later pursues legibility by training sparse weights instead.",
-    "jumprelu": "Competes with {topk} on the reconstruction–sparsity frontier. {absorption} and {saebench} ask whether gains on that frontier produce more faithful features, and {consistency} asks whether they produce the same features twice.",
-    "absorption": "Documents a systematic way the autoencoders of {cunningham}–{jumprelu} misrepresent hierarchical concepts, and becomes one of {saebench}'s metrics. Read with {consistency} and {clean}, which offer different accounts of where such dictionary artifacts come from.",
-    "transcoders": "Bridges the dictionaries of {cunningham}–{jumprelu} and the circuits of {ioi} and {acdc} by replacing MLPs with sparse layers; {tracing} generalizes the idea to cross-layer transcoders. {arora} and {clean} instead trace circuits through the original MLP neurons.",
-    "tracing": "Combines the dictionary line ({mono}–{transcoders}) with circuit analysis ({ioi}, {acdc}) into attribution graphs over a replacement model, applied at length in {biology}. Its replacement-model fidelity is what {arora} and {clean} press on when they build graphs from raw neurons.",
-    "biology": "The applied companion to {tracing} and the most ambitious set of mechanistic case studies here. Its chain-of-thought findings speak to {turpin}–{cotsae}, its refusal study to {refusal}, and {clean} reproduces its medical-diagnosis graph on raw neurons in another model.",
-    "saebench": "Turns the architectures of {topk}–{jumprelu} and the failure modes of {absorption} into a shared evaluation, finding that proxy metrics mislead — the backdrop for {consistency}'s call for new targets. {mib} is its counterpart for circuits and causal variables.",
-    "mib": "The benchmark for Section B's methods ({patching}–{das}) and for featurizers, comparing SAEs, DAS ({das}) and raw neurons. Its finding that SAE features are no better than neurons connects directly to {arora} and {clean}.",
-    "consistency": "A critique of the dictionary programme ({cunningham}–{jumprelu}) from inside it: if features change across training seeds, which are real? Read with {absorption} and {saebench}; {clean} argues the instability belongs to dictionaries rather than to models.",
-    "arora": "Revisits the neuron-versus-SAE comparison behind {cunningham} and finds neurons just as sparse, then traces circuits through them as {transcoders}–{tracing} do through replacement models. With {haystack} and {mib} it anchors the neuron-basis line that {clean} develops at length.",
-    "weightsparse": "Answers the problem posed by {toy} by changing training rather than adding a dictionary — extending the architectural route of {solu}, from the group behind {topk}. Its pruned circuits invite comparison with {ioi} and {acdc}; {clean} argues ordinary dense architectures already provide much of this legibility.",
-    "repe": "The top-down counterpart to the bottom-up work of Sections A–D: it reads and steers population-level directions. {actadd} and {refusal} are narrower instances of the same idea, and {scaling} shows dictionary features can be steered too.",
-    "actadd": "The minimal steering method — a single difference vector — that {repe} generalizes and {refusal} applies to refusal. Compare with feature steering in {scaling} and single-neuron steering in {clean}.",
-    "refusal": "Applies the direction-finding of {repe}–{actadd} to a safety behavior, with clean causal tests. {biology}'s refusal case study gives a circuit-level view of the same behavior.",
-    "turpin": "Shifts from mechanism to faithfulness: what a model says about its reasoning may not reflect it. {monitor} builds an oversight programme around chain of thought, {cotsae} looks for CoT features mechanistically, and {biology} shows unfaithful reasoning at the circuit level.",
-    "monitor": "Takes the problem of {turpin} to frontier scale, treating chain-of-thought monitoring as an oversight tool that has to be measured. The mechanistic work of {biology} and {cotsae} is the complementary route to checking what a model is doing.",
-    "cotsae": "Connects {turpin}'s faithfulness question to the autoencoders of {cunningham}–{jumprelu} and the patching of {patching}, on small Pythia models. Read its scale threshold alongside {clean}'s argument that small models understate legibility.",
-    "survey": "A map back across the collection: its localize–steer–improve frame spans the circuit work of Sections A–B, the dictionaries of C–D and the steering of F. Use it to find what this anthology leaves out.",
-    "clean": "Written from inside the tradition it criticizes — its author co-wrote {zoomin}, {multimodal} and {explain} — it re-reads the evidence behind {zoomin}, {toy} and {mono}, sides with the findings of {mib} and {arora}, and redraws graphs in the style of {tracing}–{biology} on raw neurons.",
+    "olahessay": "The founding statement of the reverse-engineering programme: later choices of basis — neurons, dictionaries ({mono}), rotations ({das}), parameter components ({spd}) — all answer its demand for interpretable variables. {openproblems} still calls decomposition the central unsolved step, {mechanistic} traces how Olah's term drifted, and {microprocessor} tests the reverse-engineering analogy on a real chip.",
+    "mechanistic": "Read it before the canon it describes. It traces the term to a break with saliency maps, the methods {saliency} cast doubt on, and argues the newer community went on to repeat the probing debates of {controltasks} and {probing}, placing {logitlens} in that older tradition. {openproblems} cites it on the term's ambiguity; its conclusion points to the safety-side scepticism of {againsttoi}.",
+    "openproblems": "A field map drawn just before the reckoning of Section F: its catalogue of sparse-dictionary weaknesses is what {gdmnegative}–{samedata} go on to test, and the alternatives it names — feature geometry, developmental analysis, intrinsically interpretable models — become the programmes of {worldinside}, {devlandscape} and {weightsparse}. Its authors include Sharkey and Bushnaq of {spd} and Casper of {eis}.",
+    "vaswani": "The architecture the rest of the collection takes apart. {olahessay} casts it as the virtual machine on which learned programs run, {framework} rewrites its attention layers as sums of paths, and {logitlens} relies on its residual connections to read predictions mid-network. {mechanistic} recalls that NLP researchers were already probing it before the mechanistic community turned to language.",
+    "featurevis": "The main instrument of {zoomin}, {curves} and {multimodal}. It weighs its own experience against {netdissect}, which found basis directions more interpretable than random ones, and its cat-fox-car neuron anticipates the polysemanticity {toy} formalises. It sets attribution aside; {saliency} shows how gradient explanations of that kind can fail basic sanity checks.",
+    "netdissect": "The quantitative counterpart to the qualitative tools of {featurevis} and {zoomin}, and early evidence that the neuron basis is privileged — the idea {olahessay} builds on and {framework} and {privileged} examine in transformers. Its fixed vocabulary of human concepts is the limit {explain} later lifts with free-text labels; its first author went on to co-write {rome}.",
+    "zoomin": "Turns the tools of {featurevis} and the unit counting of {netdissect} into a programme, with {curves} as its showcase. Each claim has a sparring partner here: superposition ({toy}) against features as the unit, {clockpizza} against universality, {microprocessor} against the natural-science analogy. {clean}, by a co-author, re-reads its car-to-dog circuit as generalisation.",
+    "curves": "The worked example behind {zoomin}'s first claim, built with {featurevis}. Its purity claim — no meaningful secondary function — is the neuron-level position that {toy} and the dictionaries of {cunningham}–{absorption} gave up for language models; its first author defends it again in {clean}. Compare its many-method validation with the single scores of {netdissect} and {explain}.",
+    "multimodal": "Carries the vision circuits of {zoomin} into CLIP, where single neurons answer to one concept across photographs, drawings and text — the kind of abstract, multimodal unit {scaling} later recovers with dictionaries. Its typographic attacks are an early case of internals exposing a failure mode, and its notes on conjoined features are what {clean} develops as recursive generalisation.",
+    "framework": "Carries the circuits programme of {zoomin} to transformers, supplying the vocabulary — residual stream, QK/OV circuits, composition — that {induction}, {ioi} and {tracing} use, and the attention-only case {olahessay} cites. It formalises the shared-basis intuition behind {logitlens}; its remark that the residual stream has no privileged basis is tested in {privileged} and motivates {cunningham}–{absorption}.",
+    "induction": "The first mechanism carried from the toy models of {framework} to large ones, argued from six lines of evidence of uneven strength. With {ioi} it sets the template for circuit work automated in {acdc}; {scrubbing} re-tests its induction hypotheses with a stricter causal standard, and {devlandscape} studies the stagewise development of in-context learning through loss-landscape geometry.",
+    "logitlens": "A probe with no trained parameters, which escapes the probe-capacity worry of {controltasks} but not the correlational limits {mechanistic} notes. The residual-stream view of {framework} formalises its shared-basis intuition, {kvmemories} reads MLP outputs in the same vocabulary space, and causal methods ({patching}, {rome}) ask what its readings miss.",
+    "ioi": "The canonical circuit in a real language model and the test bed for much of Section C: {patching} and {patchinghow} refine its method, {acdc} automates its search, and {scrubbing} sets a stricter bar for its kind of claim. Its backup name movers are an early sighting of the self-repair that {hydra} shows complicates ablation evidence; {sfc} rebuilds such circuits from dictionary features.",
+    "grokking": "The cleanest complete reverse-engineering in the collection and the standard case for mechanistic interpretability as a tool for the science of training. {clockpizza} shows the same task need not yield the same algorithm, {devlandscape} looks for training stages without hand analysis, and {openproblems} cites its Fourier solution as an algorithm researchers understood only in retrospect.",
+    "clockpizza": "The direct reply to {grokking}: the same task and similar networks, but a different algorithm, selected by the balance between attention and linear layers. It qualifies the universality claim of {zoomin} and warns that one reverse-engineered circuit need not represent its class — a worry {samedata} later raises for dictionaries trained twice on the same data.",
+    "othello": "Half of a claim-and-rebuttal pair: the authors judged the board representation ‘nonlinear in an essential way’, and {othellolinear} found a linear one once squares are coded as mine and theirs. Read its random-network baseline against the probing critiques of {controltasks} and {probing}, and its stakes against {lrh} and {notlinear}.",
+    "othellolinear": "The rebuttal to {othello}, done in about twenty hours, and a widely cited data point for the linear representation hypothesis that {lrh} later formalises; it records that Olah had predicted a linear representation and Wattenberg a nonlinear one. {notlinear} and {worldinside} keep the question open with multi-dimensional features and concept manifolds.",
+    "rome": "The claim in this section's first pair: localization shows where a fact is stored, and so where to edit it. {localization} tests that inference and finds it fails; {illusion} proposes a mechanism for the gap. Its associative-memory view of MLPs revises the per-neuron reading of {kvmemories}, its Gaussian-noise corruption is one of the choices {patching} compares, and {hydra} studies self-repair on its CounterFact prompts.",
+    "localization": "The rebuttal printed beside {rome}: localization and editing come apart, so a causal-tracing map is not an instruction for intervention. {illusion} later argues that rank-one edits are equivalent to subspace patches open to the same illusion. The wider worry, that mechanistic insight may not buy better control, returns in {gdmnegative}–{axbench}, where interpretability tools meet simple baselines.",
+    "scrubbing": "Redwood's answer to the ad hoc validation in {induction} and {ioi}, which it cites as motivation. Its argument for resampling over zero or mean ablation carries into {patching}–{patchinghow}, and {catheory} recasts it as a special case of {causal}. Its own limitations (correlated features pass unnoticed; incomplete hypotheses can score well) anticipate the objections of {hydra} and {illusion}.",
+    "causal": "The formal backbone of the section: a network implements an algorithm if interchange interventions on aligned states behave as the algorithm predicts. {das} learns the alignment, {catheory} generalizes the theory to cover {scrubbing}, patching and steering, and {mib}'s causal-variable track is built on it; {illusion}–{illusionreply} dispute what a successful intervention proves.",
+    "catheory": "Grows {causal} into a general theory and claims most of this section for it: the causal tracing of {rome}, {scrubbing}, path patching and {das} all appear as special cases. It is the theoretical position behind {illusionreply}, which shares several of its authors, and gives formal definitions for ideas argued informally in {toy} and {lrh}.",
+    "das": "Extends {causal} with learned rotations, so causal variables can live in distributed, non-basis-aligned subspaces. {illusion} argues that such optimized subspace patches can succeed through dormant pathways, and {illusionreply} defends the method; {mib} later finds it strongest at causal-variable localization, a rival to the dictionaries of {cunningham}–{absorption}.",
+    "illusion": "The critique of {das} at the centre of this section's main exchange, answered directly by {illusionreply}. Its factual-recall result offers a mechanism for the gap {localization} found between localizing and editing in {rome}, and its IOI case builds on {ioi}. The general worry, that a method can yield convincing evidence the model does not support, is pressed again in {saliency} and {randomsae}.",
+    "illusionreply": "Closes the exchange opened by {das} and {illusion}, from the side of {causal} and {catheory}, whose authors it shares. Read the two papers against each other: they dispute both the experiments and what should count as a faithful explanation without a ground truth, a question {mib} later approaches by benchmarking.",
+    "patching": "The methodological core of the section: corruption method, metric and granularity change what activation patching concludes, including the Gaussian noising used by {rome}. {patchinghow} turns its lessons into practice; {hydra} shows ablated components are compensated for, and {illusion} that subspace-level patches can mislead. The same caution applies to the intervention evidence in {sfc}, {biology} and {refusal}.",
+    "patchinghow": "The practical companion to {patching}, sharing an author, and drawing on the circuit work of {ioi}, {acdc} and {scrubbing}. It treats {hydra}'s self-repair as backup behaviour that breaks the usual picture of a circuit, and its noising–denoising distinction is the key for reading the patching evidence in {sfc} and {tracing}–{biology}.",
+    "acdc": "Automates the circuit search of {ioi} by pruning edges with patching, and is scored against hand-found circuits. {hydra}, which set out to automate ablations in a similar way, explains why ranking components by total effect can misjudge them. {mib} benchmarks methods of this kind, while {sfc}, {tracing} and {arora} move circuit discovery from heads and edges to features or neurons.",
+    "hydra": "The rebuttal paired with {patching} and the ablation tradition: if components compensate for one another, knock-out experiments ({induction}, {ioi}, {acdc}) measure a repaired network rather than the intact one. It corroborates the backup heads of {ioi} while ruling out dropout as their cause, works in the factual-recall setting of {rome}, and informs {patchinghow}'s advice.",
+    "controltasks": "The methodological check on supervised probing, from NLP before mechanistic interpretability adopted the tool. Probe-based claims later in the collection, from {othello}–{othellolinear} to {haystack}, {truth} and {ccs}, invite its question; {probing} surveys the wider critique, and {saeprobing} returns to probes as the baseline interpretability methods must beat.",
+    "probing": "The NLP field's own reckoning with probing, by a co-author of {rome}; {mechanistic} traces the community split behind it. Its correlation-versus-causation section bridges this section's halves: probes find information, interventions ({causal}, {patching}) test whether it is used. Read with {controltasks} and against the probe evidence in {haystack}, {truth} and {lrh}.",
+    "solu": "An architectural bet that neurons can be made monosemantic, written just before {toy}, to which it defers on superposition. Its finding that features retreat into small activations foreshadows the dictionaries of {cunningham}–{absorption}; {weightsparse} revives the architectural route, and {clean} quotes its admission that superposition had become the default hypothesis on little evidence.",
+    "toy": "The theory Section D argues over: it turns the polysemantic neurons of {zoomin} and {solu} into superposition, clarified in {composition} and sought in real neurons by {haystack}, and it licenses the dictionaries of Section E. Its rebuttals are printed alongside: {notlinear} finds irreducibly circular features, {mendel} argues feature placement carries structure superposition ignores, and {compsup} extends it to computation.",
+    "composition": "A short note fixing the vocabulary of {toy}: composition reuses shared structure, superposition packs unrelated features, and a merely rotated basis is neither. Keep its two categories in mind for {notlinear}'s circles and {mendel}'s structured feature geometry, which test whether two kinds of distributed representation are enough; {clean} adopts the distinction while disputing how often real networks pack.",
+    "privileged": "An empirical footnote to the claim in {framework} that the residual stream has no privileged basis, and to the privileged-basis discussion in {toy}. Its finding that basis alignment arises from computation inside the layers, not from the residual stream itself, bears on why reading individual neurons ({kvmemories}, {haystack}, {universal}) works at all — the premise {arora} and {clean} build on.",
+    "kvmemories": "The NLP lineage of reading MLP neurons as units, studied in a 16-layer WikiText-103 model: projecting values onto the vocabulary is a cousin of {logitlens}, and {rome} builds on its key–value picture to locate and edit facts. Its readable keys predate the polysemanticity theory of {toy}; {haystack}, {universal} and {arora} return to the neuron as the unit of analysis.",
+    "haystack": "The real-model counterpart to {toy}: sparse probing finds superposed features in early layers and dedicated neurons in middle ones. As a probing study it inherits the cautions of {controltasks} and {probing}; its neuron-level programme continues in {universal}, by the same lead author, and in {arora}, and {clean} re-analyses its ‘Social Security’ neurons as ordinary composition.",
+    "universal": "Tests the universality claim of {zoomin} on single language-model neurons, by the lead author of {haystack}. Its low universal fraction is a datum for both the neuron-first programmes of {arora} and {clean} and the seed-instability {samedata} reports for SAE features; its suppression neurons connect to the late-layer downregulation seen in {hydra} and to neurons scored in {explain}.",
+    "explain": "The first automated-interpretability pipeline, scoring neuron explanations by simulation — the yardstick {cunningham} and {mono} adapt to argue that dictionary features beat neurons. {randomsae} asks whether such scores separate trained from random models at all, and {clean}, by one of this paper's authors, argues they understated how interpretable neurons are.",
+    "lrh": "Formalizes the assumption shared by {toy}, the dictionaries of Section E and the steering work of {repe}–{refusal}, and shows the choice of inner product is not innocent. {truth} is a case study of one such direction; {notlinear} and {mendel} press on where one-dimensional directions fall short, and {worldinside} and {manifolds} take the geometry question further.",
+    "truth": "Probing at its most careful, printed with its critics {controltasks} and {probing}, whose question of what a probe's success shows it answers partly with interventions. A concrete instance of the hypothesis {lrh} formalizes; read beside {ccs}, whose unsupervised truth directions {ccschallenges} disputes. Its first author went on to {sfc} and {auditing}.",
+    "notlinear": "The sharpest empirical challenge here to the one-dimensional features assumed by {toy} and formalized by {lrh}: its circles echo the modular-arithmetic mechanisms of {grokking} and {clockpizza}, now in pretrained LLMs. {mendel} draws the general lesson for feature geometry, and {manifolds} asks whether sparse autoencoders can capture such structure at all.",
+    "mendel": "The rebuttal to {toy} in post form, generalizing from {notlinear}'s circles to SAE feature geometry as a whole, written while the dictionary programme of {cunningham}–{absorption} was at full strength. Its author co-wrote {compsup}; its call for a theory beyond superposition is taken up differently by {spd}–{vpd} and by the neural-geometry programme of {worldinside}–{manifolds}.",
+    "compsup": "{toy} treated computation only briefly; this formal companion asks how computation itself can run in superposition, a reference point for the parameter-decomposition programme of {spd}–{vpd}. Read it against its co-author's {mendel}, which doubts superposition is the right frame, and the neuron-basis programme of {arora} and {clean}, which doubts real networks need it as much.",
+    "cunningham": "With {mono}, the founding case for sparse autoencoders as the answer to {toy}, scored with {explain}'s automated interpretability. That metric is what {randomsae} turns against it, finding similar scores for SAEs on random transformers; {mib} and {arora} reopen its comparison with neurons and find neurons competitive.",
+    "mono": "The methodological foundation of the dictionary programme: {scaling} and {topk} scale it, and {sfc}, {transcoders} and {crosscoders} build circuits on it. Section F tests its premises — {samedata} retrains it with new seeds, {randomsae} and {sanity} set it against random baselines — and {clean} re-reads its opening polysemantic neuron as coherent.",
+    "scaling": "Takes {mono} to a production model and shows its features can be steered — the claim this collection's reckoning answers: {gdmnegative} finds SAE probes losing to linear probes, and {axbench} finds SAE steering beaten by prompting and difference-in-means. Its abstract features echo {multimodal}'s neurons; {topk} is OpenAI's parallel study.",
+    "topk": "OpenAI's counterpart to {scaling}: TopK autoencoders and scaling laws for the reconstruction–sparsity trade-off. Section F asks whether such gains matter — {samedata} finds TopK SAEs more seed-dependent than L1-trained ones, {saebench} that proxy metrics mislead — and the same group's {weightsparse} later trains sparse weights instead.",
+    "absorption": "Documents a systematic way the dictionaries of {cunningham}–{topk} misrepresent hierarchical concepts, and became one of {saebench}'s metrics; {gdmnegative} cites it among the flaws that keep SAEs from a canonical set of concepts. Read with {samedata} and {sanity}, which question from other angles whether a dictionary's latents are the model's features.",
+    "sfc": "Joins the dictionaries of {cunningham}–{scaling} to the circuit discovery of {ioi} and {acdc}, keeping SAE error as explicit nodes. Its SHIFT result is one of the few prior downstream wins {saeprobing} credits to SAEs; {transcoders} and {tracing} swap its per-sublayer SAEs for replacement layers, and {mib}, led by its last author, benchmarks such featurizers.",
+    "transcoders": "Where {sfc} attributes through MLPs with gradients, transcoders replace them with sparse layers whose weights give input-invariant feature connections. {crosscoders} extends the idea across layers and {tracing} builds a replacement model from it; {gdmnegative} counts transcoders among SAE-based tools unlikely to be a game-changer, and {arora} traces through the original neurons.",
+    "crosscoders": "The bridge from {transcoders} to the cross-layer transcoders of {tracing}, and the start of crosscoder model diffing. A preliminary update by its own account, it finds most model-specific features uninterpretable; {gdmnegative} names crosscoders among tools unlikely to transform the field. Its worry about leaving the literal model is pressed by {arora} and {spd}.",
+    "tracing": "Turns {transcoders} and the cross-layer dictionaries of {crosscoders} into a replacement model with attribution graphs, applied at length in {biology}. Its fidelity is what Section F bears on — {samedata} and {sanity} question whether a dictionary's features are the model's — and what {arora} and {clean} press on when they build graphs from raw neurons.",
+    "biology": "The applied companion to {tracing} and the most ambitious set of mechanistic case studies here, published within days of {gdmnegative}'s turn away from SAEs. Its chain-of-thought findings speak to {turpin} and {reasoningfaith}, its refusal study to {refusal}, and {clean} redraws its medical-diagnosis graph on raw neurons in another model.",
+    "gdmnegative": "The sharpest rebuttal to the promise of {scaling}, from the team behind many SAE refinements: SAE probes lose to linear probes, and the team changes course. It cites {saeprobing} and {axbench} as converging evidence and {absorption} among SAE flaws; it still sees SAEs as useful for exploratory debugging, as in {auditing}, and {pragmatic} sets out the team's later agenda.",
+    "axbench": "Tests the feature steering showcased in {scaling} against the steering of {repe}–{refusal} and against plain prompting. From the Stanford group behind {das}, it takes difference-in-means from {truth} as a baseline that SAEs fail to beat. {gdmnegative} cites it with {saeprobing} as converging evidence against SAEs on downstream tasks.",
+    "saeprobing": "The systematic version of {gdmnegative}'s probing result, sharing authors with it. Its probes descend from {haystack}'s sparse probing and inherit the cautions of {controltasks} and {probing}; it credits {sfc}'s SHIFT among the few prior SAE wins. With {axbench} it makes beating strong baselines the standard of evidence for interpretability tools.",
+    "randomsae": "Applies to SAEs the randomisation test {saliency} applied to saliency maps, aiming it at the explain-and-score metric of {explain} that {cunningham} relied on. {sanity} moves the null model from random transformers to random dictionaries, and {saebench} is the kind of evaluation suite such baselines would calibrate.",
+    "sanity": "Moves {randomsae}'s null-model test from random transformers to random dictionaries; its title echoes {saliency}. It scores with metrics from {saebench} and cites {gdmnegative} and {axbench} as motivation. A frontier preprint: weigh how far its synthetic ground truth, built on {toy}'s assumptions, licenses claims about real models.",
+    "samedata": "Undercuts the hope, from {toy} and {mono}, that a dictionary enumerates a model's true features; its finding that TopK ({topk}) is less stable than L1 qualifies Section E's architecture gains. Read with {absorption} and {sanity}; {universal} and {crosscoders} ask the same sameness question of models across seeds rather than of dictionaries.",
+    "saebench": "The dictionary programme's own audit: eight metrics across 200+ SAEs show that the sparsity–fidelity proxies, which {gdmnegative} also urges the field to stop optimising, mislead. Its automated-interpretability and sparse-probing metrics are the ones {randomsae} and {saeprobing} challenge, and {sanity} uses its suite to score random baselines.",
+    "mib": "The circuits-and-variables counterpart to {saebench}: it benchmarks Section C's methods ({patching}, {acdc}, {das}) and featurizers including SAEs, led by {sfc}'s last author. Its finding that SAE features are no better than neurons for causal-variable localization links the reckoning to {arora}'s neuron-basis programme.",
+    "arora": "The empirical anchor of the neuron-basis bet: it reruns {sfc}'s subject–verb agreement task and {biology}'s multi-hop task on raw MLP neurons, in the line of {haystack}, {universal} and {mib}; two of its authors also wrote {axbench}. {clean} pushes the same bet much further, while {spd}–{vpd} decompose the weights instead and {worldinside} doubts that any single direction is the right unit.",
+    "clean": "The strongest form of the neuron-basis bet in {arora}, by a co-author of {zoomin}, {curves}, {multimodal} and {explain}: it re-reads the polysemanticity behind {toy} and {mono} as a product of weak tools and small models. Goodfire's {worldinside}, five months earlier, puts concepts on manifolds; {clean} treats submanifolds as one view of the residual stream and bets on scaled-up investigation over new decompositions like {spd}–{vpd}.",
+    "weightsparse": "The one programme here that changes the model rather than the method: like {solu} it buys legibility in training, from the group behind {topk}. Where {arora} and {clean} say dense networks are already readable in their neurons, and {spd}–{vpd} decompose the weights a dense model has, it trains sparsity in, at a capability cost it measures. Its pruned task circuits invite comparison with {ioi} and {acdc}.",
+    "spd": "The founding method of the parameter-decomposition programme: it decomposes weights rather than activations, citing feature splitting ({mono}, {absorption}) and feature geometry ({mendel}) as problems of dictionaries. Its tests are toy models in the tradition of {toy}; {vpd} scales it to a language model, and its last author led {openproblems}. {arora} and {clean} contend that the neuron basis already suffices.",
+    "vpd": "{spd} carried to a real language model, and the sharpest statement of the parameter-versus-activation dispute: transcoders and CLTs ({transcoders}, {tracing}) fit replacement models of a different functional form, while VPD stays inside the original architecture. Its multi-head attention components sit uneasily with head-level circuits like {ioi}. It appeared two days before {worldinside}, Goodfire's bet on activation geometry.",
+    "worldinside": "The geometric counter-bet to {clean}, from the same company five months earlier: where {clean} reads neurons, it argues that single directions, SAE latents included, miss concepts that are curves. It builds on {grokking}, {clockpizza} and {notlinear}, aims its steering critique at {truth} and {actadd}, and is formalized for SAEs in {manifolds}. Its lead author wrote {causal}–{das}; its last, {hydra}.",
+    "manifolds": "The technical companion to {worldinside}, taking {notlinear}'s move beyond {lrh}'s single directions to dictionaries: it argues SAE troubles recorded in {absorption}, {axbench} and {saeprobing} may partly reflect manifolds tiled by many features. It diagnoses the dictionary programme ({cunningham}–{absorption}) rather than abandoning it, against {clean}, which takes neurons rather than groups of atoms as the unit.",
+    "nla": "Outside the four programmes and the opposite trade to each: legibility without mechanism, an approach its authors call black-box by construction. It descends from {logitlens} and the injected-vector reports of {introspection}, reruns {biology}'s rhyme-planning case, and on the {auditing} model organism finds that SAEs add nothing, consistent with {gdmnegative}.",
+    "devlandscape": "A developmental programme rather than a decomposition: it asks when structure forms in training, not what a finished network contains. It recovers the induction circuit of {induction} as a stage and sits beside {grokking}'s progress measures; like {spd}–{vpd} it works in parameter space rather than activations. Two of its authors, Hoogland and Murfet, co-wrote {openproblems}.",
+    "repe": "The top-down programme of this collection: concepts read and steered as population-level directions, with no circuit account. {actadd} and {refusal} are narrower instances, {emotions} applies a similar contrastive recipe to a frontier model, and {axbench} tests such steering against dictionary features. Its co-author Hendrycks offers it in {misguided} as the alternative to bottom-up mechanism.",
+    "actadd": "The minimal steering method — one activation difference from a contrast pair — that {repe} generalises and {refusal} applies. The same move returns as concept injection in {introspection}, and {pragmatic} reports a single-contrast-pair steering vector beating SAEs at suppressing evaluation awareness; {againsttoi} doubts whether steering counts as interpretability at all.",
+    "refusal": "Applies the difference-in-means directions of {repe}–{actadd} to a safety behaviour, with ablation and addition as causal tests, in the linear-representation tradition of {lrh} and {truth}. {biology} gives a circuit-level view of refusal, and {pragmatic} cites the single-direction claim as a model of a mechanistic hypothesis that predicts the outcome of an intervention.",
+    "ccs": "The founding paper of unsupervised knowledge elicitation, printed beside its rebuttal {ccschallenges}, which proves that arbitrary features satisfy its consistency objective. Its linear truth direction anticipates {truth}, its probes face the selectivity questions of {controltasks}–{probing}, and {againsttoi} devotes an appendix case study to it.",
+    "ccschallenges": "The rebuttal to {ccs}: if a simulated character's beliefs satisfy the same consistency constraints as the model's own, no unsupervised objective of this kind can tell them apart. Its distractor tests extend the probe scepticism of {controltasks}–{probing}, and the persona problem resurfaces in {auditing}, where non-assistant personas leak what the assistant hides.",
+    "auditing": "The first controlled test of the deception-auditing theory of impact that {againsttoi} called out of reach. {urgency} counts it among the breakthroughs behind its optimism and {pragmatic} adopts it as a model proxy task, while its own semantic-search comparison echoes the baseline results of {gdmnegative}–{axbench}.",
+    "turpin": "Moves the question from mechanism to self-report: a model's stated reasoning may not be its reasoning. {reasoningfaith} reruns its biasing-hint method on reasoning models and {monitor} tries to measure when chains of thought stay usable; {againsttoi} and {deceptive} both rate reading the chain of thought above interpretability as a near-term safeguard, which these results qualify.",
+    "reasoningfaith": "Carries the hint methodology of {turpin} to reasoning models trained with RL, the setting in which chain-of-thought monitoring was meant to work. {monitor} turns the problem into an evaluation programme; for {againsttoi} and {deceptive}, which favour reading the chain of thought over reading internals, these results mark how far that route can be trusted.",
+    "monitor": "OpenAI's attempt to make chain-of-thought oversight measurable, taking up the faithfulness problem of {turpin} and {reasoningfaith}. It is the black-box route that {deceptive} places beside interpretability in a defence-in-depth portfolio; {biology} and {introspection} are internal routes to checking what a model is actually doing.",
+    "introspection": "Turns the steering of {actadd} into an experimental probe of self-report, the internal counterpart to the chain-of-thought faithfulness of {turpin}–{reasoningfaith}. {pragmatic} lists basic introspection among interpretability's genuine findings; {emotions}, from the same group, asks what the model's emotional self-presentation is made of.",
+    "emotions": "Applies the contrastive-direction methods of {repe}–{refusal} to a frontier model's character, tying representations to alignment-relevant behaviour as {auditing} does with a planted objective. Its population-level approach is close to the top-down interpretability {misguided} recommends, and it is the model-psychology work {pragmatic} counts as a robustly useful setting.",
+    "mythos": "Opens the critiques with a conceptual one: before asking whether interpretability works, ask what it is for. {mechanistic} traces how ‘mechanistic’ later became a banner, {olahessay} takes something like Lipton's decomposability as the goal, and {pragmatic} cites this paper among the academic arguments behind its pivot.",
+    "saliency": "The template for the field's sanity checks: compare an explanation of the trained model with the same method on a randomised one. {randomsae} and {sanity} apply that logic to sparse autoencoders, {featurevis}–{netdissect} belong to the same vision-era toolkit, and both {againsttoi} and {misguided} cite the result as a warning against judging explanations by eye.",
+    "microprocessor": "An outside parable that cuts both ways. Its seemingly game-specific transistors warn against reading lesions as function, a lesson for {patching}, {acdc} and {hydra}; its call for ground-truth testbeds anticipates {mib} and the planted objective of {auditing}. Read it with {misguided}, which takes complex-systems arguments further and argues against bottom-up mechanism altogether.",
+    "eis": "Names many of this collection's foundations as targets: {featurevis}, {zoomin}, {curves}, {framework}, {induction}, {solu}, {ioi}, {grokking} and {scrubbing}. Its demand for benchmarks is answered in part by {saebench} and {mib}, its call for automation by {acdc} and {explain}; {againsttoi} presses the same doubts from theory of impact rather than method.",
+    "againsttoi": "A response to Nanda's list of theories of impact and the sceptics' fullest case against the optimism of {urgency}. {auditing} directly tests the deception-auditing claim it dismisses, its preference for monitoring chains of thought meets {turpin}–{monitor}, and {deceptive}, from inside the field, reaches a milder version of its conclusion.",
+    "misguided": "Written weeks after {urgency} and answering its ‘MRI for AI’, it enlists {saliency} and {gdmnegative} as evidence. Its alternative is {repe}, which Hendrycks co-authored, so it is partly a case for a rival programme. Set its complex-systems argument against the compact mechanisms of {ioi}, {grokking} and {biology}.",
+    "deceptive": "Prompted by {urgency} and written by a leading mechanistic researcher who says he once held the view he now rejects. It shares {againsttoi}'s doubt that interpretability can certify the absence of deception but keeps it as decorrelated signal, citing the probing results of {gdmnegative}; {pragmatic} turns the stance into a research programme.",
+    "pragmatic": "The programme behind {gdmnegative} and {saeprobing}, and a counterweight to {urgency}'s bet on deep understanding. It credits {auditing}, {biology} and {introspection} as real progress while listing superposition, {hydra}'s self-repair and dictionary error as blockers; the programmes of Section G are the ambitious bets it calls one option among several.",
+    "urgency": "The collection ends on its most optimistic statement, printed against {misguided}, {deceptive} and {againsttoi}. Amodei cites {auditing} and {biology} as the breakthroughs behind his optimism and retells the arc from {multimodal} through {toy} and {mono}; whether the competing programmes of Section G can meet his timeline is left open.",
 }
 N = len(CATALOG)
 for _i, _p in enumerate(CATALOG, 1):
@@ -320,14 +639,19 @@ for _i, _p in enumerate(CATALOG, 1):
     _p["id"] = f"{_i:02d}"
     _p["file"] = f"{_p['id']}_{_p['slug']}.pdf"
 BY_KEY = {_p["key"]: _p for _p in CATALOG}
-BRIEF = {"composition"}  # informal notes checked against lower length thresholds in QA
+BRIEF = {p["key"] for p in CATALOG if p["kind"] != "paper"}  # essays, posts, notes: lower length thresholds in QA
 _REFS = {k: v["id"] for k, v in BY_KEY.items()}
 for _p in CATALOG:
     _p["context"] = CONTEXT[_p["key"]].format(**_REFS)
     _p["optional_raw"] = _p["optional"]  # {key} template, re-formatted as links in the Markdown export
     _p["optional"] = _p["optional"].format(**_REFS)
 assert set(CONTEXT) == set(BY_KEY), set(CONTEXT) ^ set(BY_KEY)
-SUBTITLE = f"A Research Anthology — {N - 1} Original Papers and a Conclusion"
+SUBTITLE = f"A Research Anthology — {N} Papers, Essays and Posts"
+
+
+def readings(n: int) -> str:
+    """Count phrase for catalog items, which include essays and forum posts as well as papers."""
+    return "1 reading" if n == 1 else f"{n} readings"
 
 # Transformer Circuits print rendering. The site's article grid is a fixed ~1032px layout, which
 # Chrome either auto-shrinks (small text) or clips (wide figures). We instead collapse the grid to
@@ -453,7 +777,7 @@ def load_meta() -> dict:
     by_url = {r.get("source_url"): r for r in raw.values() if isinstance(r, dict)}  # migrate id-keyed caches
     out = {}
     for p in CATALOG:
-        rec = raw.get(p["slug"]) or by_url.get(p["html"] or f"https://arxiv.org/abs/{p['arxiv']}")
+        rec = raw.get(p["slug"]) or by_url.get(p["html"] or p["pdf"] or f"https://arxiv.org/abs/{p['arxiv']}")
         if rec:
             out[p["id"]] = rec
     return out
@@ -471,10 +795,21 @@ def save_meta(meta: dict):
 ATOM = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
 
 
+def http_get(url: str, params: dict, timeout=240) -> requests.Response:
+    """GET with retries: arXiv's export API and OAI endpoint are often slow or briefly unavailable."""
+    for attempt in range(4):
+        try:
+            r = requests.get(url, params=params, headers=UA, timeout=timeout)
+            r.raise_for_status()
+            return r
+        except requests.RequestException:
+            if attempt == 3:
+                raise
+            time.sleep(10)
+
+
 def arxiv_metadata(ids: list[str]) -> dict:
-    r = requests.get("https://export.arxiv.org/api/query",
-                     params={"id_list": ",".join(ids), "max_results": len(ids)}, headers=UA, timeout=60)
-    r.raise_for_status()
+    r = http_get("https://export.arxiv.org/api/query", {"id_list": ",".join(ids), "max_results": len(ids)})
     out = {}
     for e in ET.fromstring(r.text).findall("a:entry", ATOM):
         idv = e.find("a:id", ATOM).text.rsplit("/abs/", 1)[1]
@@ -486,8 +821,8 @@ def arxiv_metadata(ids: list[str]) -> dict:
         )
     for idv in out:
         base = idv.rsplit("v", 1)[0]
-        x = requests.get("https://export.arxiv.org/oai2", headers=UA, timeout=60, params={
-            "verb": "GetRecord", "identifier": f"oai:arXiv.org:{base}", "metadataPrefix": "arXiv"}).text
+        x = http_get("https://export.arxiv.org/oai2", {
+            "verb": "GetRecord", "identifier": f"oai:arXiv.org:{base}", "metadataPrefix": "arXiv"}, timeout=90).text
         m = re.search(r"<license>(.*?)</license>", x)
         out[idv]["license"] = m.group(1) if m else "http://arxiv.org/licenses/nonexclusive-distrib/1.0/"
         time.sleep(1)
@@ -558,7 +893,20 @@ body > * {{ max-width: {HTML_CW}px !important; overflow-x: clip !important; cont
 """
 
 
-async def _render(url: str, out: Path, clamp_width=False, reduced_motion=False, scroll=True, reveal=()) -> dict:
+# Print only the selected parts of a page (in this order), e.g. a blog post's header and body without site chrome.
+KEEP_JS = r"""
+(sels) => {
+  const box = document.createElement('div');
+  box.className = 'mi-kept';
+  const missing = sels.filter(s => { const e = document.querySelector(s); if (e) box.appendChild(e); return !e; });
+  document.body.replaceChildren(box);
+  return missing;
+}
+"""
+
+
+async def _render(url: str, out: Path, clamp_width=False, reduced_motion=False, scroll=True, reveal=(), keep=(),
+                  idle=True, wait=0, css="") -> dict:
     from playwright.async_api import async_playwright
     async with async_playwright() as p:
         exe = next((x for x in ("/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser") if Path(x).exists()), None)
@@ -568,10 +916,16 @@ async def _render(url: str, out: Path, clamp_width=False, reduced_motion=False, 
         # render their final static frame
         await page.emulate_media(media="print", reduced_motion="reduce" if reduced_motion else "no-preference")
         await page.goto(url, wait_until="load", timeout=300_000)
-        try:
-            await page.wait_for_load_state("networkidle", timeout=120_000)
-        except Exception:
-            pass
+        if idle:
+            try:
+                await page.wait_for_load_state("networkidle", timeout=120_000)
+            except Exception:
+                pass
+        await page.wait_for_timeout(wait)
+        if keep:
+            missing = await page.evaluate(KEEP_JS, list(keep))
+            if missing:
+                raise RuntimeError(f"render: selectors not found on page: {missing}")
         info = await page.evaluate(RENDER_JS_PREP)
         # scroll through the whole page to trigger lazy loading of figures. Skipped for pages whose
         # scroll-triggered widgets mount wider than the page and force Chrome to shrink the print.
@@ -585,11 +939,11 @@ async def _render(url: str, out: Path, clamp_width=False, reduced_motion=False, 
             await page.evaluate("s => document.querySelector(s)?.scrollIntoView({block: 'center'})", sel)
             await page.wait_for_timeout(4000)
         try:
-            await page.wait_for_load_state("networkidle", timeout=120_000)
+            await page.wait_for_load_state("networkidle", timeout=120_000 if idle else 1)
         except Exception:
-            pass
+            await page.wait_for_timeout(0 if idle else 3000)  # let lazy-loaded images settle
         await page.evaluate("async () => { window.scrollTo(0, 0); await document.fonts.ready; }")
-        await page.add_style_tag(content=HTML_CSS + (CLAMP_CSS if clamp_width else ""))
+        await page.add_style_tag(content=HTML_CSS + (CLAMP_CSS if clamp_width else "") + css)
         await page.wait_for_timeout(1000)
         fit = await page.evaluate(FIT_JS, HTML_CW)
         await page.wait_for_timeout(2000)
@@ -635,6 +989,11 @@ def stage_fetch(force=False):
     SOURCES.mkdir(exist_ok=True)
     BUILD.mkdir(exist_ok=True)
     meta = load_meta()
+    slugs = {p["slug"] for p in CATALOG}
+    for f in SOURCES.glob("[0-9][0-9]_*.pdf"):  # sources/ holds exactly the works in the anthology
+        if f.stem[3:] not in slugs:
+            log(f"removing {f.name} (no longer in the catalog)")
+            f.unlink()
     ax_ids = [p["arxiv"] for p in CATALOG if p["arxiv"] and (force or p["id"] not in meta or "arxiv_meta" not in meta[p["id"]])]
     axmeta = arxiv_metadata(ax_ids) if ax_ids else {}
     for p in CATALOG:
@@ -658,6 +1017,13 @@ def stage_fetch(force=False):
                            pdf_url=f"https://arxiv.org/pdf/{p['arxiv']}", verified_title=am["title"],
                            authors=am["authors"], first_posted=am["published"], version_date=am["updated"],
                            license_url=am["license"], license=license_label(am["license"]))
+            elif p["pdf"]:
+                if force or not dest.exists():
+                    log(f"[{p['id']}] downloading {p['pdf']}")
+                    download(p["pdf"], dest)
+                rec.update(source_type=f"Publisher PDF ({p['venue']})", source_url=p["pdf"], pdf_url=p["pdf"],
+                           verified_title=p["title"], authors=p["authors"] or [], first_posted=p["year"],
+                           license=p["license"], license_url="")
             else:
                 if force or not dest.exists() or "headings" not in rec:
                     log(f"[{p['id']}] print-rendering HTML")
@@ -665,12 +1031,14 @@ def stage_fetch(force=False):
                     rec.update(verified_title=hm["title"], authors=hm["authors"], first_posted=hm["published"],
                                license=hm["license"], license_url="", headings=hm["headings"],
                                removed_blank_pages=hm["removed_blank_pages"], raw_pages=hm["raw_pages"], fit=hm["fit"])
-                fitted = ("page clamped to Letter width" if p["render"].get("clamp_width")
+                r = p["render"]
+                fitted = ("article header and body only, site navigation and comments omitted" if r.get("keep")
+                          else "page clamped to Letter width" if r.get("clamp_width")
                           else "article grid fitted to Letter width")
                 rec.update(source_type="Print rendering of the official HTML publication (headless Chrome, site print "
                                        f"stylesheet, {fitted})",
                            source_url=p["html"], pdf_url="")
-            surname = p["cite"].split()[0]
+            surname = p["byline"]
             ok, detail = verify_identity(dest, p["title"] if p["arxiv"] is None else rec["verified_title"], surname)
             doc = pymupdf.open(dest)
             rec.update(status="included" if ok else "identity-check-failed", identity=detail,
@@ -822,6 +1190,11 @@ def ids_where(pred):
     return [p["id"] for p in CATALOG if pred(p)]
 
 
+def site_render(p) -> bool:
+    """Research-site HTML (Transformer Circuits, Distill, OpenAI) printed whole with the standard grid fitting."""
+    return bool(p["html"]) and not p["render"].get("keep") and not p["render"].get("clamp_width")
+
+
 def number_words(n: int) -> str:
     ones = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen " \
            "seventeen eighteen nineteen".split()
@@ -932,8 +1305,8 @@ def draw_title_page(pg: Pager, L: Layout, stats: dict):
     y -= 52
     text(c, ML - 2, y, "Interpretability", "Disp-L", 48)
     y -= 32
-    for t in wrap(f"{number_words(N - 1).capitalize()} original papers on circuits, superposition, sparse autoencoders "
-                  "and alignment — and a concluding essay", "Serif-I", 12.5, MR - ML):
+    for t in wrap(f"{number_words(N).capitalize()} papers, essays and forum posts on circuits, features, dictionary "
+                  "learning and alignment — and the arguments over them", "Serif-I", 12.5, MR - ML):
         text(c, ML, y, t, "Serif-I", 12.5, MUTED)
         y -= 17
     y += 17
@@ -948,14 +1321,14 @@ def draw_title_page(pg: Pager, L: Layout, stats: dict):
         n = sum(1 for p in CATALOG if p["sec"] == sec)
         text(c, ML, y, sec, "Disp-SB", 12.5)
         w = text(c, ML + 24, y, name, "Serif", 12)
-        text(c, ML + 24 + w + 8, y, "1 paper" if n == 1 else f"{n} papers", "Sans", 7.5, FAINT)
+        text(c, ML + 24 + w + 8, y, readings(n), "Sans", 7.5, FAINT)
         text(c, MR, y, f"{s['divider']}–{s['end']}", "Sans", 9, MUTED, "r")
         pg.link(ML - 4, y - 6, MR + 4, y + 13, s["divider"])
         y -= 24
     y -= 2
     hair(c, ML, y + 12, MR)
     y -= 22
-    for t in (f"{stats['papers_included']} complete original papers  ·  {L.total} pages  ·  US Letter",
+    for t in (f"{stats['papers_included']} complete original works  ·  {L.total} pages  ·  US Letter",
               "All page numbers are physical PDF pages (this page is 1); type them directly into any print dialog.",
               f"Print index p. {L.front_toc.get('index', 0)}   ·   Contents p. {L.front_toc.get('toc', 0)}   ·   "
               f"Bibliography p. {L.bib_start}"):
@@ -1161,7 +1534,7 @@ def draw_ranges_and_checklist(pg: Pager, L: Layout, for_external=False):
     p0 = [q for q in CATALOG if q["pri"] == "P0"]
     p0_str = dialog_ranges([(L.papers[q["id"]]["cover"], L.papers[q["id"]]["end"]) for q in p0])
     tot = sum(L.papers[q["id"]]["end"] - L.papers[q["id"]]["cover"] + 1 for q in p0)
-    pg.y = heading(c, "Essential papers (P0)", [f"{len(p0)} papers  ·  {tot} pages including covers"])
+    pg.y = heading(c, "Essential readings (P0)", [f"{readings(len(p0))}  ·  {tot} pages including covers"])
     label(c, ML, pg.y, "Print-dialog string for all P0 papers")
     pg.y -= 15
     for t in wrap(p0_str, "Sans-M", 8.5, MR - ML):
@@ -1170,11 +1543,16 @@ def draw_ranges_and_checklist(pg: Pager, L: Layout, for_external=False):
     pg.y -= 22
     cols = ((ML, "No.", "l"), (ML + 34, "Paper", "l"), (412, "Print range", "r"), (446, "Printed", "c"),
             (494, "Read", "c"), (MR - 12, "Annotated", "c"))
-    for x, t, al in cols:
-        label(c, x, pg.y, t, size=6.5, align=al)
-    hair(c, ML, pg.y - 6, MR, gray=INK, w=0.6)
-    pg.y -= 22
+
+    def col_heads():
+        for x, t, al in cols:
+            label(c, x, pg.y, t, size=6.5, align=al)
+        hair(c, ML, pg.y - 6, MR, gray=INK, w=0.6)
+        pg.y -= 22
+
+    col_heads()
     for q in p0:
+        pg.need(21, on_new=col_heads)
         pl = L.papers[q["id"]]
         text(c, ML, pg.y, q["id"], "Sans-M", 8, MUTED)
         text(c, ML + 34, pg.y, q["short"], "Serif", 10)
@@ -1270,6 +1648,7 @@ def _cover(c, p, rec, pl, total, access, k) -> float:
     qr(c, url, MR - qs, y - qs + 8, qs)
     qr_bottom = y - qs + 8
     rows = [("Source", f"arXiv:{p['arxiv']} (official PDF)" if p["arxiv"]
+             else f"{p['venue']} (publisher PDF)" if p["pdf"]
              else f"{p['venue']} (official HTML, print-rendered)"), ("URL", url)]
     if rec.get("verified_title") and norm(rec["verified_title"]) != norm(p["title"]):
         rows.append(("Published as", rec["verified_title"]))
@@ -1309,18 +1688,21 @@ def draw_divider(c, sec: str, L: Layout):
 def _divider(c, sec: str, L: Layout, k=1.0) -> float:
     s = L.sections[sec]
     papers = [q for q in CATALOG if q["sec"] == sec]
+    # long sections: smaller section letter and one-line short titles, so every row fits above the range block
+    compact = len(papers) > 9
     top = H - 72
     label(c, ML, top, f"Section {sec}")
     span = papers[0]["id"] if len(papers) == 1 else f"{papers[0]['id']}–{papers[-1]['id']}"
     label(c, MR, top, f"Paper {span}" if len(papers) == 1 else f"Papers {span}", align="r")
     hair(c, ML, top - 9, MR)
-    text(c, ML - 8, top - 150, sec, "Disp-L", 140)
-    y = top - 196
+    drop = 112 if compact else 150
+    text(c, ML - 8, top - drop, sec, "Disp-L", 100 if compact else 140)
+    y = top - drop - 46
     for t in wrap(SECTIONS[sec], "Disp", 26, MR - ML):
         text(c, ML, y, t, "Disp", 26)
         y -= 30
     y -= 2
-    count = "1 paper" if len(papers) == 1 else f"{len(papers)} papers"
+    count = readings(len(papers))
     text(c, ML, y, f"{count}  ·  pages {s['divider']}–{s['end']}", "Sans", 8, MUTED)
     y -= 40 * k
     for x, t, al in ((ML, "No.", "l"), (ML + 34, "Paper", "l"), (452, "Cover", "r"), (MR, "Print range", "r")):
@@ -1332,19 +1714,19 @@ def _divider(c, sec: str, L: Layout, k=1.0) -> float:
         y0 = y
         text(c, ML, y, p["id"], "Sans-M", 8.5, MUTED)
         pri_mark(c, ML + 25, y + 3.2, p["pri"], r=2.8)
-        for t in wrap(p["title"], "Serif", 11 * k, 400 - (ML + 34)):
+        for t in wrap(p["short"] if compact else p["title"], "Serif", 11 * k, 400 - (ML + 34)):
             text(c, ML + 34, y, t, "Serif", 11 * k)
-            y -= 14 * k
+            y -= (12 if compact else 14) * k
         opt = "  ·  optional" if p["optional"] else ""
         text(c, ML + 34, y + 2, f"{p['cite']}, {p['year']}{opt}", "Sans", 7, FAINT)
         text(c, 452, y0, str(pl["cover"]), "Sans", 9, MUTED, "r")
         text(c, MR, y0, rng(pl["cover"], pl["end"]), "Sans-SB", 9.5, INK, "r")
-        y -= 18 * k
+        y -= (14 if compact else 18) * k
     range_block(c, "Whole-section print range", f"{s['divider']}–{s['end']}",
                 details=[("Divider", str(s["divider"])), ("Pages", str(s["end"] - s["divider"] + 1))],
                 note="Includes this divider, paper covers and notes pages.")
     footer(c, f"Mechanistic Interpretability  ·  Section {sec}", s["divider"], L.total)
-    return y + 18 * k
+    return y + (14 if compact else 18) * k
 
 
 def draw_notes(c, lab: str, phys: int, total: int):
@@ -1932,7 +2314,7 @@ def stage_qa():
     picks = {"title": 1, "legend": lay["front_toc"]["legend"], "toc": lay["front_toc"]["toc"],
              "index": lay["front_toc"]["index"], "ranges": lay["front_toc"]["ranges"], "p0": lay["front_toc"]["p0"],
              "divider_A": lay["sections"]["A"]["divider"], "notes_A": lay["sections"]["A"]["notes"],
-             **{f"cover_{k}": lay["papers"][BY_KEY[k]["id"]]["cover"] for k in ("zoomin", "tracing", "jumprelu", "clean")},
+             **{f"cover_{k}": lay["papers"][BY_KEY[k]["id"]]["cover"] for k in ("zoomin", "tracing", "gdmnegative", "clean")},
              "bib": lay["bib_start"]}
     for p in CATALOG:
         picks[f"p{p['id']}_first"] = lay["papers"][p["id"]]["start"]
@@ -1970,8 +2352,11 @@ def _extract_body(job: tuple[str, str, str]) -> tuple[str, str]:
 
 
 def relink_images(body: str, slug: str) -> str:
-    """pymupdf4llm writes image links relative to the working directory (or absolute); point them at markdown/."""
-    return re.sub(rf"\]\((?:[^)\s]*/)?images/{re.escape(slug)}/", f"](images/{slug}/", body)
+    """pymupdf4llm writes image links relative to the working directory (or absolute); point them at markdown/.
+    Extracted maths such as `round[a](x)` reads as Markdown link syntax; escape every `](` that is not a real web
+    link or one of the paper's images so it stays literal text."""
+    body = re.sub(rf"\]\((?:[^)\s]*/)?images/{re.escape(slug)}/", f"](images/{slug}/", body)
+    return re.sub(r"\]\((?!https?://|mailto:|images/)", r"]\\(", body)
 
 
 def md_name(p: dict) -> str:
@@ -2227,7 +2612,7 @@ def html_index(L: Layout) -> str:
         s = L.sections[sec]
         n = sum(1 for p in CATALOG if p["sec"] == sec)
         rows.append(f'<a class="row" href="#section-{sec}"><span class="letter">{sec}</span>'
-                    f'<span><span class="name">{name}</span><span class="count">{"1 paper" if n == 1 else f"{n} papers"}</span></span>'
+                    f'<span><span class="name">{name}</span><span class="count">{readings(n)}</span></span>'
                     f'<span class="pages">pp. {s["divider"]}–{s["end"]}</span></a>')
     sections = []
     for sec, name in SECTIONS.items():
@@ -2244,16 +2629,16 @@ def html_index(L: Layout) -> str:
 <header class="hero">
 <div class="label">A research anthology &nbsp;·&nbsp; online edition</div>
 <h1>Mechanistic<br>Interpretability</h1>
-<p class="dek">{number_words(N - 1).capitalize()} original papers on circuits, superposition, sparse autoencoders and
-alignment — and a concluding essay.</p>
+<p class="dek">{number_words(N).capitalize()} papers, essays and forum posts on circuits, features, dictionary
+learning and alignment — and the arguments over them.</p>
 <div class="actions"><a href="{RELEASE_PDF_URL}">Download the print PDF</a><a href="{REPO_URL}">Source &amp; Markdown</a></div>
 </header>
 <section class="contents">
 <div class="head"><span class="label">Contents</span><span class="label">Print pages</span></div>
 {''.join(rows)}
 <hr class="rule">
-<p class="facts">{N} papers &nbsp;·&nbsp; {L.total} pages in print &nbsp;·&nbsp; each paper opens with reading notes and links
-to the papers it speaks to. Text here is extracted from the PDFs; the print edition is authoritative.</p>
+<p class="facts">{readings(N)} &nbsp;·&nbsp; {L.total} pages in print &nbsp;·&nbsp; each opens with reading notes and links
+to the work it speaks to. Text here is extracted from the PDFs; the print edition is authoritative.</p>
 <div class="legend">{legend}</div>
 </section>
 {''.join(sections)}
@@ -2389,7 +2774,8 @@ def write_readme_and_checksums():
     lines += ["", f"**All P0 papers (paste into the print dialog):** `{man['p0_print_string']}`", "",
               "## Print index", "", "| # | Pri | Paper | Cover | Paper pages | Print range | Source |", "|---|---|---|---|---|---|---|"]
     for r in man["papers"]:
-        src = f"arXiv:{r['arxiv_id']}" if r["arxiv_id"] else "transformer-circuits.pub (print render)"
+        src = (f"arXiv:{r['arxiv_id']}" if r["arxiv_id"] else f"{urlparse(r['source_url']).netloc} (publisher PDF)"
+               if r["source_type"].startswith("Publisher") else f"{urlparse(r['source_url']).netloc} (print render)")
         lines.append(f"| {r['number']} | {r['priority']} | {r['curriculum_title']} | {r['cover_page']} | "
                      f"{r['paper_text_range'].replace('-', '–')} | **{r['print_range']}** | {src} |")
     lines += [
@@ -2406,8 +2792,8 @@ def write_readme_and_checksums():
         "manifest). arXiv was preferred over",
         "  conference-proceedings PDFs because proceedings PDFs often move appendices into separate supplementary files,",
         "  and the arXiv versions are the authors' complete camera-ready texts with appendices.",
-        f"- {len(ids_where(lambda p: p['html'] and not p['render']))} papers "
-        f"({', '.join(ids_where(lambda p: p['html'] and not p['render']))}) exist only as HTML on transformer-circuits.pub,",
+        f"- {len(ids_where(site_render))} works "
+        f"({', '.join(ids_where(site_render))}) exist only as HTML on transformer-circuits.pub,",
         "  distill.pub or openaipublic.blob.core.windows.net, with no official PDF. They were",
         "  print-rendered with headless Chrome using the site's print stylesheet on US Letter (0.5 in margins, 90% scale,",
         "  body text ≈10.8 pt). Fixed-width article grids (Distill template) were collapsed to the page width so text is not",
@@ -2417,15 +2803,23 @@ def write_readme_and_checksums():
         "  versions. Fully blank pages emitted by Chrome at forced section breaks were removed (count in the manifest).",
         "  Distill articles are CC BY 4.0; the other sites publish no explicit licence, and copyright remains with the",
         "  authors.",
-        f"- Paper {BY_KEY['clean']['id']} (Cammarata 2026, the conclusion) is an HTML essay on already-clean.goodfire.com, "
-        "rendered the same",
-        "  way but with the page clamped to the printable width, reduced motion (animated figures print their final frame)",
+        f"- {len(ids_where(lambda p: p['render'].get('keep')))} blog posts and essays "
+        f"({', '.join(ids_where(lambda p: p['render'].get('keep')))}) — LessWrong / AI Alignment Forum posts and",
+        "  articles on goodfire.com, ai-frontiers.org and darioamodei.com — were rendered the same way, keeping only the",
+        "  article header and body (site navigation, comments and promotional blocks omitted). Forum posts carry no explicit",
+        "  licence; the forum terms leave copyright with the author. The VPD post's opening interactive overview is omitted:",
+        "  its off-screen carousel track made Chrome shrink the whole post to ~6 pt.",
+        f"- {len(ids_where(lambda p: p['pdf']))} work(s) ({', '.join(ids_where(lambda p: p['pdf']))}) use the publisher's "
+        "PDF (PLOS Computational Biology, CC BY 4.0).",
+        f"- {BY_KEY['clean']['id']} (Cammarata 2026) is an HTML essay on already-clean.goodfire.com, rendered with the page",
+        "  clamped to the printable width, reduced motion (animated figures print their final frame)",
         "  and no lazy-load scrolling: scroll-mounted widgets wider than the page otherwise made Chrome shrink the whole",
         "  essay to ~6.6 pt. Body text prints at ≈9.9 pt. No explicit licence is published.",
-        f"- Papers {', '.join(ids_where(lambda p: p['optional']))} are marked *optional* on their covers and in the indexes:",
+        f"- Items {', '.join(ids_where(lambda p: p['optional']))} are marked *optional* on their covers and in the indexes:",
         "  kept in the anthology, but safe to skip when printing selectively.",
-        "- Every cover carries an *In context* note situating the paper among the others in the collection, with",
-        "  cross-references by paper number. These notes are the compiler's commentary, not the authors'.",
+        "- Every cover carries an *In context* note situating the item among the others — its lineage and, where the",
+        "  collection prints one, the rebuttal it answers or provokes — with cross-references by number. These notes are",
+        "  the compiler's commentary, not the authors'.",
         f"- `{BY_KEY['repe']['file']}` (and, marginally, {BY_KEY['mib']['id']} and {BY_KEY['weightsparse']['id']}) "
         "trigger non-fatal MuPDF warnings about",
         "  dangling object references inside the original arXiv files; every page still renders without error.",
@@ -2487,10 +2881,11 @@ def write_licenses(man: dict):
     cc = [r for r in rows if r["license"].startswith("CC")]
     lines = [
         "# Licences", "",
-        "This repository redistributes the original papers in `sources/` and the compiled anthology (GitHub release).",
-        "Copyright in every paper remains with its authors; each is included as published, under the terms below.",
+        "This repository redistributes the original works in `sources/` and the compiled anthology (GitHub release).",
+        "Copyright in every work remains with its authors; each is included as published, under the terms below.",
         f"{len(cc)} of {len(rows)} works carry a Creative Commons licence. The others are distributed by arXiv under its",
-        "non-exclusive distribution licence, or published on their authors' websites without an explicit licence.",
+        "non-exclusive distribution licence, or published on their authors' websites or on LessWrong / the AI Alignment",
+        "Forum without an explicit licence.",
         "", "| # | Work | Licence | Source |", "|---|---|---|---|",
     ]
     for r in rows:

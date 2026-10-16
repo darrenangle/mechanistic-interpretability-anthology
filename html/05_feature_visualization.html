@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>05 · Feature Visualization — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 05 / 91 &nbsp;·&nbsp; Section B</span></div>
+<header class="cover">
+<div class="numeral">05</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>Feature Visualization</h1>
+<p class="cite">Olah et al. — 2017</p>
+<p class="authors">Chris Olah, Alexander Mordvintsev, Ludwig Schubert</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>The working manual for seeing what a vision neuron responds to by optimising the input, and an early, frank admission that neurons may not be the right units: one GoogLeNet neuron answers to cats, foxes and cars.</p></div><div class="note"><div class="label">Reading focus</div><p>Optimisation objectives, why optimisation separates causes from correlates, diversity terms, neuron interaction and random directions, the high-frequency ‘enemy’, the regularisation spectrum, and decorrelated Fourier preconditioning.</p></div><div class="note"><div class="label">In context</div><p>The main instrument of <a href="07_zoom_in.html">07</a>, <a href="08_curve_detectors.html">08</a> and <a href="09_multimodal_neurons.html">09</a>. It weighs its own experience against <a href="06_network_dissection.html">06</a>, which found basis directions more interpretable than random ones, and its cat-fox-car neuron anticipates the polysemanticity <a href="33_toy_models_of_superposition.html">33</a> formalises. It sets attribution aside; <a href="84_saliency_sanity_checks.html">84</a> shows how gradient explanations of that kind can fail basic sanity checks.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>B — Foundations: vision models and early transformers</dd>
+<dt>Source</dt><dd><a href="https://distill.pub/2017/feature-visualization/">https://distill.pub/2017/feature-visualization/</a> &nbsp;·&nbsp; Distill</dd>
+<dt>Licence</dt><dd>CC BY 4.0 (Distill: text and diagrams)</dd>
+<dt>In print</dt><dd>PDF pages 147–169 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="04_attention_is_all_you_need.html"><small>Previous · 04</small>Attention Is All You Need</a><a class="mid" href="index.html#section-B">Contents</a><a class="next" href="06_network_dissection.html"><small>Next · 06</small>Network Dissection</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1>Feature Visualization</h1>
+<p>How neural networks build up their understanding of images</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-04.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-05.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-07.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-08.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-09.jpg" alt="" /></p>
+<p>Edges (layer conv2d0)</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-11.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-12.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-13.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-14.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-15.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-16.jpg" alt="" /></p>
+<p>Textures (layer mixed3a)</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-18.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-19.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-20.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-21.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-22.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-23.jpg" alt="" /></p>
+<p>Patterns (layer mixed4a)</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-25.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-26.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-27.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-28.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-29.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-30.jpg" alt="" /></p>
+<p>Parts (layers mixed4b &amp; mixed4c)</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-32.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-33.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-34.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-35.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-36.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0001-37.jpg" alt="" /></p>
+<p>Objects (layers mixed4d &amp; mixed4e)</p>
+<p>Feature visualization allows us to see how GoogLeNet [1] , trained on the ImageNet [2] dataset, builds up its understanding of images over many layers. Visualizations of all channels are available in the <u>appendix.</u></p>
+<p>AFFILIATIONS PUBLISHED Google Brain Team Nov. 7, 2017 Google Research Google Brain Team</p>
+<p>There is a growing sense that neural networks need to be interpretable to humans. The field of neural network interpretability has formed in response to these concerns. As it matures, two major threads of research have begun to coalesce: feature visualization and attribution.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0002-05.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0002-06.jpg" alt="" /></p>
+<p>Feature visualization answers questions about what a network — or parts of a network — are looking for by generating examples.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0002-08.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0002-09.jpg" alt="" /></p>
+<p>Attribution 1 studies what part of an example is responsible for the network activating a particular way.</p>
+<p>This article focuses on feature visualization. While feature visualization is a powerful tool, actually getting it to work involves a number of details. In this article, we examine the major issues and explore common approaches to solving them. We find that remarkably simple methods can produce high-quality visualizations. Along the way we introduce a few tricks for exploring variation in what neurons react to, how they interact, and how to improve the optimization process.</p>
+<h2>Feature Visualization by Optimization</h2>
+<p>Neural networks are, generally speaking, differentiable with respect to their inputs. If we want to find out what kind of input would cause a certain behavior — whether that’s an internal neuron firing or the final output behavior — we can use derivatives to iteratively tweak the input towards that goal [3] .</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Starting from random noise, we optimize an image to activate a particular neuron (layer mixed4a, unit 11).<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-01.jpg" alt="" /></p>
+<p>Step 0</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>→ → →<br><!-- End of picture text --></p>
+<p>Step 4</p>
+<p>Step 48</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-06.jpg" alt="" /></p>
+<p>Step 2048</p>
+<p>While conceptually simple, there are subtle challenges in getting the optimization to work. We will explore them, as well as common approaches to tackle them in the section ”The <u>Enemy of Feature Visualization″.</u></p>
+<h3>Optimization Objectives</h3>
+<p>What do we want examples of? This is the core question in working with examples, regardless of whether we’re searching through a dataset to find the examples, or optimizing images to create them from scratch. We have a wide variety of options in what we search for:</p>
+<p>Different optimization objectives show what different parts of a network are looking for.</p>
+<p><strong><code>n</code></strong> layer index <strong><code>x,y</code></strong> spatial position <strong><code>z</code></strong> channel index <strong><code>k</code></strong> class index</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-13.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-14.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-15.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-16.jpg" alt="" /></p>
+<p>Neuron Channel <code>layern[x,y,z] layern[:,:,z]</code></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-18.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-19.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-20.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Layer/DeepDream<br> layern[:,:,:] 2<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-21.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-22.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>softmax<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-23.jpg" alt="" /></p>
+<p>Class Logits</p>
+<pre><code> pre_softmax[k]
+</code></pre>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-26.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-27.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>softmax<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0003-28.jpg" alt="" /></p>
+<p>Class Probability <code>softmax[k]</code></p>
+<p>If we want to understand individual features, we can search for examples where they have high values — either for a neuron at an individual position, or for an entire channel. We used the channel objective to create most of the images in this article.</p>
+<p>If we want to understand a layer as a whole, we can use the DeepDream objective [4] , searching for images the layer finds “interesting.”</p>
+<p>And if we want to create examples of output classes from a classifier, we have two options — optimizing class logits before the softmax or optimizing class probabilities after the softmax. One can see the logits as the evidence for each class, and the probabilities as the likelihood of each class given the evidence. Unfortunately, the easiest way to increase the probability softmax gives to a class is often to make the alternatives unlikely rather than to make the class of interest likely [5] . From our experience, optimizing pre-softmax logits produces images of better visual quality. 2</p>
+<p>The objectives we’ve mentioned only scratch the surface of possible objectives — there are a lot more that one could try. Of particular note are the objectives used in style transfer [6] , which can teach us about the kinds of style and content a network understands, and objectives used in optimization-based model inversion [7] , which help us understand what information a model keeps and what it throws away. We are only at the beginning of understanding which objectives are interesting, and there is a lot of room for more work in this area.</p>
+<h3>Why visualize by optimization?</h3>
+<p>Optimization can give us an example input that causes the desired behavior — but why bother with that? Couldn’t we just look through the dataset for examples that cause the desired behavior?</p>
+<p>It turns out that optimization approach can be a powerful way to understand what a model is really looking for, because it separates the things causing behavior from things that merely correlate with the causes. For example, consider the following neurons visualized with dataset examples and optimization:</p>
+<p>Dataset Examples show us what neurons respond to in practice</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0005-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0005-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0005-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0005-04.jpg" alt="" /></p>
+<p>Optimization isolates the causes of behavior from mere correlations. A neuron may not be detecting what you initially thought.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0005-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0005-07.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0005-08.jpg" alt="" /></p>
+<p>Baseball—or stripes? Animal faces—or snouts? Clouds—or fluffiness? mixed4a, Unit 6 mixed4a, Unit 240 mixed4a, Unit 453</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0005-10.jpg" alt="" /></p>
+<p>Buildings—or sky? mixed4a, Unit 492</p>
+<p>Optimization also has the advantage of flexibility. For example, if we want to study how neurons jointly represent information, we can easily ask how a particular example would need to be different for an additional neuron to activate. This flexibility can also be helpful in visualizing how features evolve as the network trains. If we were limited to understanding the model on the fixed examples in our dataset, topics like these ones would be much harder to explore.</p>
+<p>On the other hand, there are also significant challenges to visualizing features with optimization. In the following sections we’ll examine techniques to get diverse visualizations, understand how neurons interact, and avoid high frequency artifacts.</p>
+<h2>Diversity</h2>
+<p>Do our examples show us the full picture? When we create examples by optimization, this is something we need to be very careful of. It’s entirely possible for genuine examples to still mislead us by only showing us one “facet” of what a feature represents.</p>
+<p>Dataset examples have a big advantage here. By looking through our dataset, we can find diverse examples. It doesn’t just give us ones activating a neuron intensely: we can look across a whole spectrum of activations to see what activates the neuron to different extents.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-04.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-05.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-07.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-08.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-09.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-10.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-11.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-12.jpg" alt="" /></p>
+<p>Positive optimized</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-14.jpg" alt="" /></p>
+<p>Maximum activation examples</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-16.jpg" alt="" /></p>
+<p>Slightly positive activation examples</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-18.jpg" alt="" /></p>
+<p>Negative optimized</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-20.jpg" alt="" /></p>
+<p>Minimum activation examples</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0006-22.jpg" alt="" /></p>
+<p>Slightly negative activation examples</p>
+<p>Layer mixed 4a, unit 492</p>
+<p>REPRODUCE IN A NOTEBOOK</p>
+<p>In contrast, optimization generally gives us just one extremely positive example — and if we’re creative, a very negative example as well. Is there some way that optimization could also give us this diversity?</p>
+<h3>Achieving Diversity with Optimization</h3>
+<p>A given feature of a network may respond to a wide range of inputs. On the class level, for example, a classifier that has been trained to recognize dogs should recognize both closeups of their faces as well as wider profile images — even though those have quite different visual appearances. Early work by Wei et al. [8] attempts to demonstrate this “intra-class” diversity by recording activations over the entire training set, clustering them and optimizing for the cluster centroids, revealing the different facets of a class that were learned.</p>
+<p>A different approach by Nguyen, Yosinski, and collaborators was to search through the dataset for diverse examples and use those as starting points for the optimization process [9] . The idea is that this initiates optimization in different facets of the feature so that the resulting example from optimization will demonstrate that facet. In more recent work, they combine visualizing classes with a generative model, which they can sample for diverse examples [10] . Their first approach had limited success, and while the generative model approach works very well — we’ll discuss it more in the section on regularization under <u>learned priors — it</u> can be a bit tricky.</p>
+<p>We find there’s a very simple way to achieve diversity: adding a “diversity term” 3 to one’s objective that pushes multiple examples to be different from each other. The diversity term can take a variety of forms, and we don’t have much understanding of their benefits yet. One possibility is to penalize the cosine similarity of different examples. Another is to use ideas from style transfer [6] to force the feature to be displayed in different styles.</p>
+<p>In lower level neurons, a diversity term can reveal the different facets a feature represents:</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0007-03.jpg" alt="" /></p>
+<p>Simple Optimization</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0007-05.jpg" alt="" /></p>
+<p>Optimization with diversity reveals four different, curvy facets. Layer mixed4a, Unit 97 REPRODUCE IN A NOTEBOOK</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0007-07.jpg" alt="" /></p>
+<p>Dataset examples</p>
+<p>Diverse feature visualizations allow us to more closely pinpoint what activates a neuron, to the degree that we can make, and — by looking at dataset examples — check predictions about what inputs will activate the neuron.</p>
+<p>For example, let’s examine this simple optimization result.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0007-11.jpg" alt="" /></p>
+<p>Simple optimization</p>
+<p>Looking at it in isolation one might infer that this neuron activates on the top of dog heads, as the optimization shows both eyes and only downward curved edges. Looking at the optimization with diversity however, we see optimization results which don’t include eyes, and also one which includes upward curved edges. We thus have to broaden our expectation of what this neuron activates on to be mostly about the fur texture. Checking this hypothesis against dataset examples shows that is broadly correct. Note the spoon with a texture and color similar enough to dog fur for the neuron to activate.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0008-00.jpg" alt="" /></p>
+<p>Optimization with diversity. Layer mixed4a, Unit 143</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0008-02.jpg" alt="" /></p>
+<p>Dataset examples</p>
+<p>The effect of diversity can be even more striking in higher level neurons, where it can show us different types of objects that stimulate a neuron. For example, one neuron responds to different kinds of balls, even though they have a variety of appearances.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0008-05.jpg" alt="" /></p>
+<p>Simple Optimization</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0008-07.jpg" alt="" /></p>
+<p>Optimization with diversity reveals multiple types of balls. Layer mixed5a, Unit 9</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0008-09.jpg" alt="" /></p>
+<p>Dataset examples</p>
+<p>This simpler approach has a number of shortcomings: For one, the pressure to make examples different can cause unrelated artifacts (such as eyes) to appear. Additionally, the optimization may make examples be different in an unnatural way. For example, in the above example one might want to see examples of soccer balls clearly separated from other types of balls like golf or tennis balls. Dataset based approaches such as Wei et al. [8] can split features apart more naturally — however they may not be as helpful in understanding how the model will behave on different data.</p>
+<p>Diversity also starts to brush on a more fundamental issue: while the examples above represent a mostly coherent idea, there are also neurons that represent strange mixtures of ideas. Below, a neuron responds to two types of animal faces, and also to car bodies.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0009-00.jpg" alt="" /></p>
+<p>Simple Optimization</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0009-02.jpg" alt="" /></p>
+<p>Optimization with diversity show cats, foxes, but also cars. Layer mixed4e, Unit 55</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0009-04.jpg" alt="" /></p>
+<p>Dataset examples</p>
+<p>Examples like these suggest that neurons are not necessarily the right semantic units for understanding neural nets.</p>
+<h2>Interaction between Neurons</h2>
+<p>If neurons are not the right way to understand neural nets, what is? In real life, combinations of neurons work together to represent images in neural networks. A helpful way to think about these combinations is geometrically: let’s define activation space to be all possible combinations of neuron activations. We can then think of individual neuron activations as the basis vectors of this activation space. Conversely, a combination of neuron activations is then just a vector in this space.</p>
+<p>This framing unifies the concepts “neurons” and “combinations of neurons” as “vectors in activation space”. It allows us to ask: Should we expect the directions of the basis vectors to be any more interpretable than the directions of other vectors in this space?</p>
+<p>Szegedy et al. [11] found that random directions seem just as meaningful as the directions of the basis vectors. More recently Bau, Zhou et al. [12] found the directions of the basis vectors to be interpretable more often than random directions. Our experience is broadly consistent with both results; we find that random directions often seem interpretable, but at a lower rate than basis directions.</p>
+<p>Dataset examples and optimized examples of random directions in activation space. The directions shown here were hand-picked for interpretability.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0010-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>REPRODUCE IN A NOTEBOOK<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0010-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0010-03.jpg" alt="" /></p>
+<p>mixed3a, random direction</p>
+<p>mixed4c, random direction</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0010-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0010-07.jpg" alt="" /></p>
+<p>mixed4d, random direction</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0010-09.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0010-10.jpg" alt="" /></p>
+<p>mixed5a, random direction</p>
+<p>We can also define interesting directions in activation space by doing arithmetic on neurons. For example, if we add a “black and white” neuron to a “mosaic” neuron, we obtain a black and white version of the mosaic. This is reminiscent of semantic arithmetic of word embeddings as seen in Word2Vec or generative models’ latent spaces.</p>
+<p>By jointly optimizing two neurons we can get a sense of how they interact.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>REPRODUCE IN A NOTEBOOK<br>Neuron 1<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-04.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-05.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-07.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-08.jpg" alt="" /></p>
+<p>Neuron 2</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-10.jpg" alt="" /></p>
+<p>Jointly optimized</p>
+<p>These examples show us how neurons jointly represent images. To better understand how neurons interact, we can also interpolate between them. 4 This is similar to interpolating in the latent space of generative models.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-13.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>REPRODUCE IN A NOTEBOOK<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-14.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-15.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-16.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-17.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-18.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-19.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-20.jpg" alt="" /></p>
+<p>Layer 4a, Unit 476</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-22.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-23.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-24.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0011-25.jpg" alt="" /></p>
+<p>Layer 4a, Unit 460</p>
+<p>This is only starting to scratch the surface of how neurons interact. The truth is that we have almost no clue how to select meaningful directions, or whether there even exist particularly meaningful directions. Independent of finding directions, there are also questions on how directions interact — for example, interpolation can show us how a small number of directions interact, but in reality there are hundreds of directions interacting.</p>
+<h2>The Enemy of Feature Visualization</h2>
+<p>If you want to visualize features, you might just optimize an image to make neurons fire. Unfortunately, this doesn’t really work. Instead, you end up with a kind of neural network optical illusion — an image full of noise and nonsensical high-frequency patterns that the network responds strongly to.</p>
+<p>Even if you carefully tune learning rate, you’ll get noise.</p>
+<p>Optimization results are enlarged to show detail and artifacts.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0012-05.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>REPRODUCE IN A NOTEBOOK<br>Learning Rate (0.05)<br>Step 1 Step 32 Step 128 Step 256 Step 2048<br><!-- End of picture text --></p>
+<p>These patterns seem to be the images kind of cheating, finding ways to activate neurons that don’t occur in real life. If you optimize long enough, you’ll tend to see some of what the neuron genuinely detects as well, but the image is dominated by these high frequency patterns. These patterns seem to be closely related to the phenomenon of adversarial examples [11] .</p>
+<p>We don’t fully understand why these high frequency patterns form, but an important part seems to be strided convolutions and pooling operations, which create high-frequency patterns in the gradient [13] .</p>
+<p>Each strided convolution or pooling creates checkerboard patterns in the gradient magnitudes when we backprop through it.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0013-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>← ← ←<br>input conv2d0 conv2d1 conv2d2 mixed3a mixed3b mixed4a mixed4b mixed4c<br>←<br>mixed4d mixed4e mixed5a<br><!-- End of picture text --></p>
+<p>These high-frequency patterns show us that, while optimization based visualization’s freedom from constraints is appealing, it’s a double-edged sword. Without any constraints on images, we end up with adversarial examples. These are certainly interesting, but if we want to understand how these models work in real life, we need to somehow move past them…</p>
+<h3>The Spectrum of Regularization</h3>
+<p>Dealing with this high frequency noise has been one of the primary challenges and overarching threads of feature visualization research. If you want to get useful visualizations, you need to impose a more natural structure using some kind of prior, regularizer, or constraint.</p>
+<p>In fact, if you look at most notable papers on feature visualization, one of their main points will usually be an approach to regularization. Researchers have tried a lot of different things!</p>
+<p>We can think of all of these approaches as living on a spectrum, based on how strongly they regularize the model. On one extreme, if we don’t regularize at all, we end up with adversarial examples. On the opposite end, we search over examples in our dataset and run into all the limitations we discussed earlier. In the middle we have three main families of regularization options.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-04.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-05.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-07.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-08.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-09.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0014-10.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Weak Regularization avoids Strong Regularization gives more<br>misleading correlations, but is less realistic examples at risk of<br>connected to real use. misleading correlations.<br>Unregularized Frequency Transformation Learned Dataset<br>Penalization Robustness Prior Examples<br>Erhan, et al., 2009 [3]<br>Introduced core idea. Minimal regularization.<br>Szegedy, et al., 2013 [11]<br>Adversarial examples. Visualizes with dataset<br>examples.<br>Mahendran &amp; Vedaldi, 2015 [7]<br>Introduces total variation regularizer.<br>Reconstructs input from representation.<br>Nguyen, et al., 2015 [14]<br>Explores counterexamples. Introduces image<br>blurring.<br>Mordvintsev, et al., 2015 [4]<br>Introduced jitter &amp; multi-scale. Explored GMM<br>priors for classes.<br>Øygard, et al., 2015 [15]<br>Introduces gradient blurring.<br>(Also uses jitter.)<br>Tyka, et al., 2016 [16]<br>Regularizes with bilateral filters.<br>(Also uses jitter.)<br>Mordvintsev, et al., 2016 [17]<br>Normalizes gradient frequencies.<br>(Also uses jitter.)<br>Nguyen, et al., 2016 [18]<br>Paramaterizes images with GAN generator.<br>Nguyen, et al., 2016 [10]<br>Uses denoising autoencoder prior to make a<br>generative model.<br><!-- End of picture text --></p>
+<h3>Three Families of Regularization</h3>
+<p>Let’s consider these three intermediate categories of regularization in more depth.</p>
+<p>Frequency penalization directly targets the high frequency noise these methods suffer from. It may explicitly penalize variance between neighboring pixels (total variation) [7] , or implicitly penalize high-frequency noise by 5 blurring the image each optimization step [14] . Unfortunately, these approaches also discourage legitimate high-frequency features like edges along with noise. This can be slightly improved by using a bilateral filter, which preserves edges, instead of blurring [16] .</p>
+<p>(Some work uses similar techniques to reduce high frequencies in the gradient before they accumulate in the visualization [15, 17] . These techniques are in some ways very similar to the above and in some ways radically different — we’ll examine them in the next section, Preconditioning <u>and Parameterization.)</u></p>
+<p>Frequency penalization directly targets high frequency noise</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0015-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>REPRODUCE IN A NOTEBOOK<br>L1 (-0.05) Total Variation (-0.25) Blur (-1)<br>Step 1 Step 32 Step 128 Step 256 Step 2048<br><!-- End of picture text --></p>
+<p>Transformation robustness tries to find examples that still activate the optimization target highly even if we slightly transform them. Even a small amount seems to be very effective in the case of images [4] , especially when combined with a more general regularizer for high-frequencies [15, 17] . Concretely, this means that we stochastically jitter, rotate or scale the image before applying the optimization step.</p>
+<p>Stochastically transforming the image before applying the optimization step suppresses noise</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0015-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>REPRODUCE IN A NOTEBOOK<br>Jitter (1px) Rotate (5°) Scale (1.1×)<br>Step 1 Step 32 Step 128 Step 256 Step 2048<br><!-- End of picture text --></p>
+<p>Learned priors. Our previous regularizers use very simple heuristics to keep examples reasonable. A natural next step is to actually learn a model of the real data and try to enforce that. With a strong model, this becomes similar to searching over the dataset. This approach produces the most photorealistic visualizations, but it may be unclear what came from the model being visualized and what came from the prior.</p>
+<p>One approach is to learn a generator that maps points in a latent space to examples of your data, such as a GAN or VAE, and optimize within that latent space [18] . An alternative approach is to learn a prior that gives you access to the gradient of probability; this allows you to jointly optimize for the prior along with your objective [10, 4] . When one optimizes for the prior and the probability of a class, one recovers a generative model of the data conditioned on that particular class. Finally, Wei et al. [8] approximate a generative model prior, at least for the color distribution, by penalizing distance between patches of the output and the nearest patches retrieved from a database of image patches collected from the training data.</p>
+<h2>Preconditioning and Parameterization</h2>
+<p>In the previous section, we saw a few methods [15, 17] that reduced high frequencies in the gradient rather than the visualization itself. It’s not clear this is really a regularizer: it resists high frequencies, but still allows them to form when the gradient consistently pushes for it. If it isn’t a regularizer, what does transforming the gradient like this do?</p>
+<p>Transforming the gradient like this is actually quite a powerful tool — it’s called “preconditioning” in optimization. You can think of it as doing steepest descent to optimize the same objective, but in another parameterization of the space or under a different notion of distance. 6 This changes which direction of descent will be steepest, and how fast the optimization moves in each direction, but it does not change what the minimums are. If there are many local minima, it can stretch and shrink their basins of attraction, changing which ones the optimization process falls into. As a result, using the right preconditioner can make an optimization problem radically easier.</p>
+<p>How can we choose a preconditioner that will give us these benefits? A good first guess is one that makes your data decorrelated and whitened. In the case of images this means doing gradient descent in the Fourier basis, 7 with frequencies scaled so that they all have equal energy. 8</p>
+<p>Let’s see how using different measures of distance changes the direction of steepest descent. The regular L2 gradient can be quite different from the directions of steepest descent in the L∞ metric or in the decorrelated space:</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0017-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Three directions of steepest descent under different notions of distance<br>Image L∞ metric L2 metric decorrelated space<br>used in adverserial work regular gradient<br><!-- End of picture text --></p>
+<p>All of these directions are valid descent directions for the same objective, but we can see they’re radically different. Notice that optimizing in the decorrelated space reduces high frequencies, while using L∞ increases them.</p>
+<p>Using the decorrelated descent direction results in quite different visualizations. It’s hard to do really fair comparisons because of hyperparameters, but the resulting visualizations seem a lot better — and develop faster, too.</p>
+<p>Combining the preconditioning and transformation robustness improves quality even further</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0017-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>REPRODUCE IN A NOTEBOOK<br>Learning Rate (0.05) Decorrelated Space<br>Transformation Robustness<br>Step 1 Step 32 Step 128 Step 256 Step 2048<br><!-- End of picture text --></p>
+<p>(Unless otherwise noted, the images in this article were optimizing in the decorrelated space and a suite of transformation robustness techniques. )9</p>
+<p>Is the preconditioner merely accelerating descent, bringing us to the same place normal gradient descent would have brought us if we were patient enough? Or is it also regularizing, changing which local minima we get attracted to? It’s hard to tell for sure. On the one hand, gradient descent seems to continue improving as you exponentially increase the number of optimization steps — it hasn’t converged, it’s just moving very slowly. On the other hand, if you turn off all other regularizers, the preconditioner seems to reduce high-frequency patterns.</p>
+<h2>Conclusion</h2>
+<p>Neural feature visualization has made great progress over the last few years. As a community, we’ve developed principled ways to create compelling visualizations. We’ve mapped out a number of important challenges and found ways of addressing them.</p>
+<p>In the quest to make neural networks interpretable, feature visualization stands out as one of the most promising and developed research directions. By itself, feature visualization will never give a completely satisfactory understanding. We see it as one of the fundamental building blocks that, combined with additional tools, will empower humans to understand these systems.</p>
+<p>There remains still a lot of important work to be done in improving feature visualization. Some issues that stand out include understanding neuron interaction, finding which units are most meaningful for understanding neural net activations, and giving a holistic view of the facets of a feature.</p>
+<p>Additional Resources</p>
+<p><u>Appendix: GoogLeNet Visualizations</u></p>
+<p>Visualizations of every channel in GoogLeNet</p>
+<p><u>Code: tensorfowl /lucid</u></p>
+<p>Open-source implementation of our techniques</p>
+<p><u>Follow-up: The Building Blocks of Interpretability</u></p>
+<p>Exploration of how feature visualization and other techniques can be combined.</p>
+<h4>Acknowledgments</h4>
+<p>We are extremely grateful to Shan Carter and Ian Goodfellow. Shan gave thoughtful feedback, especially on the design of the article. Ian generously stepped in to handle the review process of this article — we would not have been able to publish it without him.</p>
+<p>We’re also grateful for the comments, thoughts and support of Arvind Satyanarayan, Ian Johnson, Greg Corrado, Blaise Aguera y Arcas, Katherine Ye, Michael Nielsen, Emma Pierson, Dario Amodei, Mike Tyka, Andrea Vedaldi, Ruth Fong, Jason Freidenfelds, Geoffrey Hinton, Timon Ruban, Been Kim, Martin Wattenberg, and Fernanda Viegas.</p>
+<p>This work was made possible by many open source tools, for which we are grateful. In particular, all of our experiments were based on Tensorflow [19] .</p>
+<h4>Author Contributions</h4>
+<p>Writing, Exposition, and Diagram Contributions. Chris drafted most of the text of the article and made the original version of most interactive diagrams. Ludwig made the neuron addition, dataset examples, and interpolation diagrams, as well as refined the others. Ludwig also created the appendix that visualizes all of GoogLeNet.</p>
+<p>Research Contributions. The biggest technical contribution of this work is likely the section on preconditioning. Alex discovered in prior work that normalizing gradient frequencies had a radical effect on visualizing neurons. Chris reframed this as adaptive gradient descent in a different basis. Together, they iterated on a number of ways of parameterizing images. Similarly, Alex originally introduced the use of diversity term, and Chris refined using it. Chris did the exploration of interpolating between neurons.</p>
+<p>Infrastructure Contributions. All experiments are based on code written by Alex, some of which was <u>published previously.</u> Alex, Chris and</p>
+<p>Ludwig all contributed significantly to refining this into the present library, Lucid. Alex and Chris introduced particularly important abstractions.</p>
+<h4>Discussion and Review</h4>
+<p><u>Review 1</u> - <u>Anonymous Review 2</u> - <u>Anonymous Review 3</u> - <u>Anonymous</u></p>
+<h4>Footnotes</h4>
+<ol>
+<li>
+<p>As a young field, neural network interpretability does not yet have standardized terminology. Attribution has gone under many different names in the literature — including “feature visualization”! — but recent work seems to prefer terms like “attribution” and “saliency maps”. <u>[</u> ↩ <u>]</u></p>
+</li>
+<li>
+<p>While the standard explanation is that maximizing probability doesn’t work very well because you can just push down evidence for other classes, an alternate hypothesis is that it’s just harder to optimize through the softmax function. We understand this has sometimes been an issue in adversarial examples, and the solution is to optimize the LogSumExp of the logits instead. This is equivalent to optimizing softmax but generally more tractable. Our experience was that the LogSumExp trick doesn’t seem better than dealing with the raw probabilities.</p>
+</li>
+</ol>
+<p>Regardless of why that happens, it can be fixed by very strong regularization with generative models. In this case the probabilities can be a very principled thing to optimize. <u>[</u> ↩ <u>]</u></p>
+<ol start="3">
+<li>For this article we use an approach based on ideas from artistic style transfer. Following that work, we begin by computing the Gram matrix <em>G</em> of the channels, where <em>Gi</em> , <em>j</em> is a the dot product between the (flattened) response of filter <em>i</em> and filter <em>j</em> :</li>
+</ol>
+<p><em>Gi</em> , <em>j</em> = ∑ layer <em>n</em> [x, y, i] ⋅layer <em>n</em> [x, y, j] <em>x</em> , <em>y</em></p>
+<p>From this, we compute the diversity term: the negative pairwise cosine similarity of pairs of visualizations.</p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0020-02.jpg" alt="" /></p>
+<p>We then maximize the diversity term jointly with the regular optimization objective. <u>[</u> ↩ <u>]</u></p>
+<ol start="4">
+<li>
+<p>The optimization objective is a linear interpolation between the individual channel objectives. To get the interpolations to look better, we also add a small alignment objective that encourages lower layer activations to be similar. We additionally use a combination of separate and shared image parameterizations to make it easier for the optimization algorithm to cause objects to line up, while still giving it the freedom to create any image it needs to. <u>[</u> ↩ <u>]</u></p>
+</li>
+<li>
+<p>If we think about blurring in Fourier space, it is equivalent to adding a scaled L2 penalty to the objective, penalizing each Fouriercomponent based on its frequency. <u>[</u> ↩ <u>]</u></p>
+</li>
+<li>
+<p>Gradient blurring [15] is equivalent to gradient descent in a different parameterization of image space, where high frequency dimensions are stretched to make moving in those directions slower. Gradient Laplacian Pyramid normalization [17] is a kind of adaptive learning rate approach in the same space. <u>[</u> ↩ <u>]</u></p>
+</li>
+<li>
+<p>This points to a profound fact about the Fourier transform. As long as a correlation is consistent across spatial positions — such as the correlation between a pixel and its left neighbor being the same across all positions of an image — the Fourier coefficients will be independent variables. To see this, note that such a spatially consistent correlation can be expressed as a convolution, and by the convolution theorem becomes pointwise multiplication after the Fourier transform. <u>[</u> ↩ <u>]</u></p>
+</li>
+<li>
+<p>Note that we have to be careful to get the colors to be decorrelated, too. The Fourier transforms decorrelates spatially, but a correlation will still exist between colors. To address this, we explicitly measure the correlation between colors in the training set and use a Cholesky decomposition to decorrelate them. Compare the directions of steepest decent before and after decorrelating colors:</p>
+</li>
+</ol>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0020-09.jpg" alt="" /></p>
+<p><img src="../markdown/images/feature_visualization/05_feature_visualization.pdf-0020-10.jpg" alt="" /></p>
+<p>Correlated Colors Decorrelated Colors <u>[</u> ↩ <u>]</u></p>
+<ol start="9">
+<li>Images were optimized for 2560 steps in a color-decorrelated fourier-transformed space, using Adam at a learning rate of 0.05. We used each of following transformations in the given order at each step of the optimization:</li>
+</ol>
+<ul>
+<li>
+<p>Padding the input by 16 pixels to avoid edge artifacts</p>
+</li>
+<li>
+<p>Jittering by up to 16 pixels</p>
+</li>
+<li>
+<p>Scaling by a factor randomly selected from this list: 1, 0.975, 1.025, 0.95, 1.05</p>
+</li>
+<li>
+<p>Rotating by an angle randomly selected from this list; in degrees: -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5</p>
+</li>
+<li>
+<p>Jittering a second time by up to 8 pixels</p>
+</li>
+<li>
+<p>Cropping the padding</p>
+</li>
+<li>
+<p><u>[</u> ↩ <u>]</u></p>
+</li>
+</ul>
+<h5>1. Going deeper with convolutions <u>[PDF]</u></h5>
+<p>Szegedy, C., Liu, W., Jia, Y., Sermanet, P., Reed, S., Anguelov, D., Erhan, D., Vanhoucke, V. and Rabinovich, A., 2015. Proceedings of the IEEE conference on computer vision and pattern recognition, pp. 1--9.</p>
+<h5>2. Imagenet: A large-scale hierarchical image database <u>[PDF]</u></h5>
+<p>Deng, J., Dong, W., Socher, R., Li, L., Li, K. and Fei-Fei, L., 2009. Computer Vision and Pattern Recognition, 2009. CVPR 2009. IEEE Conference on, pp. 248--255. DOI: 10.1109/cvprw.2009.5206848</p>
+<h5>3. Visualizing higher-layer features of a deep network <u>[PDF]</u></h5>
+<p>Erhan, D., Bengio, Y., Courville, A. and Vincent, P., 2009. University of Montreal, Vol 1341, pp. 3.</p>
+<ol start="4">
+<li>Inceptionism: Going deeper into neural networks <u>[HTML]</u></li>
+</ol>
+<ul>
+<li>Mordvintsev, A., Olah, C. and Tyka, M., 2015. Google Research Blog.</li>
+</ul>
+<ol start="5">
+<li>Deep inside convolutional networks: Visualising image classification models and saliency maps <u>[PDF]</u></li>
+</ol>
+<p>Simonyan, K., Vedaldi, A. and Zisserman, A., 2013. arXiv preprint arXiv:1312.6034.</p>
+<h5>6. A neural algorithm of artistic style <u>[PDF]</u></h5>
+<p>Gatys, L.A., Ecker, A.S. and Bethge, M., 2015. arXiv preprint arXiv:1508.06576.</p>
+<h5>7. Understanding deep image representations by inverting them <u>[PDF]</u></h5>
+<p>Mahendran, A. and Vedaldi, A., 2015. Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, pp. 5188-5196. DOI: 10.1109/cvpr.2015.7299155</p>
+<ol start="8">
+<li>Understanding Intra-Class Knowledge Inside {CNN} <u>[PDF]</u></li>
+</ol>
+<p>Wei, D., Zhou, B., Torralba, A. and Freeman, W.T., 2015. CoRR, Vol abs/1507.02379.</p>
+<ol start="9">
+<li>Multifaceted feature visualization: Uncovering the different types of features learned by each neuron in deep neural networks</li>
+</ol>
+<h5><u>[PDF]</u></h5>
+<p>Nguyen, A., Yosinski, J. and Clune, J., 2016. arXiv preprint arXiv:1602.03616.</p>
+<h5>10. Plug &amp; play generative networks: Conditional iterative generation of images in latent space <u>[PDF]</u></h5>
+<p>Nguyen, A., Yosinski, J., Bengio, Y., Dosovitskiy, A. and Clune, J., 2016. arXiv preprint arXiv:1612.00005.</p>
+<ol start="11">
+<li>Intriguing properties of neural networks <u>[PDF]</u></li>
+</ol>
+<p>Szegedy, C., Zaremba, W., Sutskever, I., Bruna, J., Erhan, D., Goodfellow, I. and Fergus, R., 2013. arXiv preprint arXiv:1312.6199.</p>
+<ol start="12">
+<li>Network Dissection: Quantifying Interpretability of Deep Visual Representations <u>[PDF]</u></li>
+</ol>
+<p>Bau, D., Zhou, B., Khosla, A., Oliva, A. and Torralba, A., 2017. Computer Vision and Pattern Recognition.</p>
+<h5>13. Deconvolution and checkerboard artifacts <u>[link]</u></h5>
+<p>Odena, A., Dumoulin, V. and Olah, C., 2016. Distill, Vol 1(10), pp. e3. DOI: distill.00003</p>
+<ol start="14">
+<li>Deep neural networks are easily fooled: High confidence predictions for unrecognizable images <u>[PDF]</u></li>
+</ol>
+<p>Nguyen, A., Yosinski, J. and Clune, J., 2015. Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, pp. 427-436. DOI: 10.1109/cvpr.2015.7298640</p>
+<ol start="15">
+<li>Visualizing GoogLeNet Classes <u>[link]</u></li>
+</ol>
+<p>Øygard, A., 2015.</p>
+<ol start="16">
+<li>Class visualization with bilateral filters <u>[HTML]</u></li>
+</ol>
+<p>Tyka, M., 2016.</p>
+<ol start="17">
+<li>DeepDreaming with TensorFlow <u>[link]</u></li>
+</ol>
+<ul>
+<li>Mordvintsev, A., 2016.</li>
+</ul>
+<ol start="18">
+<li>Synthesizing the preferred inputs for neurons in neural networks via deep generator networks <u>[PDF]</u></li>
+</ol>
+<ul>
+<li>Nguyen, A., Dosovitskiy, A., Yosinski, J., Brox, T. and Clune, J., 2016. Advances in Neural Information Processing Systems, pp. 3387-3395.</li>
+</ul>
+<ol start="19">
+<li>Tensorflow: Large-scale machine learning on heterogeneous distributed systems <u>[PDF]</u></li>
+</ol>
+<ul>
+<li>Abadi, M., Agarwal, A., Barham, P., Brevdo, E., Chen, Z., Citro, C., Corrado, G.S., Davis, A., Dean, J., Devin, M., Ghemawat, S., Goodfellow, I.J., Harp, A., Irving, G., Isard, M., Jia, Y., J{'{o}}zefowicz, R., Kaiser, L., Kudlur, M., Levenberg, J., Man{'{e}}, D., Monga, R., Moore, S., Murray, D.G., Olah, C., Schuster, M., Shlens, J., Steiner, B., Sutskever, I., Talwar, K., Tucker, P.A., Vanhoucke, V., Vasudevan, V., Vi{'{e}}gas, F.B., Vinyals, O., Warden, P., Wattenberg, M., Wicke, M., Yu, Y. and Zheng, X., 2016. arXiv preprint arXiv:1603.04467.</li>
+</ul>
+<h4>Updates and Corrections</h4>
+<p>If you see mistakes or want to suggest changes, please <u>create an issue on GitHub.</u></p>
+<h4>Reuse</h4>
+<p>Diagrams and text are licensed under Creative Commons Attribution <u>CC-BY 4.0</u> with the <u>source available on GitHub,</u> unless noted otherwise. The figures that have been reused from other sources don’t fall under this license and can be recognized by a note in their caption: “Figure from …”.</p>
+<h4>Citation</h4>
+<p>For attribution in academic contexts, please cite this work as</p>
+<pre><code>Olah, et al., &quot;Feature Visualization&quot;, Distill, 2017.
+</code></pre>
+<p>BibTeX citation</p>
+<pre><code>@article{olah2017feature,
+  author = {Olah, Chris and Mordvintsev, Alexander and Schubert, Ludwig},
+  title = {Feature Visualization},
+  journal = {Distill},
+  year = {2017},
+  note = {https://distill.pub/2017/feature-visualization},
+  doi = {10.23915/distill.00007}
+}
+</code></pre>
+<p>Distill is dedicated to clear explanations of machine learning</p>
+<p>About Submit Prize Archive RSS GitHub Twitter ISSN 2476-0757</p>
+
+</article>
+<nav class="pager"><a class="prev" href="04_attention_is_all_you_need.html"><small>Previous · 04</small>Attention Is All You Need</a><a class="mid" href="index.html#section-B">Contents</a><a class="next" href="06_network_dissection.html"><small>Next · 06</small>Network Dissection</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

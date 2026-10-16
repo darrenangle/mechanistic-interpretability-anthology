@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>29 · The Hydra Effect: Emergent Self-repair in Language Model Computations — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 29 / 91 &nbsp;·&nbsp; Section C</span></div>
+<header class="cover">
+<div class="numeral">29</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>The Hydra Effect: Emergent Self-repair in Language Model Computations</h1>
+<p class="cite">McGrath et al. — 2023</p>
+<p class="authors">Thomas McGrath, Matthew Rahtz, Janos Kramar, Vladimir Mikulik, Shane Legg</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Finds that when one attention layer of Chinchilla 7B is ablated, later layers compensate, and that late MLPs suppress the top token, so ablation-based and direct-effect measures of a layer's importance disagree.</p></div><div class="note"><div class="label">Reading focus</div><p>The disagreement between unembedding and ablation importance, direct versus total effects with the compute graph as causal graph, the erasure MLPs, the roughly 70% restoration at middle layers, and training without dropout.</p></div><div class="note"><div class="label">In context</div><p>The rebuttal paired with <a href="26_activation_patching_best_practices.html">26</a> and the ablation tradition: if components compensate for one another, knock-out experiments (<a href="11_induction_heads.html">11</a>, <a href="13_ioi_circuit.html">13</a>, <a href="28_acdc.html">28</a>) measure a repaired network rather than the intact one. It corroborates the backup heads of <a href="13_ioi_circuit.html">13</a> while ruling out dropout as their cause, works in the factual-recall setting of <a href="18_rome.html">18</a>, and informs <a href="27_activation_patching_how.html">27</a>'s advice.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>C — Causal methods and their critics</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2307.15771v1">https://arxiv.org/abs/2307.15771v1</a> &nbsp;·&nbsp; arXiv:2307.15771v1</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 951–972 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="28_acdc.html"><small>Previous · 28</small>Automated Circuit Discovery (ACDC)</a><a class="mid" href="index.html#section-C">Contents</a><a class="next" href="30_probe_control_tasks.html"><small>Next · 30</small>Probes with Control Tasks</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0001-02.jpg" alt="" /></p>
+<h1><strong>The Hydra Effect: Emergent Self-repair in Language Model Computations</strong></h1>
+<p><strong>Thomas McGrath</strong><sup>1</sup> <strong>, Matthew Rahtz</strong><sup>1</sup> <strong>, János Kramár</strong><sup>1</sup> <strong>, Vladimir Mikulik</strong><sup>1</sup> <strong>and Shane Legg</strong><sup>1</sup> 1Google DeepMind</p>
+<p><strong>We investigate the internal structure of language model computations using causal analysis and demonstrate two motifs: (1) a form of adaptive computation where ablations of one attention layer of a language model cause another layer to compensate (which we term the Hydra effect) and (2) a counterbalancing function of late MLP layers that act to downregulate the maximum-likelihood token. Our ablation studies demonstrate that language model layers are typically relatively loosely coupled (ablations to one layer only affect a small number of downstream layers). Surprisingly, these effects occur even in language models trained without any form of dropout. We analyse these effects in the context of factual recall and consider their implications for circuit-level attribution in language models.</strong></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0001-06.jpg" alt="" /></p>
+<p>Figure 1 | Diagram of our protocol for investigating network self-repair and illustrative results. The blue line indicates the effect on output logits for each layer for the maximum-likelihood continuation of the prompt shown in the title. Faint red lines show direct effects following ablation of at a single layer indicated by dashed vertical line (attention layer 18 in this case) using patches from different prompts and the solid red line indicates the mean across patches. See Section 2 for details.</p>
+<h2><strong>1. Introduction</strong></h2>
+<p>Ablation studies are a vital tool in our attempts to understand the internal computations of neural networks: by ablating components of a trained network at inference time and studying the downstream effects of these ablations we hope to be able to map the network’s computational structure and attribute responsibility among different components. In order to interpret the results of interventions on neural networks we need to understand how network computations respond to the types of interventions we typically perform. A natural expectation is that ablating important components will substantially degrade model performance (Morcos et al., 2018) and may cause cascading failures that break the network. We demonstrate that the situation in large language models (LLMs) is substantially more complex: LLMs exhibit not just redundancy but actively self-repairing computations. When one layer of attention heads is ablated, another later layer appears to take over its function. We call this</p>
+<p>the Hydra effect: when one set of heads is cut off, other heads grow in importance<sup>1</sup> . We present these results in Section 2.</p>
+<p>The Hydra effect (referred to in (Wang et al., 2022) as backup behaviour) complicates our understanding of what it means for a network component to be important because two natural-seeming measures of importance (unembedding and ablation-based measures) become much less correlated than we would naïvely expect. These impact measurements correspond to the direct and total effect, which we introduce in a short, self-contained primer on causal inference in neural networks in Section 3 before performing a more comprehensive quantitative analysis of the Hydra effect in Section 4. Finally we discuss related work in Section 5 and close by hypothesising possible causes for our findings and discuss their implications for future causal analyses of language model computations in Section 6.</p>
+<h2><strong>2. Self-repair and the Hydra effect</strong></h2>
+<h3><strong>2.1. The Transformer architecture for autoregressive language modelling</strong></h3>
+<p>We want to analyse the computational structure of large autoregressive language models with an decoder-only Transformer architecture. In this work we use a 7 billion parameter model from the Chinchilla family (meaning that the architecture and training setup is identical to that proposed in (Hoffmann et al., 2022) but the model is approximately 7 billion parameters and the training dataset size is scaled down appropriately). An autoregressive language model maps a sequence of input tokens <em>𝑥</em> ≤ <em>𝑡</em> = ( <em>𝑥</em> 1 <em>, . . . , 𝑥𝑡</em> ) of length <em>𝑡</em> to a probability distribution over the next token <em>𝑥𝑡</em> +1 using a function <em>𝑓𝜃</em></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0002-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0002-07.jpg" alt="" /></p>
+<p>where the pre-softmax values <em>𝜋</em> are called the logits. The function <em>𝑓𝜃</em> is a standard Transformer architecture comprised of <em>𝐿</em> layers</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0002-09.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0002-10.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0002-11.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0002-12.jpg" alt="" /></p>
+<p>where RMSNorm(·) is an RMSNorm normalisation layer, <em>𝑊𝑈</em> an unembedding matrix Attn(·) an attention layer (Bahdanau et al., 2014; Vaswani et al., 2017) and MLP(·) a two-layer perceptron. The dependence of these functions on the model parameters <em>𝜃</em> is left implicit. In common with much of the literature on mechanistic interpretability (e.g. Elhage et al. (2021)) we refer to the series of residual activations <em>𝑧𝑖</em><sup><em>𝑙</em>,</sup><sup><em>𝑖</em>= 1</sup><sup>_, . . . , 𝑡_as the residual stream.For more details on the Transformer architecture</sup> in language modelling and the specific details of Chinchilla language models see (Hoffmann et al., 2022; Phuong and Hutter, 2022). As an additional notational shorthand we will typically denote the dependence of network activations on inputs by skipping the repeated function composition and simply writing <em>𝑧𝑡</em><sup><em>𝑙</em>(</sup><sup><em>𝑥</em>≤</sup><sup><em>𝑡</em>)(or</sup><sup><em>𝑎</em></sup> <em>𝑡</em><sup><em>𝑙</em>(</sup><sup><em>𝑥</em>≤</sup><sup><em>𝑡</em>,</sup><sup><em>𝑚</em></sup> <em>𝑡</em><sup><em>𝑙</em>(</sup><sup><em>𝑥</em>≤</sup><sup><em>𝑡</em>)) to denote the activations at layer</sup><sup><em>𝑙</em>, position</sup><sup>_𝑡_due to input</sup> string <em>𝑥</em> ≤ <em>𝑡</em> rather than writing the full recursive function composition implied by Equations 3-6.</p>
+<blockquote>
+<p>1Although evocative, we recognise that the use of the name ‘Hydra’ is not completely mythologically accurate: sometimes only one head grows in importance, and as we show in Section 4 the total effect decreases on average, in contrast with the behaviour of the mythological Hydra.</p>
+</blockquote>
+<h3><strong>2.2. Using the Counterfact dataset to elicit factual recall</strong></h3>
+<p>The Counterfact dataset, introduced in (Wang et al., 2022), is a collection of factual statements originally intended to evaluate the efficacy of model editing. The dataset comprises a series of prompts formed by combining tuples of subject, relation, and object ( <em>𝑠, 𝑟, 𝑜</em><sup>∗</sup> <em>, 𝑜</em><sup><em>𝑐</em></sup> ), where <em>𝑠</em> is the subject (e.g. Honus Wagner), <em>𝑟</em> the relation (e.g. “professionally plays the sport of”), <em>𝑜</em><sup>∗</sup> the true object (e.g. baseball), and <em>𝑜</em><sup><em>𝑐</em></sup> some counterfactual claim that makes sense in context. We are interested in the way that language models store and relate factual knowledge so we only use the concatentation of <em>𝑠</em> and <em>𝑟</em> to form our prompts. This produces prompts whose completion requires factual knowledge that Chinchilla 7B can complete answer correctly.</p>
+<h3><strong>2.3. Measuring importance by unembedding</strong></h3>
+<p>One way to assess the effect of a neural network layer is to attempt to map its outputs onto the network output logits. We discuss approaches that use a learned probe in Section 5, however in this work we use the model’s own unembedding mechanism <em>𝑢</em> to compute effects. This approach, often referred to as the logit lens, was introduced in (nostalgebraist, 2020) and has also been used in subsequent interpretability research (Dar et al., 2022; Geva et al., 2022a). The GPT-2 model used in the original logit lens analysis had a LayerNorm (Ba et al., 2016) prior to unembedding, however in the Chinchilla model we analyse the unembedding function is an RMSNorm (Zhang and Sennrich, 2019) followed by an unembedding matrix <em>𝑊𝑈</em> :</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0003-05.jpg" alt="" /></p>
+<p>RMSNorm is a simplification of LayerNorm referred to as RMSNorm Zhang and Sennrich (2019) which dispenses with centring and the learned bias term:</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0003-07.jpg" alt="" /></p>
+<p>where <em>𝑧𝑖</em> is the <em>𝑖</em> -th element of the vector <em>𝑧</em> and <em>𝐺</em> is a learned diagonal matrix. In the remainder of this paper, unembedding refers to computing the logit lens distribution <em>𝜋</em> ˜ <em>𝑡</em> = <em>𝑢</em> ( <em>𝑧𝑡</em><sup><em>𝑙</em>)= RMSNorm(</sup><sup><em>𝑧</em></sup> <em>𝑡</em><sup><em>𝑙</em>)</sup><sup><em>𝑊𝑈</em></sup> using the model’s final RMSNorm layer.</p>
+<h3><strong><em>2.3.1. Impact metric</em></strong></h3>
+<p>Our unembedding-based impact measurement Δunembed will be measured in terms of model logits over the vocabulary <em>𝑉</em> . Whenever we deal with logits, either from inference by the complete model or from unembedding, we will first centre the logits:</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0003-11.jpg" alt="" /></p>
+<p>where [ <em>𝜋𝑡</em> ] <em>𝑗</em> indicates the logit of the <em>𝑗</em> -th vocabulary element. We measure the impact of an attention layer <em>𝑎</em><sup><em>𝑙</em></sup> on the logit of the maximum-likelihood token at the final token position <em>𝑡</em> :</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0003-13.jpg" alt="" /></p>
+<p>where <em>𝑢</em> ˆ denotes the centred version of the logits obtained by unembedding as in Equation 9. We also repeat the procedure for the MLP layers <em>𝑚</em><sup><em>𝑙</em></sup> , <em>𝑙</em> = 1 <em>, . . . , 𝐿</em> . We fix the RMSNorm normalisation</p>
+<p>factor <em>𝜎</em> to the value attained in the forward pass, i.e. <em>𝜎</em> = <em>𝜎</em> ( <em>𝑧𝑡</em><sup><em>𝐿</em>)where</sup><sup>_𝐿_denotes the final layer of the</sup> network. Fixing the normalisation factor means that the effect of each layer output on the logits is linear, and corresponds to the unembedding that is actually carried out during the model’s forward pass. As we will show in Section 3, unembedding in this way corresponds to the direct effect from causal inference.</p>
+<h3><strong>2.4. Measuring importance by ablation</strong></h3>
+<p>An alternative approach to investigating a layer’s function is to ablate it by replacing its output with some other value, for example replacing <em>𝑎𝑡</em><sup>_𝑙_with an identically-shaped vector of zeros during network</sup> inference would ablate <em>𝑎𝑡</em><sup><em>𝑙</em>.This approach has appealing parallels to standard methodologies in neuro-</sup> science and has been suggested as a gold standard for evidence in interpretability research (Leavitt and Morcos, 2020). We naturally expect that ablating components that are important for a given input will lead to degraded performance on that input (indeed this seems like a reasonable definition of importance) and if a network’s internal mechanisms generalise then the ablation will also lead to degraded performance on other similar inputs.</p>
+<h3><strong><em>2.4.1. Intervention notation &amp; impact metric</em></strong></h3>
+<p>In keeping with standard notation in causality (Glymour et al., 2016; Pearl, 2009) we indicate replacing one set of activations <em>𝑎𝑡</em><sup>_𝑙_with another using the do(·)operation.Here we need to introduce</sup> some additional notation: we refer to specific nodes in the model’s compute graph using capital letters and their actual realisation on a set of inputs with lowercase. For example: <em>𝐴𝑡</em><sup>_𝑙_refers to the attention</sup> output at layer <em>𝑙</em> and position <em>𝑡</em> , whereas <em>𝑎𝑡</em><sup><em>𝑙</em>(</sup><sup><em>𝑥</em>≤</sup><sup><em>𝑡</em>)refers to the value of this vector when the model is</sup> evaluated on inputs <em>𝑥</em> ≤ <em>𝑡</em> (when the dependence on inputs is omitted for brevity it should be either clear from context or not relevant). If we have inputs <em>𝑥</em> ≤ <em>𝑡</em> that result in logits <em>𝜋𝑡</em> ( <em>𝑥</em> ≤ <em>𝑡</em> ) we would write the value of <em>𝜋𝑡</em> ( <em>𝑥</em> ≤ <em>𝑡</em> ) following an intervention on <em>𝐴𝑡</em><sup>_𝑙_as</sup></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0004-06.jpg" alt="" /></p>
+<p>for some alternative input <em>𝑥</em><sup>′</sup> ≤ <em>𝑡</em><sup>(see Appendix A for details of how alternative inputs can be chosen).</sup> As with the unembedding impact measure Δunembed we measure the impact of ablation Δablate on the centred logit <em>𝜋</em> ˆ of the maximum-likelihood token <em>𝑖</em> for a given input <em>𝑥</em> ≤ <em>𝑡</em> (see Section 2.3.1). To compute Δablate <em>,𝑙</em> of attention layer <em>𝑙</em> , token position <em>𝑡</em> we instead compare the centred logit of the maximum-likelihood token <em>𝑖</em> before and after intervention:</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0004-08.jpg" alt="" /></p>
+<p>As we will show in Section 3, Equation 12 corresponds to measuring the total effect of <em>𝐴𝑡</em><sup>_𝑙_inthe</sup> context <em>𝑥</em> ≤ <em>𝑡</em> . We used resample ablation (Chan et al., 2022) with patches from 15 alternative prompts from the dataset to provide ablation activations <em>𝑎</em> ˜ <em>𝑡</em><sup><em>𝑙</em>(see Appendix A for more details).</sup></p>
+<h3><strong>2.5. Ablation-based and unembedding-based importance measures disagree in most layers</strong></h3>
+<p>We calculate the importance of each layer according to both ablation and unembedding-based measures of importance for all layers of Chinchilla 7B for all prompts in the Counterfact dataset. For each prompt we calculate Δunembed <em>,𝑙</em> and Δablate <em>,𝑙</em> at the final token position for every attention and MLP layer.</p>
+<p>These results are shown in Figure 2, which shows average and per-prompt results, demonstrating a substantial disagreement between Δunembed and Δablate. This is surprising as we would expect that</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0005-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0005-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0005-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) (b)<br>(c) (d)<br><!-- End of picture text --></p>
+<p>Figure 2 | Measurements of (a) unembedding-based and (b) ablation-based impact for MLP and attention layers for a 7B parameter language model on the Counterfact dataset. Grey lines indicate per-prompt data, blue line indicates average across prompts. (c) Comparison of unembedding- and ablation-based impact measures across all layers showing low correlation and Δunembed <em>&gt;</em> Δablate for most prompts and layers, contrary to expectations. (d) Quantification of correlation between Δunembed and Δablate and proportion of prompts where Δunembed <em>&gt;</em> Δablate across layers.</p>
+<p>ablating a layer not only destroys its impact on the logits from unembedding but potentially also breaks further downstream network components, so we would expect that the ablation-based measure would be greater than or equal to the unembedding measure. As Figure 2 shows, this is far from the case. We now demonstrate that the lack of correlation between ablation and unembedding measures of component importance at all but the late layers of the network is due to downstream changes in layer outputs that counteract the effect of ablations.</p>
+<h3><strong><em>2.5.1. Methodology</em></strong></h3>
+<p>In order to understand the mechanism behind the difference in results from ablation and unembedding methods we propose a simple methodology that allows us to localise changes in network computation. First, for each input <em>𝑥</em> ≤ <em>𝑡</em> we compute attention and MLP outputs <em>𝑎𝑡</em><sup><em>𝑙</em>(</sup><sup><em>𝑥</em>≤</sup><sup><em>𝑡</em>)and</sup><sup><em>𝑚</em></sup> <em>𝑡</em><sup><em>𝑙</em>(</sup><sup><em>𝑥</em>≤</sup><sup><em>𝑡</em>)foralllayers</sup></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0006-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0006-02.jpg" alt="" /></p>
+<p>Figure 3 | Example results of self-healing computations in Chinchilla 7B showing per-layer impact on final logits before and after ablation.</p>
+<p><em>𝑙</em> . We refer to this as the clean run, matching the terminology from (Meng et al., 2022). We then compute the unembedding-based impact Δunembed <em>,𝑙</em> as defined in Section 2.3.1. This gives us a perlayer measure of the impact of each layer on the maximum-likelihood logit in the clean run. We then ablate a specific attention or MLP layer <em>𝑘</em> using resample ablation (see Appendix A). We refer to this as the layer <em>𝑘</em> ablation run. We now compute Δunembed <em>,𝑙</em> for each layer <em>𝑙</em> and layer <em>𝑘</em> ablation run. We denote a specific unembedding layer <em>𝑙</em> and ablation layer <em>𝑘</em> by Δ<sup>˜</sup><sup><em>𝑘</em></sup> unembed <em>,𝑙</em><sup>:</sup></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0006-05.jpg" alt="" /></p>
+<p>Because the transformer network is a feedforward network, if a readout layer <em>𝑙</em> is not causally downstream of the ablation layer <em>𝑘</em> then Δ<sup>˜</sup> unembed<sup><em>𝑘</em></sup> <em>,𝑙</em><sup>=Δunembed</sup><sup><em>,𝑙</em>.If</sup><sup><em>𝑘</em>=</sup><sup>_𝑙_thenΔ˜</sup> unembed<sup><em>𝑘</em></sup> <em>,𝑙</em><sup>≈0becausethe</sup> output of that layer will be ablated (the approximate equality is due to the fact that the resample ablation is stochastic and so may not fully zero out the centred logit of the maximum-likelihood token).</p>
+<p>This methodology, depicted in Figure 1, measures the impact of each layer on the maximum-likelihood token before and after ablation. This allows us to determine how individual layers react to a given ablation.</p>
+<h3><strong><em>2.5.2. Results</em></strong></h3>
+<p>Sample results for attention ablation are shown in Figure 1 and Figure 3 showing ablations of layers with high Δunembed. Several observations stand out from this data:</p>
+<p><strong>Resample ablations work but are noisy:</strong> Resample ablations successfully reduce Δunembed of the ablated layer to approximately zero when averaged across patches, although there is substantial</p>
+<p>variance between the effect of each patch. This demonstrates that resample ablations can provide true ablations but require a reasonably large sample size to prevent excessive noise.</p>
+<p><strong>The Hydra effect occurs in networks trained without dropout:</strong> In both cases an attention layer downstream of the ablated layer (layer 20 in the examples shown) substantially <em>increases</em> its impact in the ablated network compared to the intact network, i.e. Δ<sup>˜</sup> unembed<sup><em>𝑚</em></sup> <em>,𝑙</em><sup>_&gt;<em>Δunembed</sup><sup></em>,𝑙_for some unembedding</sup> layer <em>𝑙&gt; 𝑚</em> . These are examples of the Hydra effect: we cut off some attention heads, but others grow their effect to (partially) compensate. The Chinchilla-like language model we study here was trained entirely without dropout, stochastic depth, or layer dropout.</p>
+<p><strong>Downstream effects of ablation on attention layers are localised:</strong> The effects of attention ablation on downstream layers are localised: apart from the subsequent attention layer involved in the Hydra effect, other attention layers have Δunembed almost entirely unchanged in the ablated network. This does not necessarily imply that the features that would have been created by the ablated layer are unused in later layers, however (although it is consistent with this hypothesis). It is possible that the Hydra effect is not just compensating for the impact of the ablated layer on logits, but is also replacing the missing features that the ablated layer would have provided. More detailed multiple ablation studies would be needed to distinguish between these hypotheses.</p>
+<p><strong>Downstream MLPs may perform erasure/memory management:</strong> The shape of the unembedding impact curve across layers for the MLP layers remains very similar, but the impact of many of the layers is attenuated. This suggests that these MLPs are performing an erasure/memory-management role: when the attention layer has a high positive impact they have a high negative impact and when the attention layer’s Δunembed is reduced theirs is similarly attenuated.</p>
+<p>Although these observations are surprising, the evidence we have presented here is largely anecdotal. Before expanding our analysis to the full Counterfact dataset and analysing all layers in Section 4 we first introduce basic tools of causal inference and reframe our analyses in terms of concepts from causality in Section 3.</p>
+<h2><strong>3. Neural networks as causal models: the compute graph is the causal graph</strong></h2>
+<p>This section introduces structural causal models, causal graphs and the idea of interventions. The central idea of this section is that we can consider the internal structure of neural networks as structural causal models and use tools from causality to analyse their internal workings. One thing we are <em>not</em> claiming is that neural networks are naturally forming causal models of their training data, or that networks learn to perform causal reasoning - the degree to which this happens in practice or forms the basis for successful generalisation is still not well understood.</p>
+<h3><strong>Causal models</strong></h3>
+<p><strong>Definition 3.1</strong> (Causal model) <strong>.</strong> A structural causal model <em>𝑀</em> is a tuple <em>𝑀</em> = ⟨ <em>𝑈, 𝑉, 𝐹, 𝑃</em> ( <em>𝑢</em> )⟩ where:</p>
+<ol>
+<li><em>𝑈</em> and <em>𝑉</em> are sets of variables called the exogenous and endogenous variables respectively. We follow the standard convention of writing a random variable in uppercase and a specific realisation of that variable in lowercase, so <em>𝑢</em> is a realisation of the exogenous variable <em>𝑈</em> .</li>
+</ol>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0008-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0008-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>tokens next token<br>endogenous<br>variables<br>exogenous<br>variables<br>A series of<br><!-- End of picture text --></p>
+<p>Figure 4 | Viewing a transformer network as a structural causal model.</p>
+<ol start="2">
+<li>
+<p><em>𝐹</em> is a set of deterministic functions where <em>𝑓𝑖</em> ∈ <em>𝐹</em> determines the value of <em>𝑉𝑖</em> from a subset of variables Pa <em>𝑖</em> ∈ <em>𝑈</em> ∪ <em>𝑉</em> \ { <em>𝑉𝑖</em> }, i.e. <em>𝑣𝑖</em> = <em>𝑓𝑖</em> (pa <em>𝑖</em> ).</p>
+</li>
+<li>
+<p><em>𝑃</em> ( <em>𝑢</em> ) is a probability distribution over exogenous variables <em>𝑈</em> .</p>
+</li>
+</ol>
+<p>In a structural causal model the exogenous variables <em>𝑈</em> represent randomly-set external conditions (the ‘context’) and the endogenous variables <em>𝑉</em> follow deterministically from the context <em>𝑢</em> . Given a setting of exogenous variables <em>𝑈</em> = <em>𝑢</em> , the value of an endogenous variable <em>𝑉𝑖</em> is fully determined. We write the value <em>𝑉𝑖</em> takes in this situation as <em>𝑉𝑖</em> ( <em>𝑢</em> ) to reflect this rather than write the full set of functions relating <em>𝑉𝑖</em> to <em>𝑈</em> for conciseness and generality.</p>
+<p>We can visualise structural causal models as directed graphs where an edge <em>𝑋𝑖</em> → <em>𝑋 𝑗</em> (for <em>𝑋𝑖, 𝑋 𝑗</em> ∈ <em>𝑈</em> ∪ <em>𝑉</em> ) exists if <em>𝑋𝑖</em> ∈ pa <em>𝑖</em> , i.e. if <em>𝑋𝑖</em> is one of the variables that directly determines the value of <em>𝑋 𝑗</em> . The important factor distinguishing <em>𝑈</em> from <em>𝑉</em> is that variables in <em>𝑈</em> have no in-edges: there is nothing apart from the probability distribution <em>𝑃</em> ( <em>𝑢</em> ) that determines their value. Variables in <em>𝑉</em> , on the other hand, can eventually trace their ancestry back to one or more values in <em>𝑈</em> (although in large models it may take many edges to do so).</p>
+<p><strong>Interventions &amp; counterfactuals in causal models</strong> In a causal model an intervention do( <em>𝑍</em> = <em>𝑧</em><sup>′</sup> ) alters the value of an endogenous variable <em>𝑍</em> from whatever value it would have taken based on its parents <em>𝑧</em> = <em>𝑓𝑍</em> (pa <em>𝑍</em> ) to the new value <em>𝑧</em><sup>′</sup> . This entails a change in the causal model <em>𝑀</em> to a new intervened-upon model <em>𝑀𝑍</em> where <em>𝑀𝑍</em> is identical to <em>𝑀</em> except that <em>𝑓𝑍</em> (pa <em>𝑍</em> ) = <em>𝑧</em><sup>′</sup> regardless of the values taken by pa <em>𝑍</em> : the function <em>𝑓𝑍</em> has been replaced by a constant function returning <em>𝑧</em><sup>′</sup> . In terms of the causal graph this leads to a removal of in-edges to <em>𝑍</em> (as it no longer depends on other elements of the graph) and the addition of a new intervention edge (see Figure 5 for some examples). We express this intervention using the do-operator (Pearl, 2009), where <em>𝑌</em> ( <em>𝑢</em> | do( <em>𝑍</em> = <em>𝑧</em><sup>′</sup> )) denotes the value that <em>𝑌</em> takes in the modified model <em>𝑀𝑍</em> given the context <em>𝑢</em> .</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0009-01.jpg" alt="" /></p>
+<p>Figure 5 | Interventions and types of effect illustrated with a two-layer residual network example. The total effect involves intervening on a node and allowing the changes due to that intervention to propagate arbitrarily, whereas the direct effect only allows those changes to propagate via the direct path between intervention and output. The indirect effect is the complement of the direct effect: effects are allowed to flow via all but the direct path.</p>
+<p><strong>Treating language models as causal models</strong> Given these preliminaries the correspondence between neural networks and structural causal models is hopefully clear: the input data <em>𝑥</em> correspond to the exogenous variables <em>𝑈</em> and the network’s activations ( <em>𝑧</em> , <em>𝑎</em> , <em>𝑚</em> ) and outputs <em>𝜋</em> correspond to the endogenous variables <em>𝑉</em> . In autoregressive transformer-based language models causal masking ensures that activations at input position <em>𝑡</em> 1 are never causal parents of activations at input position <em>𝑡</em> 2 if <em>𝑡</em> 1 <em>&gt; 𝑡</em> 2. For the remainder of this work we will assume a standard Transformer architecture, as shown in Figure 4. Intervening on neural networks is identical to intervening in a SCM: we set the nodes to their intervention values and propagate the effects of this intervention forwards. Although for concreteness we focus on language modelling using transformers, the general framework of causal analysis is applicable to deterministic feedforward neural networks more generally - all that changes is the structure of the graph. Stochastic networks such as VAEs or diffusion models can be incorporated by adding additional exogenous nodes corresponding to sources of noise.</p>
+<h3><strong>3.1. Direct, indirect, and total effects</strong></h3>
+<p>We now have the notation and concepts needed to define and compute several important types of effects in causal graphs: the total, direct, and indirect effects. When we define the different types of effect in a causal model we will always consider the effects in a given context (i.e. a given setting of exogenous variables <em>𝑢</em> ).</p>
+<p><strong>Definition 3.2</strong> (Total effect) <strong>.</strong> The total effect of altering the value of a variable <em>𝑍</em> from <em>𝑍</em> = <em>𝑧</em> to <em>𝑍</em> = <em>𝑧</em><sup>′</sup> on another variable <em>𝑌</em> in a context <em>𝑢</em> is given by</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0009-07.jpg" alt="" /></p>
+<p><strong>Total effect corresponds to ablation-based impact</strong> If we choose <em>𝑌</em> = <em>𝜋</em> ˆ <em>𝑡</em> (i.e. the random variable we measure the effect of the intervention on is the centred logit of the maximum-likelihood token <em>𝑖</em> at</p>
+<p>the final token position <em>𝑡</em> ) and the exogenous variables are the prompt <em>𝑢</em> = <em>𝑥</em> ≤ <em>𝑡</em> then we the total effect of an intervention to change activations <em>𝐴𝑡</em><sup>_𝑙_fromtheir‘natural’</sup><sup><em>𝑎</em></sup> <em>𝑡</em><sup><em>𝑙</em>=</sup><sup><em>𝑎</em></sup> <em>𝑡</em><sup><em>𝑙</em>(</sup><sup><em>𝑥</em>≤</sup><sup><em>𝑡</em>)toanintervened-upon</sup> value <em>𝑎</em> ˜ <em>𝑡</em><sup><em>𝑙</em>=</sup><sup><em>𝑎</em></sup> <em>𝑡</em><sup><em>𝑙</em>(</sup><sup><em>𝑥</em>′</sup> ≤ <em>𝑡</em><sup>)is</sup></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-04.jpg" alt="" /></p>
+<p>where we go from Equation 16 to 17 by using the fact that the intervention do( <em>𝐴𝑡</em><sup><em>𝑙</em>=</sup><sup><em>𝑎</em></sup> <em>𝑡</em><sup><em>𝑙</em>)doesn’t</sup> change <em>𝐴𝑡</em><sup>_𝑙_from the value it would have taken in the context</sup><sup><em>𝑥</em>≤</sup><sup><em>𝑡</em>, as in Section 2.4.1.This shows that</sup> our ablation-based impact measure corresponds to measuring the total effect due to a change from the natural activation distribution to one sampled from the ablation distribution. The total effect of ablation (knockout) measures the importance of a unit in a given inference: if we were to ablate it, how much would performance suffer if the effects of the ablation were to cascade through the network.</p>
+<p><strong>Definition 3.3</strong> (Direct effect) <strong>.</strong> The direct effect of altering <em>𝑍</em> = <em>𝑧</em> → <em>𝑍</em> = <em>𝑧</em><sup>′</sup> is given by</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-07.jpg" alt="" /></p>
+<p>i.e. the effect of intervening to set <em>𝑍</em> = <em>𝑧</em><sup>′</sup> and then resetting all other variables <em>𝑀</em> = <em>𝑉</em> \ { <em>𝑍, 𝑌</em> } to the value they would have obtained in the context <em>𝑢</em> . As with the total effect, if <em>𝑧</em> = <em>𝑧</em> ( <em>𝑢</em> ) then the direct effect reduces to</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-09.jpg" alt="" /></p>
+<p>The direct effect measures how much changing the unit’s value would affect the output if all other units’ values were held constant. Because of this, in a language model only units connected via a residual path to the output (i.e. at the same token position) can have a direct effect - all other units must have their effect mediated by at least one attention head in order to cross between token positions. The residual structure of our language models means that effects on logits are additive (up to a normalisation constant introduced by RMSNorm), and so every change in logits eventually occurs due to a direct effect.</p>
+<p><strong>Unembedding-based impact with RMSnorm held constant approximates direct effect</strong> To see the relation between the unembedding-based impact Δunembed <em>,𝑙</em> and the direct effect of an attention variable <em>𝐴𝑡</em><sup>_𝑙_on the logits</sup><sup>_𝜋_ˆ</sup><sup>_𝑡_in context</sup><sup><em>𝑥</em>≤</sup><sup>_𝑡_we first rewrite the architecture defined by Equations 3-6 in</sup> the ‘unrolled view’ introduced by Veit et al. (2016) (for more details on this mathematical perspective on transformers see (Elhage et al., 2021)):</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-12.jpg" alt="" /></p>
+<p>where <em>𝐿</em> is the final layer of the network and we leave the dependence of activations at layer <em>𝐿</em> on earlier layers implicit. To get the logits we simply unembed <em>𝑧𝑡</em><sup><em>𝐿</em>:</sup></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-14.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-15.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0010-16.jpg" alt="" /></p>
+<p>where <em>𝐺</em> is the RMSNorm gain matrix and <em>𝑊𝑈</em> is the unembedding matrix (see Sections 2.1 and 2.4.1). Equation 24 demonstrates that the logits (and thus the centred logits <em>𝜋</em> ˆ) are linear in the layer outputs so long as the RMSNorm scale factor <em>𝜎</em> ( <em>𝑧𝑡</em><sup><em>𝐿</em>)is held constant.Now we can compute the direct effect of</sup> ablating attention layer output <em>𝑎𝑡</em><sup>_𝑙_on the logits (we omit centring as in Equation 9 here for brevity,</sup> but it is trivial to include):</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0011-02.jpg" alt="" /></p>
+<p>The only difference (up to centring) between the direct effect computed above and Δunembed <em>,𝑙</em> is the inclusion of the impact of the ablation on the maximum-likelihood token <em>𝑢</em> ( <em>𝑎</em> ˜ <em>𝑡</em><sup><em>𝑙</em>)</sup><sup><em>𝑖</em>.This factor is typically</sup> negligible if the source of resample ablations are chosen correctly (otherwise the ablation would still be substantially increasing the probability of the maximum-likelihood token) and is zero in the case of zero ablations, in which case Δunembed <em>,𝑙</em> = <em>𝐷𝐸</em> ( <em>𝑎𝑡</em><sup><em>𝑙</em>→</sup><sup><em>𝑎</em>˜</sup> <em>𝑡</em><sup>_𝑙,_ˆ</sup><sup><em>𝜋𝑡, 𝑢</em>).</sup></p>
+<p><strong>Definition 3.4</strong> (Indirect effect) <strong>.</strong> The indirect effect of altering <em>𝑧</em> → <em>𝑧</em><sup>′</sup> is given by</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0011-05.jpg" alt="" /></p>
+<p>which is the effect of setting the variables <em>𝑀</em> to their ablation values while also resetting <em>𝑍</em> to its default value <em>𝑧</em> .</p>
+<p>Indirect effect measures the effect that a unit has via downstream units, i.e. variables that are on the path from <em>𝑍</em> to <em>𝑌</em> (we say a variable <em>𝑀</em> satisfying this criterion <em>mediates</em> the relationship between <em>𝑍</em> and <em>𝑌</em> ). Units inside a circuit that is important in the current context will have high indirect effect, whereas units at the terminus of the circuit will have high direct effect. When we don’t specify the mediating variables we assume that all variables between the intervened variables and the output variables are changing.</p>
+<h3><strong>3.2. Challenges and opportunities in intervening in neural networks</strong></h3>
+<p>The difficulties and affordances involved in performing causal analysis on neural networks are almost the opposite of those involved in most real-world causal analysis: we know the causal model with complete certainty (down to the level of individual parameters), can perform arbitrarily long chains of interventions rapidly and can read the value of all variables simultaneously. On the other hand, our causal models involved enormous numbers of individual parameters, and these parameters have no obvious meaning attached to them (with the exception of input and output variables). Painstaking analysis often suggests meanings for individual neurons or clusters of neurons (Bau et al., 2018; Carter et al., 2019; Goh et al., 2021; Hilton et al., 2020) but the correct unit of analysis still remains unclear (Morcos et al., 2018). A recent line of work on a phenomenon known as superposition has begun to shed some light on how directions in activation space relate to meaningful units of analysis (Elhage et al., 2022) but this work has yet to reach any definitive conclusions that allow us to decide how to group neurons to reduce the size of the graph. For this reason we work with ablations at the level of individual layers, while acknowledging that this level of analysis is still likely to be too coarse to capture all the relevant phenomena.</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0012-01.jpg" alt="" /></p>
+<p>Figure 6 | Network motifs that cause total and direct effect to be uncorrelated, either by self-repair or erasure. An arrow-ended line <em>𝑋</em> → <em>𝑌</em> indicates that <em>𝑋</em> increases <em>𝑌</em> whereas a bar-ended line indicates that <em>𝑋</em> inhibits <em>𝑌</em> .</p>
+<h3><strong>3.3. Toy model and motif for the Hydra effect</strong></h3>
+<p>We now turn the tools of causal inference that we have just introduced to our findings on self-repair by studying a simplified toy model of the phenomena we observed in Section 2. These toy models both use a simple causal model involving a single exogenous variable <em>𝑢</em> and endogenous variables <em>𝑥</em> ( <em>𝑢</em> ) = <em>𝑢</em> and <em>𝑦</em> :</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0012-05.jpg" alt="" /></p>
+<p>If we intervene to set <em>𝑥</em> = 0, what functions <em>𝑓</em> will ensure that the total effect <em>𝑇𝐸</em> ( <em>𝑥, 𝑦</em> ) is zero? Two simple possibilities stand out:</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0012-07.jpg" alt="" /></p>
+<p>which will ensure that <em>𝑦</em> = 0 regardless of the input variable <em>𝑢</em> , or</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0012-09.jpg" alt="" /></p>
+<p>In both cases the output variable <em>𝑦</em> is kept unchanged regardless of the inner workings of the model, but in the erasure case it is clamped to zero whereas in the self-repair case it is fixed at <em>𝑢</em> . Although these simple circuits are stylised in order to illustrate a point, they turn out to be surprisingly good models of phenomena we observe in real language models.</p>
+<h2><strong>4. Quantifying erasure and the Hydra Effect</strong></h2>
+<h3><strong>4.1. Methodology</strong></h3>
+<p>For a given context <em>𝑢</em> we can measure the total compensatory effect following an ablation <em>𝑎</em> ˜<sup><em>𝑚</em></sup> by summing the effects of the downstream changes in the network:</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0012-14.jpg" alt="" /></p>
+<p>where Δ <em>𝐷𝐸</em> is the difference in direct effects between the ablated and unablated networks:</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0013-02.jpg" alt="" /></p>
+<p>where <em>𝐷𝐸</em> ablated( <em>𝑧</em><sup><em>𝑙</em></sup> <em>, 𝑢,</em> ˜ <em>𝑧</em><sup><em>𝑚</em></sup> ) = Δ<sup>˜</sup> unembed<sup><em>𝑘</em></sup> <em>,𝑙</em><sup>isthedirecteffectoflayer</sup><sup>_𝑙_followinganablationatlayer</sup><sup><em>𝑚</em></sup> in context <em>𝑢</em> . The starting index of the downstream MLPs and attention layers differs because MLP layers follow attention layers in our model. The compensatory effect for MLP ablations <em>𝐶𝐸</em> ( ˜ <em>𝑚</em><sup><em>𝑚</em></sup> <em>, 𝑢</em> ) is identical to Equation 33 except that the MLP sum index starts at <em>𝑚</em> + 1. We generate a dataset of direct and compensatory effects by computing <em>𝐷𝐸</em> ( <em>𝑎</em><sup><em>𝑙</em></sup> <em>, 𝑢</em> ), <em>𝐷𝐸</em> ( <em>𝑚</em><sup><em>𝑙</em></sup> <em>, 𝑢</em> ), <em>𝐶𝐸</em> ( <em>𝑎</em><sup><em>𝑙</em></sup> <em>, 𝑢</em> ) and <em>𝐶𝐸</em> ( <em>𝑚</em><sup><em>𝑙</em></sup> <em>, 𝑢</em> ) for all layers <em>𝑙</em> and all 1,209 contexts <em>𝑢</em> in the Counterfact dataset, i.e. for every prompt we compute the direct and compensatory effects of every possible layer ablation.</p>
+<h3><strong>4.2. Results</strong></h3>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0013-05.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0013-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0013-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) (b)<br>(c) (d)<br><!-- End of picture text --></p>
+<p>Figure 7 | Results from carrying out ablations at all layers across the entire Counterfact dataset. (a) Direct effects against compensatory effect for attention layers, with colourmap indicated network depth. Middle layers show strong correlations whereas early and late layers do not. (b) Relation between direct and compensatory effect at the layer with the highest correlation, which occurs at layer 23 where compensation explains 92% of the variance in changes between the intact and ablated network. (c) Same as (a) but for MLP layers. (d) Summary of variance explained (solid blue line) and slope (dashed black line) of a linear regression between direct and compensatory effects at each attention layer. Red line marks layer shown in subfigure (c).</p>
+<p>Results from full quantification of the compensatory effects across the full Counterfact dataset are</p>
+<p>shown in Figure 7, with data further broken out to individual layers in Figure 8. We highlight the following observations from these results:</p>
+<p><strong>Direct and compensatory effects are only well-correlated at intermediate layers:</strong> early layer ablations have large total effects but almost no direct effect (Figure 8a, c, c.f. Figure 2) whereas very late layers only have non-negligible direct effect (which makes sense as there are few downstream layers for them to have an effect on).</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0014-03.jpg" alt="" /></p>
+<p>Figure 8 | Per-layer compensation results for a selection of ablation layers. The balance between the effect due to the attention and MLP layers shifts from attention to MLP as depth increases.</p>
+<p><strong>The compensatory response is almost entirely responsible for changes in direct effect at later layers.</strong> Compensatory response is very highly correlated at intermediate-late layers (see Figure 8b, d), suggesting that the network’s response to ablations at these layers is almost entirely driven by the Hydra effect and a decrease in MLP erasure. Layer 23 (of 32) marks the high point of this phenomenon, with 92% of the variance in Δ <em>𝐷𝐸</em> in downstream layers being explained by the Hydra effect.</p>
+<p><strong>The compensatory response does not fully restore the output:</strong> fitting a linear regression between direct effect and compensatory response gives a slope of less than one at all layers past layer 13 (see Figure 7). This implies that these ablations <em>do</em> have a nonzero total effect, but one that is much smaller than it would have been without the Hydra effect and responses from erasure MLPs.</p>
+<p><strong>The balance between the Hydra effect and reduction in MLP erasure shifts with network depth</strong> Figure 8 shows Δ <em>𝐷𝐸</em> for attention and MLP layers separately at different layers in the network. In early layers changes in attention direct effect play a considerably larger role, whereas by layer 22 the balance has shifted such that the the MLP response is considerably more predictive and at layer 23 almost all of the response is occuring in the erasure MLPs.</p>
+<h2><strong>5. Related Work</strong></h2>
+<p>The use of techniques from causal inference to analyse neural networks has been used in a range of cases, including the causal tracing method for locating factual knowledge (Meng et al., 2022), mediation analyses for gender bias (Vig et al., 2020a,b) and analysis of syntactic agreement (Finlayson et al., 2021). There is also a recent line of work on constructing causal abstractions of neural network computations (Geiger et al., 2021, 2022, 2023a,b; Massidda et al., 2022). The use of ablations as a way of validating hypotheses about mechanisms in neural networks has been previously suggested (Chan et al., 2022; Leavitt and Morcos, 2020; Morcos et al., 2018), although our findings caution against straightforwardly interpreting low effectiveness of ablations as meaning that a network component is unimportant.</p>
+<p>Earlier work on residual networks (of which decoder-only transformers are a special case) determined that for image classification networks, residual networks behave like ensembles of shallower networks (Veit et al., 2016). This work introduced both the ‘unravelled view’ of residual networks that we make use of and experimented with ablating network layers at test time, determining that most effective paths through residual networks are short and layers often do not depend on one another.</p>
+<p>The idea of interpreting neural networks in terms of their internal mechanisms or circuits Olah et al. (2020) (often referred to as mechanistic interpretability) is relatively recent. Earlier work on vision models (Olah et al., 2018) identified human-understandable neurons and simple circuits (for instance curve detectors (Cammarata et al., 2020)). Subsequent work on transformers has identified ‘induction circuits’ responsible for simple instances of in-context learning (Elhage et al., 2021; Olsson et al., 2022), as well as a mechanism for indirect object identification (Wang et al., 2022) and the mechanism underlying the ‘grokking’ phenomenon (Chughtai et al., 2023; Nanda et al., 2023; Power et al., 2022).</p>
+<p>The use of probes to analyse neural network training originated in (Alain and Bengio, 2016), and has been widely used since. In the context of transformer language models the ‘logit lens’ approach, which involves using the model’s own unembedding matrix to decode the residual stream, has been applied to early GPT models (nostalgebraist, 2020). In order to better align with the model’s true</p>
+<p>outputs Belrose et al. (2023) use a learned affine unembedding rather than the model’s unembedding matrix and are also able to perform causal interventions using a learned ‘causal basis’. Geva et al. (2022b) and follow-on work (Dar et al., 2022; Geva et al., 2022a) analyse MLP layers by unembedding specific subspaces of their outputs. Sparse probing has been used to empirically study the superposition phenomenon (Elhage et al., 2022) in large language models (Gurnee et al., 2023) and has been used to understand concept learning in deep reinforcement learning agents (Forde et al., 2022; McGrath et al., 2022).</p>
+<h2><strong>6. Conclusion</strong></h2>
+<p><strong>Findings</strong> In this work we have investigated the computational structure of language models during factual recall by performing detailed ablation studies. We found that networks exhibit surprising self-repair properties: knockout of an attention layer causes another attention layer to increase its effect in order to compensate. We term this new motif the Hydra effect. We also found that late-layer MLPs appear to have a negative-feedback/erasure effect: late layer MLPs often act to reduce the probability of the maximum-likelihood token, and this reduction is attenuated when attention layers promoting that token are knocked out. We find that these effects are approximately linear, and that at middle layers (where these effects are strongest) the Hydra effect and reduction in MLP effects collectively act to restore approximately 70% of the reduction in token logits.</p>
+<p><strong>Implications for interpretability research</strong> These findings corroborate earlier work on neural network computations in GPT-2 Small (Wang et al., 2022) which reported a similar effect that the authors term ‘backup heads’. The authors of (Wang et al., 2022) hypothesised that dropout (Srivastava et al., 2014) was responsible for self-repair behaviour, which we disprove as the model we study (Chinchilla 7B) was trained without any form of dropout or stochastic depth. The occurrence of this motif across tasks and models suggests that it may be an instance of universality (Olah et al., 2020). Our original motivation for this work was performing automated ablation studies using an algorithm similar to (Conmy et al., 2023), which led to us investigating the changes in network computation under repeated ablations. The Hydra effect poses a challenge to automating ablations: if we prioritise network components for ablation according to their total effect, we will be using a measure that does not fully reflect the computational structure of the intact network. Fortunately, the fact that the compensatory effect is typically less than 100% means that automated ablations will still have some signal to work with. The Hydra effect and erasure MLPs also have implications for attributing responsibility for a network’s output to individual network components: is the responsible component the attention layer that has the effect in the intact network, or the circuits that act to compensate following ablation? The framework of actual causality (Halpern, 2016) may be a useful way to approach this question.</p>
+<p>Our findings also suggest that attempting to assign semantics to MLP neurons may be more complicated than otherwise expected: erasure MLPs may have no clear semantics in terms of the model’s input, as they are responding to the language model’s internal computations. Finally, our findings also have implications for work that attempts to understand language models by unembedding the output of individual layers (e.g. (Geva et al., 2022b)) - this corresponds to an assumption that the direct effect is the only meaningful effect of a layer. The existence of erasure MLPs poses a challenge to this approach to interpretability: if the output of an attention layer or MLP is guaranteed to be partially undone by an erasure MLP, it’s no longer straightforward to interpret that output in terms of its direct effects on logits: the effect of the mediating MLPs should also be considered. Our findings also provide context for earlier ablation studies (such as (Morcos et al., 2018)): it is not enough simply to measure the total effect of an ablation without investigating downstream changes in the</p>
+<p>network, and more important network components are more likely to be robust to ablation.</p>
+<p><strong>Implications for language modelling research</strong> From the perspective of language modelling the Hydra effect is surprising: it confers robustness to a kind of ablation that the model will never experience at inference time and so appears to be a waste of parameters. If this is the case, what benefit does it confer? One possibility (drawing on the analytical framework of Tinbergen’s four questions (Tinbergen, 1963)) is that the Hydra effect confers no benefit at inference time, but is beneficial in the context of training. If gradient descent were to occasionally break network components then a kind of ‘natural dropout’ would occur during training. In this case it would be beneficial for networks to be robust to layers failing. We emphasise that this is conjecture, however, and would need further research.</p>
+<p><strong>Possible extensions</strong> Although we have identified two new motifs, we have not investigated more deeply than individual layers (for instance looking at the level of individual attention heads or directions in activation space). Achieving a greater level of precision is a natural next step and would unlock deeper understanding of the mechanisms at play here. Some questions that could be answered with a finer-grained understanding of how this kind of redundancy operates include:</p>
+<ol>
+<li>
+<p>How much does the Hydra effect occur across the entire training distribution? Does sequence length play any role?</p>
+</li>
+<li>
+<p>What are the Hydra effect attention heads responding to the presence/absence of in the residual stream?</p>
+</li>
+<li>
+<p>Do the same downstream heads act as Hydra effect replacement heads across multiple contexts?</p>
+</li>
+<li>
+<p>What causes the Hydra effect? Is the natural dropout hypothesis correct or is some other phenomenon responsible (superposition has been suggested as an alternative explanation).</p>
+</li>
+<li>
+<p>Is there a Hydra effect for features rather than direct effect on logits?</p>
+</li>
+<li>
+<p>What are the erasure heads responding to in the residual stream? Do they have a ‘recalibration’ effect when a wider range of tokens is considered?</p>
+</li>
+<li>
+<p>If we account for redundancy/Hydra effect, can we probe network structure by using targeted ablations?</p>
+</li>
+</ol>
+<p><strong>Acknowledgements</strong> We would like to thank Joe Halpern, Avraham Ruderman, Tom Lieberum, Chris Olah, Zhengdong Wang, Tim Genewein and Neel Nanda for helpful discussions.</p>
+<h2><strong>References</strong></h2>
+<ul>
+<li>
+<p>G. Alain and Y. Bengio. Understanding intermediate layers using linear classifier probes. <em>arXiv preprint arXiv:1610.01644</em> , 2016.</p>
+</li>
+<li>
+<p>J. L. Ba, J. R. Kiros, and G. E. Hinton. Layer normalization. <em>arXiv preprint arXiv:1607.06450</em> , 2016.</p>
+</li>
+<li>
+<p>D. Bahdanau, K. Cho, and Y. Bengio. Neural machine translation by jointly learning to align and translate. <em>arXiv preprint arXiv:1409.0473</em> , 2014.</p>
+</li>
+<li>
+<p>D. Bau, J.-Y. Zhu, H. Strobelt, B. Zhou, J. B. Tenenbaum, W. T. Freeman, and A. Torralba. Gan dissection: Visualizing and understanding generative adversarial networks. <em>arXiv preprint arXiv:1811.10597</em> , 2018.</p>
+</li>
+<li>
+<p>N. Belrose, Z. Furman, L. Smith, D. Halawi, I. Ostrovsky, L. McKinney, S. Biderman, and J. Steinhardt. Eliciting latent predictions from transformers with the tuned lens. <em>arXiv preprint arXiv:2303.08112</em> , 2023.</p>
+</li>
+<li>
+<p>N. Cammarata, G. Goh, S. Carter, L. Schubert, M. Petrov, and C. Olah. Curve detectors. <em>Distill</em> , 5(6): e00024–003, 2020.</p>
+</li>
+<li>
+<p>S. Carter, Z. Armstrong, L. Schubert, I. Johnson, and C. Olah. Activation atlas. <em>Distill</em> , 2019. doi: 10.23915/distill.00015. https://distill.pub/2019/activation-atlas.</p>
+</li>
+<li>
+<p>L. Chan, A. Garriga-Alonso, N. Goldwosky-Dill, R. Greenblatt, J. Nitishinskaya, A. Radhakrishnan, B. Shlegeris, and N. Thomas. Causal scrubbing, a method for rigorously testing interpretability hypotheses. <em>AI Alignment Forum</em> , 2022. <code>https://www.alignmentforum.org/posts/ JvZhhzycHu2Yd57RN/causal-scrubbing-a-method-for-rigorously-testing</code> .</p>
+</li>
+<li>
+<p>B. Chughtai, L. Chan, and N. Nanda. A toy model of universality: Reverse engineering how networks learn group operations. <em>arXiv preprint arXiv:2302.03025</em> , 2023.</p>
+</li>
+<li>
+<p>A. Conmy, A. N. Mavor-Parker, A. Lynch, S. Heimersheim, and A. Garriga-Alonso. Towards automated circuit discovery for mechanistic interpretability. <em>arXiv preprint arXiv:2304.14997</em> , 2023.</p>
+</li>
+<li>
+<p>G. Dar, M. Geva, A. Gupta, and J. Berant. Analyzing transformers in embedding space. <em>arXiv preprint arXiv:2209.02535</em> , 2022.</p>
+</li>
+<li>
+<p>T. Dettmers, M. Lewis, Y. Belkada, and L. Zettlemoyer. Llm. int8 (): 8-bit matrix multiplication for transformers at scale. <em>arXiv preprint arXiv:2208.07339</em> , 2022.</p>
+</li>
+<li>
+<p>N. Elhage, N. Nanda, C. Olsson, T. Henighan, N. Joseph, B. Mann, A. Askell, Y. Bai, A. Chen, T. Conerly, N. DasSarma, D. Drain, D. Ganguli, Z. Hatfield-Dodds, D. Hernandez, A. Jones, J. Kernion, L. Lovitt, K. Ndousse, D. Amodei, T. Brown, J. Clark, J. Kaplan, S. McCandlish, and C. Olah. A mathematical framework for transformer circuits. <em>Transformer Circuits Thread</em> , 2021. https://transformercircuits.pub/2021/framework/index.html.</p>
+</li>
+<li>
+<p>N. Elhage, T. Hume, C. Olsson, N. Schiefer, T. Henighan, S. Kravec, Z. Hatfield-Dodds, R. Lasenby, D. Drain, C. Chen, R. Grosse, S. McCandlish, J. Kaplan, D. Amodei, M. Wattenberg, and C. Olah. Toy models of superposition. <em>Transformer Circuits Thread</em> , 2022. https://transformercircuits.pub/2022/toy_model/index.html.</p>
+</li>
+<li>
+<p>M. Finlayson, A. Mueller, S. Gehrmann, S. Shieber, T. Linzen, and Y. Belinkov. Causal analysis of syntactic agreement mechanisms in neural language models. <em>arXiv preprint arXiv:2106.06087</em> , 2021.</p>
+</li>
+<li>
+<p>J. Z. Forde, C. Lovering, G. Konidaris, E. Pavlick, and M. L. Littman. Where, when &amp; which concepts does alphazero learn? lessons from the game of hex. In <em>AAAI Workshop on Reinforcement Learning in Games</em> , volume 2, 2022.</p>
+</li>
+<li>
+<p>A. Geiger, H. Lu, T. Icard, and C. Potts. Causal abstractions of neural networks. <em>Advances in Neural Information Processing Systems</em> , 34:9574–9586, 2021.</p>
+</li>
+<li>
+<p>A. Geiger, Z. Wu, H. Lu, J. Rozner, E. Kreiss, T. Icard, N. Goodman, and C. Potts. Inducing causal structure for interpretable neural networks. In <em>International Conference on Machine Learning</em> , pages 7324–7338. PMLR, 2022.</p>
+</li>
+<li>
+<p>A. Geiger, C. Potts, and T. Icard. Causal abstraction for faithful model interpretation. <em>arXiv preprint arXiv:2301.04709</em> , 2023a.</p>
+</li>
+<li>
+<p>A. Geiger, Z. Wu, C. Potts, T. Icard, and N. D. Goodman. Finding alignments between interpretable causal variables and distributed neural representations. <em>arXiv preprint arXiv:2303.02536</em> , 2023b.</p>
+</li>
+<li>
+<p>M. Geva, A. Caciularu, G. Dar, P. Roit, S. Sadde, M. Shlain, B. Tamir, and Y. Goldberg. Lm-debugger: An interactive tool for inspection and intervention in transformer-based language models. <em>arXiv preprint arXiv:2204.12130</em> , 2022a.</p>
+</li>
+<li>
+<p>M. Geva, A. Caciularu, K. R. Wang, and Y. Goldberg. Transformer feed-forward layers build predictions by promoting concepts in the vocabulary space. <em>arXiv preprint arXiv:2203.14680</em> , 2022b.</p>
+</li>
+<li>
+<p>M. Glymour, J. Pearl, and N. P. Jewell. <em>Causal inference in statistics: A primer</em> . John Wiley &amp; Sons, 2016.</p>
+</li>
+<li>
+<p>G. Goh, N. C. †, C. V. †, S. Carter, M. Petrov, L. Schubert, A. Radford, and C. Olah. Multimodal neurons in artificial neural networks. <em>Distill</em> , 2021. doi: 10.23915/distill.00030. https://distill.pub/2021/multimodal-neurons.</p>
+</li>
+<li>
+<p>W. Gurnee, N. Nanda, M. Pauly, K. Harvey, D. Troitskii, and D. Bertsimas. Finding neurons in a haystack: Case studies with sparse probing. <em>arXiv preprint arXiv:2305.01610</em> , 2023.</p>
+</li>
+<li>
+<p>J. Y. Halpern. <em>Actual causality</em> . MiT Press, 2016.</p>
+</li>
+<li>
+<p>J. Hilton, N. Cammarata, S. Carter, G. Goh, and C. Olah. Understanding rl vision. <em>Distill</em> , 2020. doi: 10.23915/distill.00029. https://distill.pub/2020/understanding-rl-vision.</p>
+</li>
+<li>
+<p>J. Hoffmann, S. Borgeaud, A. Mensch, E. Buchatskaya, T. Cai, E. Rutherford, D. d. L. Casas, L. A. Hendricks, J. Welbl, A. Clark, et al. Training compute-optimal large language models. <em>arXiv preprint arXiv:2203.15556</em> , 2022.</p>
+</li>
+<li>
+<p>M. L. Leavitt and A. Morcos. Towards falsifiable interpretability research. <em>arXiv preprint arXiv:2010.12016</em> , 2020.</p>
+</li>
+<li>
+<p>R. Massidda, A. Geiger, T. Icard, and D. Bacciu. Causal abstraction with soft interventions. <em>arXiv preprint arXiv:2211.12270</em> , 2022.</p>
+</li>
+<li>
+<p>T. McGrath, A. Kapishnikov, N. Tomašev, A. Pearce, M. Wattenberg, D. Hassabis, B. Kim, U. Paquet, and V. Kramnik. Acquisition of chess knowledge in alphazero. <em>Proceedings of the National Academy of Sciences</em> , 119(47):e2206625119, 2022.</p>
+</li>
+<li>
+<p>K. Meng, D. Bau, A. Andonian, and Y. Belinkov. Locating and editing factual associations in gpt. <em>Advances in Neural Information Processing Systems</em> , 35:17359–17372, 2022.</p>
+</li>
+<li>
+<p>A. S. Morcos, D. G. Barrett, N. C. Rabinowitz, and M. Botvinick. On the importance of single directions for generalization. <em>arXiv preprint arXiv:1803.06959</em> , 2018.</p>
+</li>
+<li>
+<p>N. Nanda, L. Chan, T. Liberum, J. Smith, and J. Steinhardt. Progress measures for grokking via mechanistic interpretability. <em>arXiv preprint arXiv:2301.05217</em> , 2023.</p>
+</li>
+<li>
+<p>nostalgebraist. interpreting gpt: the logit lens, 2020. URL <code>https://www.lesswrong.com/posts/ AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens</code> .</p>
+</li>
+<li>
+<p>C. Olah, A. Satyanarayan, I. Johnson, S. Carter, L. Schubert, K. Ye, and A. Mordvintsev. The building blocks of interpretability. <em>Distill</em> , 3(3):e10, 2018.</p>
+</li>
+<li>
+<p>C. Olah, N. Cammarata, L. Schubert, G. Goh, M. Petrov, and S. Carter. Zoom in: An introduction to circuits. <em>Distill</em> , 2020. doi: 10.23915/distill.00024.001. https://distill.pub/2020/circuits/zoom-in.</p>
+</li>
+<li>
+<p>C. Olsson, N. Elhage, N. Nanda, N. Joseph, N. DasSarma, T. Henighan, B. Mann, A. Askell, Y. Bai, A. Chen, et al. In-context learning and induction heads. <em>arXiv preprint arXiv:2209.11895</em> , 2022.</p>
+</li>
+<li>
+<p>J. Pearl. <em>Causality</em> . Cambridge university press, 2009.</p>
+</li>
+<li>
+<p>M. Phuong and M. Hutter. Formal algorithms for transformers. <em>arXiv preprint arXiv:2207.09238</em> , 2022.</p>
+</li>
+<li>
+<p>A. Power, Y. Burda, H. Edwards, I. Babuschkin, and V. Misra. Grokking: Generalization beyond overfitting on small algorithmic datasets. <em>arXiv preprint arXiv:2201.02177</em> , 2022.</p>
+</li>
+<li>
+<p>N. Srivastava, G. Hinton, A. Krizhevsky, I. Sutskever, and R. Salakhutdinov. Dropout: a simple way to prevent neural networks from overfitting. <em>The journal of machine learning research</em> , 15(1): 1929–1958, 2014.</p>
+</li>
+<li>
+<p>N. Tinbergen. On aims and methods of ethology. <em>Zeitschrift für tierpsychologie</em> , 20(4):410–433, 1963.</p>
+</li>
+<li>
+<p>A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin. Attention is all you need. <em>Advances in neural information processing systems</em> , 30, 2017.</p>
+</li>
+<li>
+<p>A. Veit, M. J. Wilber, and S. Belongie. Residual networks behave like ensembles of relatively shallow networks. <em>Advances in neural information processing systems</em> , 29, 2016.</p>
+</li>
+<li>
+<p>J. Vig, S. Gehrmann, Y. Belinkov, S. Qian, D. Nevo, S. Sakenis, J. Huang, Y. Singer, and S. Shieber. Causal mediation analysis for interpreting neural nlp: The case of gender bias. <em>arXiv preprint arXiv:2004.12265</em> , 2020a.</p>
+</li>
+<li>
+<p>J. Vig, S. Gehrmann, Y. Belinkov, S. Qian, D. Nevo, Y. Singer, and S. Shieber. Investigating gender bias in language models using causal mediation analysis. <em>Advances in neural information processing systems</em> , 33:12388–12401, 2020b.</p>
+</li>
+<li>
+<p>K. Wang, A. Variengien, A. Conmy, B. Shlegeris, and J. Steinhardt. Interpretability in the wild: a circuit for indirect object identification in gpt-2 small. <em>arXiv preprint arXiv:2211.00593</em> , 2022.</p>
+</li>
+<li>
+<p>B. Zhang and R. Sennrich. Root mean square layer normalization. <em>Advances in Neural Information Processing Systems</em> , 32, 2019.</p>
+</li>
+</ul>
+<h2><strong>A. Choice of intervention distribution</strong></h2>
+<p>When we intervene on a neural network’s activations with the do-operator, we are setting some subset of these activations to a new value in the forward pass and allowing the effect of these changes to propagate forward. Both the corrupted run and the patching operation in the causal tracing method (Meng et al., 2022) are examples of interventions. Practically we can accomplish these interventions via PyTorch hooks, JAX’s Harvest functionality, or passing values for intervened-upon tensors in Tensorflow’s feed-dict. When we intervene to set some network activation <em>𝑍</em> to an ‘ablation’ value ˜ <em>𝑧</em> , what value should we use? Four main possibilities have been suggested:</p>
+<table>
+<thead>
+<tr>
+<th><strong>Zero ablation</strong>: ˜<em>𝑧</em>=0_,_</th>
+<th>(35)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Mean ablation</strong>: ˜<em>𝑧</em>=𝔼_𝑢_∼<em>𝑃</em>(<em>𝑢</em>) [<em>𝑍</em>(<em>𝑢</em>)]<em>,</em></td>
+<td>(36)</td>
+</tr>
+<tr>
+<td><strong>Noise ablation</strong>: ˜<em>𝑧</em>= <em>𝑍</em>(<em>𝑢</em>+<em>𝜖</em>)<em>, 𝜖</em>∼N (0_, 𝜎_<sup>2</sup>)<em>,</em></td>
+<td>(37)</td>
+</tr>
+<tr>
+<td><strong>Resample ablation</strong>: ˜<em>𝑧</em>= <em>𝑍</em>(˜<em>𝑢</em>)<em>,</em> ˜<em>𝑢</em>∼<em>𝑃</em>(<em>𝑢</em>)<em>.</em></td>
+<td>(38)</td>
+</tr>
+</tbody>
+</table>
+<p>Of these, zero-ablation is the simplest to implement but is typically out-of-distribution for networks trained without some form of layer dropout or stochastic depth. Noise ablation was used extensively in causal tracing (Meng et al., 2022). Resample ablation (as introduced by Chan et al. (2022)) is more complicated to implement but is probably the most principled, as every ablation is a naturallyoccurring set of activations, and so is more likely to respect properties of network activations such as emergent outliers (Dettmers et al., 2022). Resample ablation also has the appealing property that by specifying the distribution of inputs <em>𝑃</em> ( <em>𝑢</em> ) we can control for properties of the input that might otherwise confound our results. To get meaningful results from sample ablations it is necessary to use an average of sample ablations across multiple samples from the same dataset, i.e. a Monte-Carlo approximation to:</p>
+<p><img src="../markdown/images/hydra_effect/29_hydra_effect.pdf-0021-02.jpg" alt="" /></p>
+<p>where <em>𝑝</em> (˜ <em>𝑧</em> ) = ∫ <em>𝑝</em> ( <em>𝑍</em> ( <em>𝑢</em> )) <em>𝑑𝑢</em> is the probability of getting activation values ˜ <em>𝑧</em> . Note that mean ablation and resample ablation are quite different: mean ablation ablates with the <em>average activation</em> , whereas resample activation averages the <em>effects</em> of different ablations. See (Chan et al., 2022) for an extended discussion of these methodological details.</p>
+
+</article>
+<nav class="pager"><a class="prev" href="28_acdc.html"><small>Previous · 28</small>Automated Circuit Discovery (ACDC)</a><a class="mid" href="index.html#section-C">Contents</a><a class="next" href="30_probe_control_tasks.html"><small>Next · 30</small>Probes with Control Tasks</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

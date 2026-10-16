@@ -1,0 +1,1558 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>71 · Loss Landscape Degeneracy and Stagewise Development in Transformers — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 71 / 91 &nbsp;·&nbsp; Section G</span></div>
+<header class="cover">
+<div class="numeral">71</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>Loss Landscape Degeneracy and Stagewise Development in Transformers</h1>
+<p class="cite">Hoogland et al. — 2024</p>
+<p class="authors">Jesse Hoogland, George Wang, Matthew Farrugia-Roberts, Liam Carroll, Susan Wei, Daniel Murfet</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Tracks loss-landscape degeneracy through training with singular learning theory's local learning coefficient, and finds that its turning points divide training into stages that coincide with changes in a transformer's internal structure and behaviour.</p></div><div class="note"><div class="label">Reading focus</div><p>The local learning coefficient and its estimation, the stage-division method, the language-model stages from bigrams to n-grams to the induction circuit, the in-context regression stages, the small model sizes, and how far the authors take the evidence.</p></div><div class="note"><div class="label">In context</div><p>A developmental programme rather than a decomposition: it asks when structure forms in training, not what a finished network contains. It recovers the induction circuit of <a href="11_induction_heads.html">11</a> as a stage and sits beside <a href="14_grokking_progress_measures.html">14</a>'s progress measures; like <a href="66_stochastic_parameter_decomposition.html">66</a>–<a href="67_interpreting_lm_parameters.html">67</a> it works in parameter space rather than activations. Two of its authors, Hoogland and Murfet, co-wrote <a href="03_open_problems.html">03</a>.</p></div><div class="note"><div class="label">Note</div><p>First posted February 2024 as “The Developmental Landscape of In-Context Learning”; the latest version (v3, August 2025), printed here, is retitled, with v1's essential-dynamics material moved to arXiv:2501.17745.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>G — Competing programmes, 2025–26</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2402.02364v3">https://arxiv.org/abs/2402.02364v3</a> &nbsp;·&nbsp; arXiv:2402.02364v3</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 2801–2850 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="70_natural_language_autoencoders.html"><small>Previous · 70</small>Natural Language Autoencoders</a><a class="mid" href="index.html#section-G">Contents</a><a class="next" href="72_representation_engineering.html"><small>Next · 72</small>Representation Engineering</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h2><strong>Loss Landscape Degeneracy and Stagewise Development in Transformers</strong></h2>
+<p><strong>Jesse Hoogland</strong><sup>=</sup> <em>Timaeus</em></p>
+<p><em>jesse@timaeus.co</em></p>
+<p><strong>George Wang</strong><sup>=</sup> <em>Timaeus</em></p>
+<p><em>george@timaeus.co</em></p>
+<h4><strong>Matthew Farrugia-Roberts</strong></h4>
+<p><em>matthew@far.in.net</em></p>
+<p><em>Department of Computer Science, University of Oxford</em></p>
+<p><strong>Liam Carroll</strong> <em>Independent</em></p>
+<p><em>lemmykc@gmail.com</em></p>
+<h4><strong>Susan Wei</strong></h4>
+<p><em>susan.wei@monash.edu</em></p>
+<p><em>Department of Econometrics and Business Statistics, Monash University</em></p>
+<h4><strong>Daniel Murfet</strong></h4>
+<p><em>daniel.murfet@gmail.com</em></p>
+<p><em>School of Mathematics and Statistics, the University of Melbourne</em></p>
+<h3><strong>Abstract</strong></h3>
+<p>Deep learning involves navigating a high-dimensional loss landscape over the neural network parameter space. Over the course of training, complex computational structures form and re-form inside the neural network, leading to shifts in input/output behavior. It is a priority for the science of deep learning to uncover principles governing the development of neural network structure and behavior. Drawing on the framework of singular learning theory, we propose that model development is deeply linked to degeneracy in the local geometry of the loss landscape. We investigate this link by monitoring loss landscape degeneracy throughout training, as quantified by the local learning coefficient, for a transformer language model and an in-context linear regression transformer. We show that training can be divided into distinct periods of change in loss landscape degeneracy, and that these changes in degeneracy coincide with significant changes in the internal computational structure and the input/output behavior of the transformers. This finding provides suggestive evidence that degeneracy and development are linked in transformers, underscoring the potential of a degeneracy-based perspective for understanding modern deep learning.</p>
+<h3><strong>1 Introduction</strong></h3>
+<p>A striking phenomenon in modern deep learning is the sudden shift in a model’s internal computational structure and associated changes in input/output behavior (e.g., Wei et al., 2022; Olsson et al., 2022; McGrath et al., 2022). As large models become more deeply integrated into real-world applications, understanding this phenomenon is a priority for the science of deep learning.</p>
+<p>A key feature of the loss landscape of neural networks is <em>degeneracy</em> —parameters for which some local perturbations do not affect the loss. Motivated by the perspectives of singular learning theory (SLT; Watanabe, 2009) and nonlinear dynamics (Waddington, 1957; Thom, 1972), where degeneracy plays a fundamental role in governing development, we believe that studying degeneracy in the local geometry of the loss landscape is key to understanding the development of structure and behavior in modern deep learning.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0002-00.jpg" alt="" /></p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>LM1</th>
+<th>LM2</th>
+<th>LM3</th>
+<th>LM4</th>
+<th>LM5</th>
+<th>Stage</th>
+<th>LR1</th>
+<th>LR2</th>
+<th>LR3</th>
+<th>LR4</th>
+<th>LR5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>End <em>t</em></td>
+<td>900</td>
+<td>6.5k</td>
+<td>8.5k</td>
+<td>17k</td>
+<td>50k</td>
+<td>End <em>t</em></td>
+<td>1k</td>
+<td>40k</td>
+<td>126k</td>
+<td>320k</td>
+<td>500k</td>
+</tr>
+<tr>
+<td>∆<sup>ˆ</sup><em>ℓ</em></td>
+<td>_−<em>2</em>._33</td>
+<td>_−<em>1</em>._22</td>
+<td>_−<em>0</em>._18</td>
+<td>_−<em>0</em>._40</td>
+<td>_−<em>0</em>._34</td>
+<td>∆<sup>ˆ</sup><em>ℓ</em></td>
+<td>_−<em>0</em>._32</td>
+<td>_−<em>2</em>._21</td>
+<td>_−<em>0</em>._07</td>
+<td>_−<em>0</em>._05</td>
+<td>_−<em>0</em>._029</td>
+</tr>
+<tr>
+<td>∆<sup>ˆ</sup><em>λ</em></td>
+<td>+26_._4</td>
+<td>+22_._5</td>
+<td>_−<em>1</em>._57</td>
+<td>+8_._62</td>
+<td>+1_._77</td>
+<td>∆<sup>ˆ</sup><em>λ</em></td>
+<td>+21_._4</td>
+<td>+149</td>
+<td>_−<em>12</em>._3</td>
+<td>_−<em>44</em>._1</td>
+<td>+3_._56</td>
+</tr>
+</tbody>
+</table>
+<p>(a) Two-layer attention-only language transformer (LM).</p>
+<p>(b) In-context linear regression transformer (LR).</p>
+<p>Figure 1: <strong>Tracking loss landscape degeneracy reveals developmental stages.</strong> We train transformer models on both (a) natural language data and (b) synthetic in-context linear regression data. In addition to test loss (top row), we track loss landscape degeneracy as quantified by the local learning coefficient (LLC) (middle row; Section 4). Critical points in the LLC curve mark boundaries between distinct <em>developmental stages</em> (bottom row; warm hues for increasing LLC, cold for decreasing LLC; Section 5). We show in Sections 6 and 7 that most of these stages coincide with the formation of significant internal structures or changes in input/output behavior. The language model first learns to predict using bigram statistics (LM1), then common <em>n</em> -grams (LM2), before forming the induction circuit studied by Olsson et al. (2022) (LM3&amp;LM4). The regression model first learns the optimal context-independent solution (LR1), then acquires robust incontext learning (LR2), then specializes to the pre-training distribution (LR3&amp;LR4). These stage divisions and interpretations are specific to the above training runs, but we show in Appendix B.4 that similar divisions arise with different training seeds.</p>
+<p>In this paper, we contribute an empirical investigation of the link between degeneracy and development for transformers in two learning settings. We track loss landscape degeneracy along with model structure and behavior throughout training, using the following methodology.</p>
+<ol>
+<li>
+<p><strong>Transformer training</strong> (Section 3) <strong>:</strong> We train two transformers, a <em>language model</em> (LM) with around 3M parameters trained on a subset of the Pile (Gao et al., 2020; Xie et al., 2023), and an <em>incontext linear regression model</em> (LR) with around 50k parameters trained on synthetic regression data following Garg et al. (2022).</p>
+</li>
+<li>
+<p><strong>Degeneracy tracking</strong> (Section 4) <strong>:</strong> We quantify loss landscape degeneracy throughout training by estimating the <em>local learning coefficient</em> (LLC; Lau et al., 2025), a measure of degeneracy derived from SLT.</p>
+</li>
+<li>
+<p><strong>Degeneracy-based stage division</strong> (Section 5) <strong>:</strong> Motivated by the singular learning process in Bayesian inference (Watanabe, 2009, §7.6; Chen et al., 2023), we use critical points in the LLC curve to divide training into approximate <em>developmental stages</em> .</p>
+</li>
+<li>
+<p><strong>Developmental analysis</strong> (Sections 6, 7) <strong>:</strong> We track shifts in each model’s internal computational structure and input/output behavior across training, quantified using various setting-specific metrics.</p>
+</li>
+</ol>
+<p>Crucially, we discover that most of the developmental stages identified by changes in loss landscape degeneracy coincide with significant, interpretable shifts in the internal computational structure and input/output</p>
+<p>behavior of the transformers, showing that the stage division is meaningful. Our investigations are motivated by the hypothesis of a fundamental link between degeneracy and development in deep learning. This hypothesis is theoretically grounded in SLT but so far not empirically validated except in toy models (Chen et al., 2023). We view the above discoveries as preliminary evidence for this hypothesis in larger models, and an indication of the potential of degeneracy as a lens for understanding modern neural network development. Section 8 discusses this and other implications of our investigation.</p>
+<h3><strong>2 Related work</strong></h3>
+<p><strong>Degeneracy and development in singular learning theory</strong> Our hypothesis that degeneracy and development are fundamentally linked is motivated by singular learning theory (SLT; Watanabe, 2009), a framework for studying <em>singular</em> statistical models (a class that includes neural networks, Hagiwara et al., 1993; Watanabe, 2007; Wei et al., 2023). SLT proves that in singular models, Bayesian inference follows the <em>singular learning process</em> , in which degeneracy in the likelihood governs stagewise development in the posterior as the number of samples increases (Watanabe, 2009, §7.6; Lau et al., 2025; Chen et al., 2023). While there are many differences between Bayesian inference and modern neural network training, an analogy to the singular learning process informs our methodology for stage division.</p>
+<p><strong>Degeneracy and development in nonlinear dynamics</strong> Further motivation for our hypothesis comes from viewing neural network training as a stochastic dynamical system, in which the population loss is a governing potential encoding the data distribution. It is well-understood in nonlinear dynamics that degeneracy in the local geometry of a potential can give rise to stagewise development of system structure (Waddington, 1957; Thom, 1972, cf. Franceschelli, 2010). This connection has been observed in biological systems at significant scale and in the presence of stochasticity (Freedman et al., 2023). We emphasize changes in degeneracy over a stage whereas in bifurcation theory the focus is more on the degeneracy at stage boundaries (Rand et al., 2021; MacArthur, 2022; Sáez et al., 2022).</p>
+<p><strong>Stagewise development in deep learning</strong> The idea that neural networks development occurs in stages goes back decades (Raijmakers et al., 1996) and has received renewed attention in modern deep learning (e.g., Wei et al., 2022; Olsson et al., 2022; McGrath et al., 2022; Odonnat et al., 2024; Chen et al., 2024; Edelman et al., 2024). In the case of deep linear networks, we understand theoretically that models learn progressively higher-rank approximations of their data distribution (see, e.g., Baldi &amp; Hornik, 1989; Rogers &amp; McClelland, 2004; Saxe et al., 2019) throughout training. Our findings suggest that studying degeneracy could help generalize this understanding to modern architectures that exhibit more complex internal computational structure, such as transformers.</p>
+<p><strong>Studying loss landscape geometry</strong> Given the central role played by the loss landscape in deep learning, it is unsurprising that there have been many attempts to study its geometry.</p>
+<p>One approach is to visualize low-dimensional slices of the loss landscape (Erhan et al., 2010; Goodfellow et al., 2014; Lipton, 2016; Li et al., 2018; Tikeng Notsawo et al., 2024). Unfortunately, a random slice is with high probability a quadratic form associated to nonzero eigenvalues of the Hessian and is thus biased against geometric features that we know are important, such as degeneracy (Wei et al., 2023). Moreover, Antognini &amp; Sohl-Dickstein (2018) have emphasized the difficulty of probing the loss landscape of neural networks with dimensionality reduction tools.</p>
+<p>Other standard methods of quantifying the geometry of the loss landscape, such as via the Hessian, are insensitive to important aspects of degeneracy. For example, the Hessian trace or maximum eigenvalues quantify the curvature of a critical point but ignore degenerate dimensions, and the Hessian rank counts the number of degenerate dimensions but fails to distinguish between dimensions by the <em>order</em> of their degeneracy (e.g., quartic vs. zero). In contrast, the LLC is a principled quantitative measure of loss landscape degeneracy. Appendix B.5 includes experiments showing that Hessian statistics do not reveal the clear stage boundaries revealed by the LLC in our in-context linear regression setting.</p>
+<h3><strong>3 Training transformers in two settings</strong></h3>
+<p>We study transformers trained in two learning settings, namely <em>language modeling</em> and <em>in-context linear regression</em> . These settings have been the subject of recent work on the emergence of in-context learning (ICL), a compelling example of a sudden shift in a model’s internal computational structure in modern deep learning (Olsson et al., 2022).</p>
+<p>In this section, we describe both settings and introduce their loss functions and data distributions. Common to both settings is a transformer model denoted <em>fw</em> with parameters <em>w</em> , which takes as input a sequence of tokens, also called a <em>context</em> . We describe specific architecture details and training hyperparameters in Appendices F.1 and F.2.</p>
+<p><strong>Language modeling</strong> Elhage et al. (2021) and Olsson et al. (2022) observed that two-layer attentiononly transformers (transformers without MLP layers) form interesting internal computational structures supporting ICL, including induction heads. In order to compare with their behavioral and structural analysis we adopt the same architecture. In Appendix E we also study one-layer attention-only transformers. We note that, while we don’t study language models with MLP layers (following prior work), we do use MLP layers for in-context linear regression. We consider the standard task of next-token prediction for token sequences taken from a subset of the Pile (Gao et al., 2020; Xie et al., 2023). We denote the input context by <em>SK</em> = ( <em>t</em> 1 <em>, . . . , tK</em> ) where <em>K</em> is the context length. We denote by <em>S≤k</em> the prefix context ( <em>t</em> 1 <em>, . . . , tk</em> ) of context <em>SK</em> . Our data is a collection of length- <em>K</em> contexts, <em>{SK</em><sup><em>i}</em></sup> <em>i</em><sup><em>n</em></sup> =1<sup>.Thus</sup><sup><em>S</em></sup> <em>≤</em><sup><em>i</em></sup> <em>k</em><sup>denotesaprefixofthe</sup><sup>_i_thcontext,</sup><sup><em>S</em></sup> <em>K</em><sup><em>i</em>.</sup></p>
+<p>Given the context <em>S≤</em><sup><em>i</em></sup> <em>k</em><sup>,thetransformermodel</sup><sup>_fw_outputsavectoroflogits</sup><sup><em>fw</em>(</sup><sup><em>S</em></sup> <em>≤</em><sup><em>i</em></sup> <em>k</em><sup>)suchthat</sup> softmax( <em>fw</em> ( <em>S≤</em><sup><em>i</em></sup> <em>k</em><sup>))isaprobabilitydistributionoveralltokens(wedenotebysoftmax(</sup><sup><em>fw</em>(</sup><sup><em>S</em></sup> <em>≤</em><sup><em>i</em></sup> <em>k</em><sup>))[</sup><sup><em>t</em>]theprob-</sup> ability of token <em>t</em> ). The <em>per-token empirical loss</em> for language modeling is then the average cross-entropy between this distribution and the true next token at each index <em>k ∈{</em> 1 <em>, . . . , K −</em> 1 <em>}</em> ,</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0004-05.jpg" alt="" /></p>
+<p>The <em>empirical loss</em> is then <em>ℓn</em> ( <em>w</em> ) = <em>K</em> <u>1</u> <em>−</em> 1 � <em>Kk</em> =1 <em>−</em> 1<sup><em>ℓn,k</em>(</sup><sup><em>w</em>),withthe</sup><sup>_testlossℓ_ˆ(</sup><sup><em>w</em>)definedanalogouslyona</sup> held-out set of examples. The corresponding <em>population loss ℓ</em> ( <em>w</em> ) is defined by taking the expectation with respect to the true distribution of contexts (see also Appendix A.6).</p>
+<p><strong>In-context linear regression</strong> Following Garg et al. (2022), a number of recent works have explored ICL in the setting of learning simple function classes, such as linear functions. This setting is of interest because we understand theoretically optimal (in-context) linear regression, and because simple transformers are capable of good ICL performance in practice (see, e.g., Garg et al., 2022; Raventós et al., 2023). We consider a standard synthetic in-context linear regression problem. A <em>task</em> is a vector <strong>t</strong> <em>∈</em> R<sup><em>D</em></sup> , and an <em>example</em> is a pair ( <em>x, y</em> ) <em>∈</em> R<sup><em>D</em></sup> <em>×</em> R. We sample a context by sampling one task <strong>t</strong> <em>∼N</em> (0 <em>, ID</em> ) and then sampling <em>K</em> i.i.d. inputs <em>x</em> 1 <em>, . . . , xK ∼N</em> (0 <em>, ID</em> ) and outputs <em>y</em> 1 <em>, . . . , yK ∼N</em> ( <strong>t</strong><sup><em>⊤</em></sup> <em>x, σ</em><sup>2</sup> ). This results in the context <em>SK</em> = ( <em>x</em> 1 <em>, y</em> 1 <em>, . . . , xK−</em> 1 <em>, yK−</em> 1 <em>, xK</em> ) with label <em>yK</em> . We denote by <em>S≤k</em> the prefix context ( <em>x</em> 1 <em>, y</em> 1 <em>, . . . , xk</em> ) of context <em>SK</em> , its label is <em>yk</em> . Appendix F.2.2 describes how we encode the <em>xi</em> and <em>yi</em> as tokens. Our data is a set of contexts <em>{</em> ( <strong>t</strong> <em>i, SK</em><sup><em>i, y</em></sup> <em>K</em><sup><em>i</em>)</sup><sup><em>}</em></sup> <em>i</em><sup><em>n</em></sup> =1<sup>sampledi.i.d.asdescribedabove.</sup> Running a context <em>S≤</em><sup><em>i</em></sup> <em>k</em><sup>throughthetransformeryieldsaprediction</sup><sup>_y_ˆ</sup> <em>k</em><sup><em>i</em>=</sup><sup><em>fw</em>(</sup><sup><em>S</em></sup> <em>≤</em><sup><em>i</em></sup> <em>k</em><sup>),leadingtothe</sup><sup><em>per-token</em></sup> <em>empirical loss</em> for in-context linear regression for <em>k ∈{</em> 1 <em>, . . . , K}</em> ,</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0004-08.jpg" alt="" /></p>
+<p>The associated <em>empirical loss</em> is <em>ℓn</em> ( <em>w</em> ) = <em>K</em> <u>1</u> � <em>Kk</em> =1<sup><em>ℓn,k</em>(</sup><sup><em>w</em>).Thecorresponding</sup><sup>_testlossℓ_ˆ(</sup><sup><em>w</em>)and</sup><sup><em>population</em></sup> <em>loss ℓ</em> ( <em>w</em> ) are defined analogously as in the language modeling setting.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0005-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Local learning coefficient<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0005-01.jpg" alt="" /></p>
+<p>Figure 2: <strong>The local learning coefficient (LLC) measures loss landscape degeneracy.</strong> The LLC can be defined in terms of the rate at which the parameter space volume (within a given neighborhood and with a given maximum loss) shrinks as the loss threshold is reduced to that of the local minimum. We show four population loss landscapes for a two-dimensional parameter space with decreasing LLC (increasing degeneracy). In these examples, the local multiplicity is 1. See Appendix A.2 for a detailed description of each example, as well as several additional examples.</p>
+<h3><strong>4 Quantifying degeneracy with the local learning coefficient</strong></h3>
+<p>We track the evolution of degeneracy in the local geometry of the loss landscape throughout training by estimating the local learning coefficient (LLC; Watanabe, 2009; Lau et al., 2025) at model checkpoints. In this section, we review the LLC and the estimation procedure of Lau et al. (2025).</p>
+<p><strong>The local learning coefficient (LLC)</strong> Given a local minimum <em>w</em><sup><em>∗</em></sup> of a population loss <em>ℓ</em> (a negative log likelihood), the LLC of <em>w</em><sup><em>∗</em></sup> , denoted <em>λ</em> ( <em>w</em><sup><em>∗</em></sup> ), is a positive rational number that measures the amount of <em>degeneracy</em> in <em>ℓ</em> near <em>w</em><sup><em>∗</em></sup> (Watanabe, 2009; Lau et al., 2025), i.e., how many ways <em>w</em> can be varied near <em>w</em><sup><em>∗</em></sup> such that <em>ℓ</em> ( <em>w</em> ) remains equal to <em>ℓ</em> ( <em>w</em><sup><em>∗</em></sup> ). Formally, the LLC is defined as the <em>volume-scaling rate</em> near <em>w</em><sup><em>∗</em></sup> . This is illustrated in Figure 2, further described in Appendix A.1, and treated in full detail in Lau et al. (2025). Informally, the LLC is a measure of minimum “flatness.” It improves over conventional (secondorder) Hessian-based measures of flatness because the LLC is sensitive to more significant, higher-order contributions to volume-scaling.</p>
+<p><strong>Estimating the LLC</strong> Lau et al. (2025) introduced an estimator for the LLC based on stochastic-gradient Langevin dynamics (SGLD; Welling &amp; Teh, 2011), which we use in our experiments. Let <em>w</em><sup><em>∗</em></sup> be a local minimum of the population loss <em>ℓ</em> . The LLC estimate <em>λ</em><sup>ˆ</sup> ( <em>w</em><sup><em>∗</em></sup> ) is</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0005-07.jpg" alt="" /></p>
+<p>where E<sup><em>β</em></sup> <em>w|w</em><sup><em>∗</em></sup> <em>,γ</em><sup>denotestheexpectationwithrespecttothelocalizedGibbsposterior</sup></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0005-09.jpg" alt="" /></p>
+<p>with inverse temperature <em>β</em> (controlling the contribution of the empirical loss landscape) and localization strength <em>γ</em> (controlling proximity to <em>w</em><sup><em>∗</em></sup> ). The basic idea behind this estimator is the following: the more degenerate the loss landscape, the easier it is for a sampler exploring the Gibbs posterior to find points of low loss, and, in turn, the lower <em>λ</em><sup>ˆ</sup> ( <em>w</em><sup><em>∗</em></sup> ). Appendix A.3 discusses technical SGLD details, Appendix A.4 documents the hyperparameters used in our experiments, and Appendix A.5 outlines our hyperparameter tuning procedure.</p>
+<p><strong>Assumptions of LLC estimation</strong> Strictly speaking, the LLC is defined only for loss functions arising as a negative log likelihood, whereas our loss function includes terms from overlapping context prefixes.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0006-00.jpg" alt="" /></p>
+<p>preferred preferred</p>
+<p>Figure 3: <strong>In the singular learning process, the Bayesian posterior can shift between neighborhoods with different degeneracy.</strong> Watanabe’s free energy formula (4) highlights a tradeoff between loss <em>ℓn</em> (the linear term coefficient) and degeneracy <em>λ</em> (the LLC, the logarithmic term coefficient). Consider two local minima <em>w</em> 1<sup><em>∗, w</em></sup> 2<sup><em>∗<em>withneighborhoods</sup><sup><em>W ∗</em></sup> 1<sup></em>, W</em></sup> 2<sup><em>∗</em>.Asthenumberofsamples</sup><sup><em>n_increases,if</sup><sup><em>w</em></sup> 2<sup></em>∗<em>haslower</sup> loss and higher LLC than <em>w</em> 1<sup></em>∗<em>,</sup><sup><em>W ∗</em></sup> 2<sup>willsuddenlyachievelowerfreeenergythan</sup><sup><em>W ∗</em></sup> 1<sup>atsomecriticalsample</sup> size <em>n</em> crit, causing the Bayesian posterior to shift from concentrating in <em>W</em> 1<sup></em>∗_to</sup><sup><em>W ∗</em></sup> 2<sup>.</sup></p>
+<p>It is possible to define a negative log likelihood-based loss for transformer training—we show empirically in Appendix A.6 that this does not have a significant effect on LLC estimates, and so we proceed with overlapping contexts for efficiency.</p>
+<p>Moreover, the LLC is defined only for local minima of such loss functions, whereas we note equation (3) is defined for arbitrary <em>w</em><sup><em>∗</em></sup> and we apply the estimator throughout training. This approach has precedent in prior work on LLC estimation: Lau et al. (2025) showed that when applied to trained parameters, the estimator accurately recovers the learning coefficient associated with a nearby minimum, and Chen et al. (2023) found that the estimator produces reliable results for parameters throughout training. In our case, we obtain stable estimates throughout training given sufficiently strong localization <em>γ</em> . See Appendix A.7 for more details.</p>
+<h3><strong>5 Degeneracy-based stage division</strong></h3>
+<p>We use critical points (that is, plateaus, where the first derivative vanishes) in the LLC curve to define <em>stage boundaries</em> that divide training into <em>developmental stages</em> . This approach is motivated by the singular learning process in Bayesian inference, which we review below.</p>
+<p><strong>Bayesian local free energy</strong> Let <em>W</em><sup><em>∗</em></sup> be a neighborhood of a local minimum <em>w</em><sup><em>∗</em></sup> of the population loss <em>ℓ</em> (a negative log likelihood). Given <em>n</em> samples we can define the <em>local free energy</em> of the neighborhood (Lau et al., 2025),</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0006-08.jpg" alt="" /></p>
+<p>where <em>φ</em> ( <em>w</em> ) is a prior positive on the neighborhood <em>W</em><sup><em>∗</em></sup> . The lower the local free energy of a neighborhood <em>W</em><sup><em>∗</em></sup> , the higher the Bayesian posterior mass of <em>W</em><sup><em>∗</em></sup> . In fact, by a log-sum-exp approximation, the Bayesian posterior is approximately concentrated on the neighborhood with the lowest local free energy (cf., Chen et al., 2023).</p>
+<p><strong>The singular learning process</strong> Watanabe’s free energy formula gives, under certain technical conditions, an asymptotic expansion in <em>n</em> of the local free energy (Watanabe, 2018, Theorem 11; Lau et al., 2025):</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0006-11.jpg" alt="" /></p>
+<p>Here, <em>ℓn</em> ( <em>w</em><sup><em>∗</em></sup> ) is the empirical loss, <em>λ</em> ( <em>w</em><sup><em>∗</em></sup> ) is the LLC, and the lower-order terms include a constant contribution from the prior mass of <em>W</em><sup><em>∗</em></sup> .</p>
+<p>The first two terms in equation (4) create a tradeoff between accuracy ( <em>ℓn</em> ) and degeneracy ( <em>λ</em> ). Moreover, as <em>n</em> increases, the linear term becomes increasingly important relative to the logarithmic term, changing the</p>
+<p>nature of the tradeoff. At certain <em>critical n</em> the neighborhood with the lowest local free energy may rapidly change to a neighborhood with <em>decreased</em> loss and <em>increased</em> LLC, as illustrated in Figure 3.</p>
+<p>A sequence of such posterior transitions between increasingly degenerate neighborhoods is a prime example of the <em>singular learning process</em> (Watanabe, 2009, §7.6). We note that this is not the only possible dynamic— lower-order terms may also play a role in the evolving competition.</p>
+<p><strong>LLC plateaus separate developmental stages</strong> While the general connection between the singular learning process in Bayesian inference and stagewise development in deep learning remains to be understood, Chen et al. (2023) showed that, in small autoencoders, both Bayesian inference and stochastic gradient descent undergo rapid transitions between encoding schemes, and these transitions are reflected as sudden changes in the estimated LLC.</p>
+<p>This perspective suggests that changes in the loss landscape degeneracy, as measured by the LLC, reflect qualitative changes in the model. In larger models, we expect that these qualitative changes may be more gradual, while still being delineated by brief moments in which the posterior is stably concentrated around a given local minimum. This motivates our approach of identifying <em>plateaus</em> in the estimated LLC curve—brief pauses before and after a given increase or decrease in degeneracy—as <em>stage boundaries</em> which divide training into approximate <em>developmental stages</em> . The resolution of these stage boundaries depends on the density of checkpoints used for LLC estimation and the precision of those estimates.</p>
+<p><strong>Results</strong> In our experiments, we identify plateaus in the estimated LLC curve by first lightly smoothing the LLC curve with a Gaussian process to facilitate stable numerical differentiation with respect to log training time. We identify plateaus as approximate zeros of this derivative, namely local minima of the absolute derivative that fall below a small threshold (see Appendix B.1). Figure 1 and Appendices B.2 and B.3 show the results. Appendix B.4 shows that similar stage divisions arise for independent training runs.</p>
+<h3><strong>6 Results for language modeling</strong></h3>
+<p>Plateaus in LLC estimates (Figure 1a) reveal five developmental stages for our language model. In order to validate that this stage division is meaningful, we search for concomitant changes in the model’s input/output behavior and its internal computational structure. In this section, we report a range of setting-specific metrics that reveal the following significant, interpretable changes coinciding with each stage: in LM1 the model learns to predict according to bigram statistics; in LM2 the model learns to predict frequent <em>n</em> -grams and use the positional embedding; in LM3 and LM4 the model respectively forms “previous-token heads” and “induction heads” as part of the same induction circuit studied by Olsson et al. (2022). Note that we did not discover significant changes in LM5, and we do not claim that these are the only interesting developmental changes occurring throughout training. There may be other interesting developmental changes that are not captured by our metrics, or are not significant enough to not show up in the LLC curve.</p>
+<h4><strong>6.1 Stage LM1 (0–900 steps)</strong></h4>
+<p><strong>Learning bigram statistics</strong> Figure 4(a) shows that the <em>bigram score</em> —the average cross entropy between model logits and empirical bigram frequencies (see Appendix C.1.1)—is minimized around the LM1–LM2 boundary, with a value only 0.3 nats above the irreducible entropy of the empirical bigram distribution. This suggests that during LM1 the model learns to predict using bigram statistics (the optimal next-token prediction given only the current token).</p>
+<h4><strong>6.2 Stage LM2 (900–6.5k steps)</strong></h4>
+<p><strong>Using positional information</strong> During LM2 the positional embedding becomes structurally important. Figure 4(b) shows that here the test loss for the model with the positional embedding zero-ablated diverges from the test loss of the unablated model (see Appendix C.2.1). Specifically, we mean setting learned positional embeddings to zero during evaluation. Conditional on our architecture this establishes whether the model effectively uses positional information. A similar method could be used in a model without learned</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0008-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) (d)<br>(b) (e)<br>(c) (f)<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0008-01.jpg" alt="" /></p>
+<p>Figure 4: <strong>Language model stages coincide with significant structural and behavioral changes.</strong> (a) The model learns bigram statistics in LM1, (b) then the positional embedding becomes useful from LM2, (c) enabling the learning of common <em>n</em> -grams. Induction circuit formation begins with (d) previous-token heads in LM3, followed by (e) induction heads in LM4, leading to (f) a drop in ICL score indicating the acquisition of in-context learning. Note: in (d,e), <em>l</em> : <em>h</em> denotes attention head <em>h</em> in layer <em>l</em> ; dark lines indicate heads comprising the induction circuit.</p>
+<p>positional embeddings. There is also an uptick in previous-token attention among some first-layer attention heads shown in green in Figure 4(d).</p>
+<p><strong>Learning common</strong> <em>n</em> <strong>-grams</strong> We define an <em>n-gram score</em> as the ratio of final-position token loss on (1) a baseline set of samples from a validation set truncated to <em>n</em> tokens, and (2) a fixed set of common <em>n</em> -grams (see Appendix C.1.2). To compute the “common n-grams” score after extracting the top 1000 n-grams, we compute the loss on contexts like</p>
+<h4><code>[&lt;bos_token&gt;, &lt;token_1&gt;, &lt;token_2&gt;, ..., &lt;token_n&gt;]</code></h4>
+<p>using the loss on <code>&lt;token_n&gt;</code> and normalize against the average loss on the <em>n</em> -th token of similar-length contexts drawn from the pretraining distribution, then divide the <em>n</em> -th token loss of truncated pretraining contexts by the <em>n</em> -gram loss to get the <em>n</em> -gram score.</p>
+<p>Figure 4(c) shows a large improvement in <em>n</em> -gram score for <em>n</em> = 3 <em>,</em> 4 during LM2. This suggests that during LM2 the model memorizes and learns to predict common <em>n</em> -grams for <em>n &gt;</em> 2 (note this requires using the positional encoding and may also involve previous-token heads).</p>
+<p><strong>Foundations of induction circuit</strong> In this stage, the heads that eventually become previous-token and induction heads in future stages begin to compose (that is, read from and write to a shared residual stream subspace; see Figure C.4 and Appendix C.2.2). This suggests that the foundations for the induction circuit are laid in advance of any measurable change in model outputs or attention patterns.</p>
+<h4><strong>6.3 Stages LM3 &amp; LM4 (6.5k–8.5k &amp; 8.5k–17k steps)</strong></h4>
+<p><strong>Formation of induction circuit</strong> (as studied in Olsson et al., 2022) Figure 4(d) shows the <em>previous-token matching score</em> (Appendix C.2.3) rises over LM3 and LM4 for the two first-layer heads that eventually par-</p>
+<p>ticipate in the induction circuit (as distinguished by their composition scores, Appendix C.2.2). Figure 4(e) shows that during LM4 there is an increase in the <em>prefix-matching score</em> (Appendix C.2.4) for the two secondlayer induction heads that complete the induction circuit. Figure 4(f) shows a corresponding drop in the <em>ICL score</em> (Appendix C.1.3) as the model begins to perform in-context learning.</p>
+<p>The LLC decreases during LM3, suggesting an increase in degeneracy (a decrease in model complexity). This may be related to interaction between heads. It would be interesting to study this stage further via mechanistic interpretability.</p>
+<h3><strong>7 Results for in-context linear regression</strong></h3>
+<p>Plateaus in the LLC estimates (Figure 1b) reveal five developmental stages for our in-context linear regression model. We validate that this stage division is meaningful by identifying significant, concomitant changes in the model’s structure and behavior: in LR1 the model learns to predict without looking at the context; in LR2 the model acquires a robust in-context learning ability; and in LR3 and LR4 the model becomes more fragile to out-of-distribution inputs. We did not discover significant changes in LR5, nor do we claim this is an exhaustive list of developments.</p>
+<h4><strong>7.1 Stage LR1 (0–1k steps)</strong></h4>
+<p><strong>Learning to predict without context</strong> Figure 5(a) shows that the mean square prediction for all tokens E[ <em>∥y</em> ˆ <em>k∥</em><sup>2</sup> ] decreases during LR1, reaching a minimum of 0 <em>.</em> 1 (smaller than the target noise <em>σ</em><sup>2</sup> = 0 <em>.</em> 125) slightly after the end of LR1. Similar to how the language model learned bigram statistics in LM1, this suggests the model first learns the optimal context-independent prediction <em>y</em> ˆ <em>k</em> =<sup>¯</sup> <strong>t</strong> <em>⊤xk</em> where<sup>¯</sup> <strong>t</strong> is the mean of the task distribution (zero in this case).</p>
+<h4><strong>7.2 Stage LR2 (1k–40k steps)</strong></h4>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0009-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a)<br>(b)<br>(c)<br><!-- End of picture text --></p>
+<p>Figure 5: <strong>In-context linear regression model stages coincide with significant structural and behavioral changes.</strong> (a) During LR1, the model learns to make context-independent predictions, <em>xk �→ y</em> ˆ <em>k</em> = 0. (b) During LR2, ICL performance improves, then during LR3 the model becomes worse at ICL on OOD inputs <em>xk ∼N</em> (0 <em>, gID</em> ) for <em>g &gt;</em> 3. (c) During LR3 and LR4, layer normalization weights “collapse,” possibly contributing to the LLC decrease.</p>
+<p><strong>Acquiring in-context learning</strong> Figure 5(b) shows that during LR2 there is a drop in ICL score (Appendix D.1.2), indicating that the model acquires in-context learning.</p>
+<p><strong>Embedding and attention collapse</strong> Appendix D.2 documents additional changes. Near the end of LR2, token and positional embeddings begin to “collapse,” effectively losing singular values and aligning with the same activation subspace (Appendices D.2.1 and D.2.2). At the same time, several attention heads form concentrated, input-independent attention patterns (Appendix D.2.3).</p>
+<h4><strong>7.3 Stages LR3 &amp; LR4 (40k–126k &amp; 126k–320k steps)</strong></h4>
+<p><strong>Reduced robustness to input magnitude</strong> While performance continues to improve on typical sequences, Figure 5(b) shows that during LR3 and LR4, the model’s in-context learning ability <em>deteriorates</em> for outlier sequences with higher-than-average <em>|xk|</em> .</p>
+<p><strong>Layer-normalization collapse</strong> Figure 5(c) shows the individual weights in the final layer normalization module. A large fraction of these weights go to zero in LR3 and LR4. This occurs in tandem with a similar collapse in the weights of the unembedding transforms (Appendix D.2.4). This results in the model learning to read its prediction <em>y</em> ˆ <em>k</em> from a handful of privileged dimensions of the residual stream. Since this means that the network outputs become insensitive to changes in many of the parameters, we conjecture that this explains part of the striking decrease in estimated LLC over these stages (Appendix D.2.4).</p>
+<p>This collapse is most pronounced and affects the largest proportion of weights in the unembedding module, but in LR4 it spreads to earlier layer normalization modules, particularly the layer normalization module before the first attention block (Appendix D.2.5).</p>
+<h3><strong>8 Discussion</strong></h3>
+<p>In this paper, we have examined the development of transformer models in two distinct learning settings. We quantified the changes in loss landscape degeneracy throughout transformer training by estimating the local learning coefficient (LLC). Motivated by the singular learning process in Bayesian inference, we divided these training runs into developmental stages at critical points of the LLC curve. We found that these developmental stages roughly coincided with significant changes in the internal computational structure and the input/output behavior of each model. In this section, we discuss several implications of these findings.</p>
+<p><strong>Towards a degeneracy-based understanding of deep learning</strong> That significant structural and behavioral changes show up in the LLC curve is evidence that the development of our transformers is closely linked to loss landscape degeneracy. This finding underscores the potential of loss landscape degeneracy as a crucial lens through which to study the development of deep learning models.</p>
+<p>While we studied two distinct learning settings (including language modeling with a nontrivial transformer architecture), it remains necessary to verify the connection between degeneracy and development across a more diverse range of emergent model structures and behaviors. Moreover, future work should investigate this connection in more depth, seeking to establish a causal connection between changes in degeneracy and changes in structure and behavior.</p>
+<p><strong>Towards developmental interpretability</strong> We showed that degeneracy can reveal meaningful changes in transformers. We emphasize that our analysis is not exhaustive—we expect only certain “macroscopic” changes, such as the emergence of in-context learning, will have a significant enough effect on loss landscape degeneracy to appear separated by plateaus in the LLC curve. Recent work has extended these ideas by measuring the LLC with respect to network sub-modules and with different data distributions, providing a more refined picture of model development (Wang et al., 2025). We expect this research direction will lead to insights into the development of more complex models.</p>
+<p>Loss landscape degeneracy offers a setting-agnostic, “unsupervised” alternative to setting-specific <em>progress measures</em> such as those derived by Barak et al. (2022) or developed using mechanistic insights from similar models by Nanda et al. (2023). Both approaches can reveal developments invisible in the loss, but loss landscape degeneracy is able to detect changes without requiring a mechanistic understanding in advance. Of course, once a change is detected through its effect on degeneracy, it remains to interpret the change.</p>
+<p><strong>Cases studies in transformer development</strong> We do <em>not</em> claim that the structural and behavioral developments we observed in each setting are universal phenomena. Transformers trained with different architectures, data distributions, algorithms, or hyperparameters may develop differently. Rather, our detailed analysis contributes two “case studies” to the growing empirical literature on the emergence of structure in transformers.</p>
+<p>On this note, our observations extend those of Olsson et al. (2022) and Elhage et al. (2021). We show that before the induction circuit forms, our 2-layer language model learns simpler interpretable strategies (based on bigram statistics and common <em>n</em> -grams). This shows that <em>a single training run</em> follows a progression akin to that found by Olsson et al. (2022) for <em>fully-developed models of increasing depth</em> (they showed that</p>
+<p>“0-layer” models learn bigram statistics and 1-layer models learn “skip-trigrams”). A similar progression was observed by Edelman et al. (2024) in a Markovian sequence modeling task.</p>
+<p>Moreover, in <em>both</em> settings, we saw that before in-context learning emerges, the model learns to predict tokens using the optimal prediction given only the current token (bigram statistics for language modeling, zero for in-context linear regression with this distribution of tasks).</p>
+<p><strong>Development and model complexity</strong> While we have described the LLC as a measure of loss landscape degeneracy, it can also be understood as a measure of model complexity (cf. Appendix A.2). It is natural for changes in a model’s internal structure to show up as a change in complexity. For example, Chen et al. (2024) showed that the emergence of syntactic attention structure coincides with a spike in two model complexity measures, namely the model’s <em>Fisher information</em> and the <em>intrinsic dimension</em> (Facco et al., 2017) of the model’s embeddings.</p>
+<p>Notably, we observe stages in which the LLC <em>decreases,</em> corresponding to a <em>simplification</em> of the computational structure of the model. Such model simplification has empirical precedent, for instance with Chen et al. (2024) and the recent literature on grokking (Power et al., 2022; Nanda et al., 2023; Tikeng Notsawo et al., 2024). In our case, the mechanistic nature of the simplification is not fully clear, with the collapse of various weights and attention patterns arising as candidates in the in-context linear regression setting.</p>
+<p>This phenomenon is currently not accounted for by theories of neural network development. In the theory of saddle-to-saddle dynamics, deep linear networks learn progressively <em>more</em> complex approximations of the data (Saxe et al., 2019). Likewise, the example transitions in the singular learning process outlined in Section 5 and Figure 3 describe LLC <em>increases.</em> Though we note that decreasing the LLC while holding the loss constant would be another way to decrease the free energy according to equation (4), providing a full theoretical account of these stages is an open problem.</p>
+<h3><strong>Author contributions</strong></h3>
+<p>All authors communicated regularly about all aspects of the methodology and writing. The following is a non-exhaustive list of some particular areas of individual contribution.</p>
+<ul>
+<li>
+<p>JH led the coding, experimentation, and analysis for the in-context linear regression setting; assisted with analysis of the language modeling setting; contributed substantially to the writing of the manuscript; and designed the conceptual illustrations.</p>
+</li>
+<li>
+<p>GW led the coding, experimentation, and analysis for the language modeling setting; and contributed substantially to the writing of the manuscript.</p>
+</li>
+<li>
+<p>MFR led the writing of the current main text, based on earlier versions written with others; and assisted with coding and tuning hyperparameters for the in-context linear regression setting.</p>
+</li>
+<li>
+<p>LC assisted with coding, experimentation, and analysis for the in-context linear regression setting.</p>
+</li>
+<li>
+<p>SW advised on technical details including assumptions of LLC estimation; and assisted with writing.</p>
+</li>
+<li>
+<p>DM had the original idea for the degeneracy-based stage division methodology; contributed substantially to earlier versions of the main text; and coordinated the project.</p>
+</li>
+</ul>
+<h3><strong>Acknowledgments</strong></h3>
+<p>We thank Edmund Lau for advice on LLC estimation and Mansheej Paul for advice on training transformers in the in-context linear regression setting. We are grateful to Evan Hubinger and Simon Pepin Lehalleur for helpful conversations. For their valuable feedback on the manuscript, we thank Andres Campero, Zach Furman, Simon Pepin Lehalleur, and Nandi Schoots.</p>
+<p>We thank Google’s TPU Research Cloud program for supporting some of our experiments with Cloud TPUs. JH and GW completed part of this research through the AI Futures Fellowship. MFR completed part of this research as an independent researcher sponsored by private individuals, part at Timaeus, and part at the University of Oxford. LC’s work was supported by Lightspeed Grants.</p>
+<h3><strong>References</strong></h3>
+<ul>
+<li>
+<p>Joseph Antognini and Jascha Sohl-Dickstein. PCA of high dimensional random walks with comparison to neural network training. In <em>Advances in Neural Information Processing Systems 31</em> , pp. 10307–10316. Curran Associates, 2018. Access via NeurIPS. Cited on pages 3 and 29.</p>
+</li>
+<li>
+<p>Pierre Baldi and Kurt Hornik. Neural networks and principal component analysis: Learning from examples without local minima. <em>Neural Networks</em> , 2(1):53–58, 1989. DOI 10.1016/0893-6080(89)90014-2. Cited on page 3.</p>
+</li>
+<li>
+<p>Boaz Barak, Benjamin Edelman, Surbhi Goel, Sham Kakade, Eran Malach, and Cyril Zhang. Hidden progress in deep learning: SGD learns parities near the computational limit. In <em>Advances in Neural Information Processing Systems 35</em> , pp. 21750–21764. Curran Associates, 2022. Access via NeurIPS. Cited on page 10.</p>
+</li>
+<li>
+<p>Angelica Chen, Ravid Shwartz-Ziv, Kyunghyun Cho, Matthew L Leavitt, and Naomi Saphra. Sudden drops in the loss: Syntax acquisition, phase transitions, and simplicity bias in MLMs. In <em>The Twelfth International Conference on Learning Representations</em> . OpenReview, 2024. Access via OpenReview. Cited on pages 3 and 11.</p>
+</li>
+<li>
+<p>Zhongtian Chen, Edmund Lau, Jake Mendel, Susan Wei, and Daniel Murfet. Dynamical versus Bayesian phase transitions in a toy model of superposition, 2023. Preprint arXiv:2310.06301 [cs.LG]. Cited on pages 2, 3, 6, 7, and 24.</p>
+</li>
+<li>
+<p>Ezra Edelman, Nikolaos Tsilivis, Benjamin L Edelman, Eran Malach, and Surbhi Goel. The evolution of statistical induction heads: In-context learning Markov chains. In <em>Advances in Neural Information Processing Systems 37</em> , pp. 64273–64311. Curran Associates, 2024. Access via NeurIPS. Cited on pages 3 and 11.</p>
+</li>
+<li>
+<p>Ronen Eldan and Yuanzhi Li. TinyStories: How small can language models be and still speak coherent English?, 2023. Preprint arXiv:2305.07759 [cs.CL]. Cited on page 46.</p>
+</li>
+<li>
+<p>Nelson Elhage, Neel Nanda, Catherine Olsson, Tom Henighan, Nicholas Joseph, Ben Mann, Amanda Askell, Yuntao Bai, Anna Chen, Tom Conerly, Nova DasSarma, Dawn Drain, Deep Ganguli, Zac Hatfield-Dodds, Danny Hernandez, Andy Jones, Jackson Kernion, Liane Lovitt, Kamal Ndousse, Dario Amodei, Tom Brown, Jack Clark, Jared Kaplan, Sam McCandlish, and Chris Olah. A mathematical framework for transformer circuits. <em>Transformer Circuits Thread</em> , 2021. Access via Transformer Circuits Thread. Cited on pages 4, 10, 32, and 33.</p>
+</li>
+<li>
+<p>Dumitru Erhan, Yoshua Bengio, Aaron Courville, Pierre-Antoine Manzagol, Pascal Vincent, and Samy Bengio. Why does unsupervised pre-training help deep learning? <em>Journal of Machine Learning Research</em> , 11(19):625–660, 2010. Access via JMLR. Cited on page 3.</p>
+</li>
+<li>
+<p>Elena Facco, Maria d’Errico, Alex Rodriguez, and Alessandro Laio. Estimating the intrinsic dimension of datasets by a minimal neighborhood information. <em>Scientific Reports</em> , 7(1):12140, 2017. DOI 10.1038/s41598-017-11873-y. Cited on page 11.</p>
+</li>
+<li>
+<p>D H Fowler. <em>Structural Stability and Morphogensis: An Outline of a General Theory of Models</em> . W. A. Benjamin, Inc., 1975. English translation of Thom (1972), with updates from the author. Cited on page 14.</p>
+</li>
+<li>
+<p>Sara Franceschelli. Morphogenesis, structural stability and epigenetic landscape. In Paul Bourgine and Annick Lesne (eds.), <em>Morphogenesis: Origins of Patterns and Shapes</em> , pp. 283–293. Springer, 2010. DOI 10.1007/978-3-642-13174-5_16. Cited on page 3.</p>
+</li>
+<li>
+<p>Simon L Freedman, Bingxian Xu, Sidhartha Goyal, and Madhav Mani. A dynamical systems treatment of transcriptomic trajectories in hematopoiesis. <em>Development</em> , 150(11):dev201280, 2023. DOI 10.1242/dev.201280. Cited on page 3.</p>
+</li>
+<li>
+<p>Leo Gao, Stella Biderman, Sid Black, Laurence Golding, Travis Hoppe, Charles Foster, Jason Phang, Horace He, Anish Thite, Noa Nabeshima, Shawn Presser, and Connor Leahy. The Pile: an 800GB dataset of diverse text for language modeling. Technical report, EleutherAI, 2020. Preprint arXiv:2101.00027 [cs.CL]. Cited on pages 2, 4, 46, and 47.</p>
+</li>
+<li>
+<p>Shivam Garg, Dimitris Tsipras, Percy S Liang, and Gregory Valiant. What can transformers learn in-context? A case study of simple function classes. In <em>Advances in Neural Information Processing Systems 35</em> , pp. 30583–30598. Curran Associates, 2022. Access via NeurIPS. Cited on pages 2 and 4.</p>
+</li>
+<li>
+<p>Hamidreza Ghader and Christof Monz. What does attention in neural machine translation pay attention to? In <em>Proceedings of the Eighth International Joint Conference on Natural Language Processing (Volume 1: Long Papers)</em> , pp. 30–39. Asian Federation of Natural Language Processing, 2017. Access via ACL Anthology. Cited on page 37.</p>
+</li>
+<li>
+<p>Ian J Goodfellow, Oriol Vinyals, and Andrew M Saxe. Qualitatively characterizing neural network optimization problems, 2014. Conference paper presented at ICLR 2015. Preprint arXiv:1412.6544 [cs.NE]. Cited on page 3.</p>
+</li>
+<li>
+<p>Katsuyuki Hagiwara, Naohiro Toda, and Shiro Usui. On the problem of applying AIC to determine the structure of a layered feedforward neural network. In <em>Proceedings Of 1993 International Joint Conference On Neural Networks</em> , volume 3, pp. 2263–2266. IEEE, 1993. DOI 10.1109/IJCNN.1993.714176. Cited on page 3.</p>
+</li>
+<li>
+<p>Andrej Karpathy. NanoGPT, 2022. Access via github.com/karpathy. Cited on page 47.</p>
+</li>
+<li>
+<p>Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization, 2014. Conference paper presented at ICLR 2015. Preprint arXiv:1412.6980 [cs.LG]. Cited on page 48.</p>
+</li>
+<li>
+<p>Edmund Lau, Zach Furman, George Wang, Daniel Murfet, and Susan Wei. The local learning coefficient: A singularity-aware complexity measure. In <em>The 28th International Conference on Artificial Intelligence and Statistics</em> . OpenReview, 2025. Access via OpenReview. Cited on pages 2, 3, 5, 6, 17, 18, 19, 22, and 24.</p>
+</li>
+<li>
+<p>Hao Li, Zheng Xu, Gavin Taylor, Christoph Studer, and Tom Goldstein. Visualizing the loss landscape of neural nets. In <em>Advances in Neural Information Processing Systems 31</em> , pp. 6389–6399. Curran Associates, 2018. Access via NeurIPS. Cited on page 3.</p>
+</li>
+<li>
+<p>Zachary C Lipton. Stuck in a what? Adventures in weight space, 2016. Workshop paper presented at ICLR 2016. Preprint arXiv:1602.07320 [cs.LG]. Cited on page 3.</p>
+</li>
+<li>
+<p>Ben D MacArthur. The geometry of cell fate. <em>Cell Systems</em> , 13(1):1–3, 2022. DOI 10.1016/j.cels.2021.12.001. Cited on page 3.</p>
+</li>
+<li>
+<p>Thomas McGrath, Andrei Kapishnikov, Nenad Tomašev, Adam Pearce, Martin Wattenberg, Demis Hassabis, Been Kim, Ulrich Paquet, and Vladimir Kramnik. Acquisition of chess knowledge in AlphaZero. <em>Proceedings of the National Academy of Sciences</em> , 119(47):e2206625119, 2022. DOI 10.1073/pnas.2206625119. Cited on pages 1 and 3.</p>
+</li>
+<li>
+<p>Neel Nanda and Joseph Bloom. TransformerLens, 2022. Access via github.com/neelnanda-io. Cited on page 46.</p>
+</li>
+<li>
+<p>Neel Nanda, Lawrence Chan, Tom Lieberum, Jess Smith, and Jacob Steinhardt. Progress measures for grokking via mechanistic interpretability. In <em>The Eleventh International Conference on Learning Representations</em> . OpenReview, 2023. Access via OpenReview. Cited on pages 10 and 11.</p>
+</li>
+<li>
+<p>Ambroise Odonnat, Wassim Bouaziz, and Vivien Cabannes. Clustering head: A visual case study of the training dynamics in transformers, 2024. Preprint arXiv:2410.24050 [cs.LG]. Cited on page 3.</p>
+</li>
+<li>
+<p>Catherine Olsson, Nelson Elhage, Neel Nanda, Nicholas Joseph, Nova DasSarma, Tom Henighan, Ben Mann, Amanda Askell, Yuntao Bai, Anna Chen, Tom Conerly, Dawn Drain, Deep Ganguli, Zac Hatfield-Dodds, Danny Hernandez, Scott Johnston, Andy Jones, Jackson Kernion, Liane Lovitt, Kamal Ndousse, Dario Amodei, Tom Brown, Jack Clark, Jared Kaplan, Sam McCandlish, and Chris Olah. In-context learning and induction heads. <em>Transformer Circuits Thread</em> , 2022. Access via Transformer Circuits Thread. Cited on pages 1, 2, 3, 4, 7, 8, 10, 28, 29, and 32.</p>
+</li>
+<li>
+<p>Mary Phuong and Marcus Hutter. Formal algorithms for transformers. Technical report, DeepMind, 2022. Preprint arXiv:2207.09238 [cs.LG]. Cited on pages 40 and 47.</p>
+</li>
+<li>
+<p>Alethea Power, Yuri Burda, Harri Edwards, Igor Babuschkin, and Vedant Misra. Grokking: Generalization beyond overfitting on small algorithmic datasets, 2022. Preprint arXiv:2201.02177 [cs.LG]. Cited on page 11.</p>
+</li>
+<li>
+<p>Ofir Press, Noah A Smith, and Mike Lewis. Shortformer: Better language modeling using shorter inputs. In <em>Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers)</em> , pp. 5493–5505. Association for Computational Linguistics, 2021. DOI 10.18653/v1/2021.acl-long.427. Cited on page 46.</p>
+</li>
+<li>
+<p>Maartje E J Raijmakers, Sylvester van Koten, and Peter C M Molenaar. On the validity of simulating stagewise development by means of PDP networks: Application of catastrophe analysis and an experimental test of rule-like network performance. <em>Cognitive Science</em> , 20(1):101–136, 1996. DOI 10.1207/s15516709cog2001_4. Cited on page 3.</p>
+</li>
+<li>
+<p>David A Rand, Archishman Raju, Meritxell Sáez, Francis Corson, and Eric D Siggia. Geometry of gene regulatory dynamics. <em>Proceedings of the National Academy of Sciences</em> , 118(38):e2109729118, 2021. DOI 10.1073/pnas.2109729118. Cited on page 3.</p>
+</li>
+<li>
+<p>Allan Raventós, Mansheej Paul, Feng Chen, and Surya Ganguli. Pretraining task diversity and the emergence of non-Bayesian in-context learning for regression. In <em>Advances in Neural Information Processing Systems 36</em> , pp. 14228–14246. Curran Associates, 2023. Access via NeurIPS. Cited on pages 4, 34, and 35.</p>
+</li>
+<li>
+<p>Timothy T Rogers and James L McClelland. <em>Semantic Cognition: A Parallel Distributed Processing Approach</em> . MIT Press, 2004. DOI 10.7551/mitpress/6161.001.0001. Cited on page 3.</p>
+</li>
+<li>
+<p>Meritxell Sáez, Robert Blassberg, Elena Camacho-Aguilar, Eric D Siggia, David A Rand, and James Briscoe. Statistically derived geometrical landscapes capture principles of decision-making dynamics during cell fate transitions. <em>Cell Systems</em> , 13(1):12–28, 2022. DOI 10.1016/j.cels.2021.08.013. Cited on page 3.</p>
+</li>
+<li>
+<p>Andrew M Saxe, James L McClelland, and Surya Ganguli. A mathematical theory of semantic development in deep neural networks. <em>Proceedings of the National Academy of Sciences</em> , 116(23):11537–11546, 2019. DOI 10.1073/pnas.1820226116. Cited on pages 3 and 11.</p>
+</li>
+<li>
+<p>Maxwell Shinn. Phantom oscillations in principal component analysis. <em>Proceedings of the National Academy of Sciences</em> , 120(48):e2311420120, 2023. DOI 10.1073/pnas.2311420120. Cited on page 29.</p>
+</li>
+<li>
+<p>René Thom. <em>Stabilité Structurelle et Morphogénèse: Essai d’une Théorie Générale des Modèles [Structural Stability and Morphogensis: An Outline of a General Theory of Models]</em> . W. A. Benjamin, Inc., 1972. In French. Translated into English by Fowler (1975). Cited on pages 1, 3, and 12.</p>
+</li>
+<li>
+<p>Pascal Tikeng Notsawo, Jr., Hattie Zhou, Mohammad Pezeshki, Irina Rish, and Guillaume Dumas. Predicting grokking long before it happens: A look into the loss landscape of models which grok. In <em>ICLR 2024 Workshop on Mathematical and Empirical Understanding of Foundation Models</em> . OpenReview, 2024. Access via OpenReview. Cited on pages 3 and 11.</p>
+</li>
+<li>
+<p>Jesse Vig and Yonatan Belinkov. Analyzing the structure of attention in a transformer language model. In <em>Proceedings of the 2019 ACL Workshop BlackboxNLP: Analyzing and Interpreting Neural Networks for NLP</em> , pp. 63–76. Association for Computational Linguistics, 2019. DOI 10.18653/v1/W19-4808. Cited on pages 37 and 38.</p>
+</li>
+<li>
+<p>C H Waddington. <em>The Strategy of the Genes: A Discussion of Some Aspects of Theoretical Biology</em> . Allen &amp; Unwin, 1957. Cited on pages 1, 3, and 24.</p>
+</li>
+<li>
+<p>George Wang, Jesse Hoogland, Stan van Wingerden, Zach Furman, and Daniel Murfet. Differentiation and specialization of attention heads via the refined local learning coefficient. In <em>The Thirteenth International Conference on Learning Representations</em> . OpenReview, 2025. Access via OpenReview. Cited on page 10.</p>
+</li>
+<li>
+<p>Sumio Watanabe. Almost all learning machines are singular. In <em>IEEE Symposium on Foundations of Computational Intelligence</em> , pp. 383–388. IEEE, 2007. DOI 10.1109/FOCI.2007.371500. Cited on page 3.</p>
+</li>
+<li>
+<p>Sumio Watanabe. <em>Algebraic Geometry and Statistical Learning Theory</em> . Cambridge University Press, 2009. DOI 10.1017/CBO9780511800474. Cited on pages 1, 2, 3, 5, 7, and 17.</p>
+</li>
+<li>
+<p>Sumio Watanabe. <em>Mathematical Theory of Bayesian Statistics</em> . CRC Press, 2018. DOI 10.1201/9781315373010. Cited on page 6.</p>
+</li>
+<li>
+<p>Jason Wei, Yi Tay, Rishi Bommasani, Colin Raffel, Barret Zoph, Sebastian Borgeaud, Dani Yogatama, Maarten Bosma, Denny Zhou, Donald Metzler, Ed H Chi, Tatsunori Hashimoto, Oriol Vinyals, Percy Liang, Jeff Dean, and William Fedus. Emergent abilities of large language models. <em>Transactions on Machine Learning Research</em> , 2022. Access via OpenReview. Cited on pages 1 and 3.</p>
+</li>
+<li>
+<p>Susan Wei, Daniel Murfet, Mingming Gong, Hui Li, Jesse Gell-Redman, and Thomas Quella. Deep learning is singular, and that’s good. <em>IEEE Transactions on Neural Networks and Learning Systems</em> , 34(12): 10473–10486, 2023. DOI 10.1109/TNNLS.2022.3167409. Cited on page 3.</p>
+</li>
+<li>
+<p>Max Welling and Yee Whye Teh. Bayesian learning via stochastic gradient Langevin dynamics. In <em>Proceedings of the 28th International Conference on Machine Learning</em> , pp. 681–688. ACM, 2011. Access via ICML. Cited on page 5.</p>
+</li>
+<li>
+<p>Sang Michael Xie, Shibani Santurkar, Tengyu Ma, and Percy S Liang. Data selection for language models via importance resampling. In <em>Advances in Neural Information Processing Systems 36</em> , pp. 34201–34227. Curran Associates, 2023. Access via NeurIPS. Cited on pages 2, 4, 46, and 47.</p>
+</li>
+<li>
+<p>Zhewei Yao, Amir Gholami, Kurt Keutzer, and Michael W Mahoney. PyHessian: neural networks through the lens of the Hessian. In <em>2020 IEEE International Conference on Big Data (Big Data)</em> , pp. 581–590, 2020. DOI 10.1109/BigData50022.2020.9378171. Cited on page 27.</p>
+</li>
+</ul>
+<h1><strong>Appendix</strong></h1>
+<p>Appendix A reviews the learning coefficient, providing some simple toy examples contrasting the learning coefficient with Hessian-based measures. This section also discusses SGLD-based LLC estimation including experiment hyperparameters (Appendix A.4), and offers a detailed example of the calibrations involved in applying LLC estimation to regression transformers to serve as a reference (Appendix A.5). Appendix B provides further detail on our procedure for LLC-based stage identification, including stages identified in additional training runs and a brief comparison with Hessian statistics. Appendices C and D examine the developmental stages of language models and in-context linear regression in more detail and explain the various metrics we use to track behavioral and structural development. Appendix E describes some additional experiments on a one-layer language model. Appendix F covers transformer training experimental details, such as model architectures, training procedures, and hyperparameters.</p>
+<p>To facilitate reproduction of our analyses, we have made our codebase available. A repository containing additional figures and code can be accessed at the URL https://github.com/timaeus-research/icl.</p>
+<table>
+<thead>
+<tr>
+<th><strong>A The</strong></th>
+<th><strong>local learning coefficient (LLC)</strong></th>
+<th><strong>17</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A.1</td>
+<td>Formal Definition of the LLC . . . . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>17</td>
+</tr>
+<tr>
+<td>A.2</td>
+<td>Interpretations and examples of the LLC. . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>17</td>
+</tr>
+<tr>
+<td>A.3</td>
+<td>Estimating LLCs with SGLD . . . . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>18</td>
+</tr>
+<tr>
+<td>A.4</td>
+<td>LLC estimation experiment details . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>18</td>
+</tr>
+<tr>
+<td>A.5</td>
+<td>A guide to SGLD-based LLC estimation . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>19</td>
+</tr>
+<tr>
+<td>A.6</td>
+<td>LLC estimates for a non-log-likelihood-based loss . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>23</td>
+</tr>
+<tr>
+<td>A.7</td>
+<td>LLC estimates away from local minima<br>. . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>24</td>
+</tr>
+<tr>
+<td><strong>B LL</strong></td>
+<td><strong>C-based stage boundary identification</strong></td>
+<td><strong>25</strong></td>
+</tr>
+<tr>
+<td>B.1</td>
+<td>Procedure for stage boundary identification . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>25</td>
+</tr>
+<tr>
+<td>B.2</td>
+<td>Stage boundary identification details for language model . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>25</td>
+</tr>
+<tr>
+<td>B.3</td>
+<td>Stage boundary identification details for in-context linear regression<br>. . . . . . .</td>
+<td>. . . . . . .<br>26</td>
+</tr>
+<tr>
+<td>B.4</td>
+<td>Stage identification for additional training runs . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>26</td>
+</tr>
+<tr>
+<td>B.5</td>
+<td>Comparison to Hessian statistics<br>. . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>27</td>
+</tr>
+<tr>
+<td><strong>C Dev</strong></td>
+<td><strong>elopmental analysis of language models</strong></td>
+<td><strong>28</strong></td>
+</tr>
+<tr>
+<td>C.1</td>
+<td>Behavioral development . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>28</td>
+</tr>
+<tr>
+<td>C.2</td>
+<td>Structural development<br>. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>29</td>
+</tr>
+<tr>
+<td><strong>D Dev</strong></td>
+<td><strong>elopmental analysis of regression transformers</strong></td>
+<td><strong>34</strong></td>
+</tr>
+<tr>
+<td>D.1</td>
+<td>Behavioral development . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>34</td>
+</tr>
+<tr>
+<td>D.2</td>
+<td>Structural development<br>. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>36</td>
+</tr>
+<tr>
+<td><strong>E On</strong></td>
+<td><strong>e-layer language model experiments</strong></td>
+<td><strong>44</strong></td>
+</tr>
+<tr>
+<td><strong>F Tra</strong></td>
+<td><strong>nsformer training experiment details</strong></td>
+<td><strong>46</strong></td>
+</tr>
+<tr>
+<td>F.1</td>
+<td>Language models . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>46</td>
+</tr>
+<tr>
+<td>F.2</td>
+<td>In-context linear regression transformers . . . . . . . . . . . . . . . . . . . . . . .</td>
+<td>. . . . . . .<br>47</td>
+</tr>
+</tbody>
+</table>
+<h3><strong>A The local learning coefficient (LLC)</strong></h3>
+<h4><strong>A.1 Formal Definition of the LLC</strong></h4>
+<p>In the setting of Section 4, let <em>B</em> be a closed ball around <em>w</em><sup><em>∗</em></sup> such that <em>w</em><sup><em>∗</em></sup> is a global minimum on <em>B</em> , by which we mean a point with (equal) lowest loss. If there are multiple such global minima, the volume asymptotics are determined by the geometry of one that is most degenerate in the precise sense of SLT, formalised in Lau et al. (2025), roughly corresponding to having the lowest LLC. We call this minimum the maximally degenerate global minimum on <em>B</em> . Consider the volume of the set of nearby low-loss parameters,</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0017-03.jpg" alt="" /></p>
+<p>As <em>ϵ →</em> 0, <em>V</em> ( <em>ϵ</em> ) is asymptotically equivalent to</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0017-05.jpg" alt="" /></p>
+<p>where <em>λ</em> ( <em>w</em><sup><em>∗</em></sup> ) is the LLC, <em>m</em> ( <em>w</em><sup><em>∗</em></sup> ) is another geometric quantity called the <em>local multiplicity</em> , and <em>c &gt;</em> 0 is a constant.</p>
+<h4><strong>A.2 Interpretations and examples of the LLC</strong></h4>
+<p>In Section 4, we introduced the LLC as a quantification of geometric degeneracy. In this section, we discuss an additional perspectives on the LLC as a count of the “effective” dimensionality of a parameter, and we give additional examples of the LLC. We refer the reader to Watanabe (2009) and Lau et al. (2025) for more discussion.</p>
+<p>The LLC has some similarity to an effective parameter count. If the population loss <em>ℓ</em> looks like a quadratic form near <em>w</em><sup><em>∗</em></sup> then <em>λ</em> ( <em>w</em><sup><em>∗</em></sup> ) =<sup><em><u>d</u></em></sup> 2<sup>ishalfthenumberofparameters,whichwecanthinkofas</sup><sup><em>d_contributionsof</sup> <u>12</u><sup>fromeveryindependentquadraticdirection.Ifthereareonly</sup><sup><em>d −<em>1independentquadraticdirections,and</sup> one coordinate <em>wi</em> such that small variations in <em>wi</em> near <em>wi</em><sup></em>∗<em>donotchangethemodelrelativetothetruth</sup> (this dimension is “unused”) then <em>λ</em> ( <em>w</em><sup></em>∗</em></sup> ) =<sup></em><u>d−</u>_</sup> 2<sup><u>1</u>.</sup></p>
+<p>The situation becomes more intricate when certain dimensions are degenerate but not completely unused, varying to quartic or higher order near the parameter (rather than being quadratic or flat). While every unused coordinate reduces the LLC by 2<sup><u>1</u>,changingthedependencyonacoordinatefromquadratic(</sup><sup><em>w</em></sup> <em>i</em><sup>2)to</sup> quartic ( <em>wi</em><sup>4)(increasingits</sup><sup>_degeneracy_whilestill“using”it)reducesthecontributiontotheLLCfrom</sup><sup><u>1</u></sup> 2<sup>to</sup> <u>1</u> 4<sup>.</sup></p>
+<p>As a source of intuition, we provide several examples of exact LLCs:</p>
+<ul>
+<li>
+<p><em>ℓ</em> ( <em>w</em> 1 <em>, w</em> 2 <em>, w</em> 3) = <em>aw</em> 1<sup>2+</sup><sup><em>bw</em></sup> 2<sup>2+</sup><sup><em>cw</em></sup> 3<sup>2with</sup><sup>_a, b, c&gt;<em>0.Thisfunctionisnondegenerate,and</sup><sup><em>λ</em>(0</sup><sup></em>,<em>0</sup><sup></em>,_0)=</sup> <u>12</u><sup>+</sup><sup><u>1</u></sup> 2<sup>+</sup><sup><u>1</u></sup> 2<sup>=</sup><sup><u>3</u></sup> 2<sup>.Thisisindependentof</sup><sup><em>a, b, c</em>.Thatis,theLLC</sup><sup>_λ_does</sup><sup><em>notmeasurecurvature</em>.For</sup> this reason, it is better to avoid an intuition that centers on “basin broadness” since this tends to suggest that lowering <em>a, b, c</em> should affect the LLC.</p>
+</li>
+<li>
+<p><em>ℓ</em> ( <em>w</em> 1 <em>, w</em> 2 <em>, w</em> 3) = <em>w</em> 1<sup>2+</sup><sup><em>w</em></sup> 2<sup>2+0 in R3 is degenerate, but its level sets are still submanifolds and</sup><sup><em>λ</em>(0</sup><sup>_,<em>0</sup><sup></em>,_0) =</sup> 21<sup>+</sup><sup><u>1</u></sup> 2<sup>.Inthiscasethevariable</sup><sup>_w_3isunused,andsodoesnotcontributetotheLLC.</sup></p>
+</li>
+<li>
+<p><em>ℓ</em> ( <em>w</em> 1 <em>, w</em> 2 <em>, w</em> 3) = <em>w</em> 1<sup>2+</sup><sup><em>w</em></sup> 2<sup>4+</sup><sup><em>w</em></sup> 3<sup>4is degenerate and its level sets are, for our purposes, not submanifolds.</sup> The singular function germ ( <em>ℓ,</em> 0) is an object of algebraic geometry, and the appropriate mathematical object is not a <em>manifold</em> or a <em>variety</em> but a <em>scheme</em> . The quartic terms contribute<sup><u>1</u></sup> 4<sup>totheLLC,</sup> so that <em>λ</em> (0 <em>,</em> 0 <em>,</em> 0) =<sup><u>1</u></sup> 2<sup>+</sup><sup><u>1</u></sup> 4<sup>+</sup><sup><u>1</u></sup> 4<sup>=1.Thehigherthepowerofavariable,thegreaterthedegeneracy</sup> and the lower the LLC.</p>
+</li>
+</ul>
+<p>Figure 2 offers several additional examples, from left to right:</p>
+<ul>
+<li>
+<p>A quadratic potential <em>ℓ</em> 1( <em>w</em> 1 <em>, w</em> 2) = <em>w</em> 1<sup>2+</sup><sup><em>w</em></sup> 2<sup>2,forwhichtheLLCismaximalintwodimensions,</sup> <em>λ</em> 1(0 <em>,</em> 0) = <em>d/</em> 2 = 1.</p>
+</li>
+<li>
+<p>A quartic potential <em>ℓ</em> 2( <em>w</em> 1 <em>, w</em> 2) = <em>w</em> 1<sup>4+</sup><sup><em>w</em></sup> 2<sup>4,forwhichtheLLCis</sup><sup><em>λ_2(0</sup><sup></em>,<em>0) = 1</sup><sup></em>/_2.</sup></p>
+</li>
+<li>
+<p>An even more degenerate potential <em>ℓ</em> 3( <em>w</em> 1 <em>, w</em> 2) = <em>w</em> 1<sup>2</sup><sup><em>w</em></sup> 2<sup>4,forwhich</sup><sup><em>λ_3(0</sup><sup></em>,<em>0)=1</sup><sup></em>/_4.Wenotethat</sup> Hessian-derived metrics cannot distinguish between this degeneracy and the preceding quartic degeneracy.</p>
+</li>
+<li>
+<p>A qualitatively distinct potential <em>ℓ</em> 4( <em>w</em> 1 <em>, w</em> 2) = ( <em>w</em> 1 <em>−</em> 1)<sup>2</sup> ( <em>w</em> 1<sup>2+</sup><sup><em>w</em></sup> 2<sup>2)4fromLauetal.(2025)withthe</sup> same LLC at the origin, <em>λ</em> 4(0 <em>,</em> 0) = 1 <em>/</em> 4.</p>
+</li>
+</ul>
+<p>While nondegenerate functions can be locally written as quadratic forms by the Morse Lemma (and are thus qualitatively similar to the approximation obtained from their Hessians), there is no simple equivalent for degenerate functions, such as the population losses of deep neural networks.</p>
+<h4><strong>A.3 Estimating LLCs with SGLD</strong></h4>
+<p>We follow Lau et al. (2025) in using SGLD to estimate the expectation value of the loss in the estimator of the LLC. For a given choice of weights <em>w</em><sup><em>∗</em></sup> we sample <em>C</em> independent chains with <em>T</em> SGLD steps per chain. Each chain <em>c</em> is a sequence of weights <em>{wτ</em><sup>(</sup><sup><em>c</em>)</sup><sup><em>}T</em></sup> <em>τ</em> =1<sup>SGLD</sup> . From these samples, we estimate the expectation E<sup><em>β</em></sup> <em>w|w</em><sup><em>∗</em></sup> <em>,γ</em><sup>[</sup><sup><em>O</em>(</sup><sup><em>w</em>)]</sup> of an observable <em>O</em> by</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0018-07.jpg" alt="" /></p>
+<p>with an optional burn-in period. Dropping the chain index <em>c</em> , each sample in a chain is generated according to:</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0018-09.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0018-10.jpg" alt="" /></p>
+<p>where the step ∆ <em>wτ</em> comes from an SGLD update</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0018-12.jpg" alt="" /></p>
+<p>In each step <em>τ</em> we sample a mini-batch of size <em>m</em> and the associated empirical loss, denoted <em>ℓ</em><sup>(</sup> <em>m</em><sup><em>τ</em>),isusedto</sup> compute the gradient in the SGLD update. We note that LLC estimator defined in (3) uses the expectation E<sup><em>β</em></sup> [ <em>ℓn</em> ( <em>w</em> )] which in the current notation means we should take <em>O</em> ( <em>w</em> ) to be <em>ℓn</em> ( <em>w</em> ). For computational efficiency we follow Lau et al. (2025) in recycling the mini-batch losses <em>ℓm</em> ( <em>wτ</em><sup>(</sup><sup><em>c</em>))computedduringtheSGLDprocess.</sup> That is, we take <em>O</em> = <em>ℓm</em><sup>(</sup><sup><em>τ</em>)ratherthan</sup><sup><em>O</em>=</sup><sup><em>ℓ</em></sup> <em>n</em><sup>.</sup></p>
+<p><strong>Time and Space Complexity.</strong> The computational cost per LLC estimate is proportional to a standard training step, denoted <em>S</em> . We expect to require a constant number <em>CT</em> SGLD of samples (on the order of 10<sup>2</sup> –10<sup>4</sup> ) to yield robust estimates, independent of model size. Using logarithmically spaced checkpoints, the total computational complexity for generating an LLC curve over the entire training process scales as <em>O</em> ( <em>SCT</em> SGLD log <em>N</em> ), where <em>N</em> is the total number of training steps. The space complexity incurs a modest linear overhead compared to standard SGD, requiring storage for one additional copy of the weights to enable localization.</p>
+<h4><strong>A.4 LLC estimation experiment details</strong></h4>
+<h4><strong>A.4.1 LLC estimation details for language models</strong></h4>
+<p>For language models, we use SGLD to sample 20 independent chains with 200 steps per chain and 1 sample per step. For the one-layer model, we used <em>ϵ</em> = 0 <em>.</em> 003 <em>, γ</em> = 300, and for the two-layer model we used</p>
+<p><em>ϵ</em> = 0 <em>.</em> 001 <em>, γ</em> = 100. Estimating the LLC across all checkpoints took around 200 GPU hours for the two-layer model on a single A100 and around 125 GPU hours for the one-layer model. For additional runs of the two-layer model, we ran fewer chains, bringing the time down to about 2 TPU hours per training run.</p>
+<p>We sampled a separate set of 1 million lines (lines 10m-11m) from the DSIR filtered Pile, denoted as <em>D</em> sgld. The first 100,000 lines from this SGLD set (lines 10m-10.1m) were used as a validation set. The sampling of batches for SGLD mirrored the approach taken during the primary training phase. Each SGLD estimation pass was seeded analogously, so, at different checkpoints, the SGLD chains encounter the same selection of batches and injected Gaussian noise.</p>
+<p>Table 1: Hyperparameters for estimating the LLC for language models.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Hyperparameter</strong></th>
+<th><strong>Category</strong></th>
+<th><strong>Description/Notes</strong></th>
+<th><strong>1-Layer</strong><br><strong>2-Layer</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C</td>
+<td>Sampler</td>
+<td># of chains</td>
+<td>20</td>
+</tr>
+<tr>
+<td>_T_SGLD</td>
+<td>Sampler</td>
+<td># of SGLD steps / chain</td>
+<td>200</td>
+</tr>
+<tr>
+<td><em>ϵ</em></td>
+<td>SGLD</td>
+<td>Step size</td>
+<td>0_.<em>003<br>0</em>._001</td>
+</tr>
+<tr>
+<td><em>γ</em></td>
+<td>SGLD</td>
+<td>Localization strength</td>
+<td>300<br>100</td>
+</tr>
+<tr>
+<td><em>nβ</em></td>
+<td>SGLD</td>
+<td>Inverse temperature</td>
+<td>21.7</td>
+</tr>
+<tr>
+<td><em>m</em></td>
+<td>SGLD</td>
+<td>The size of each SGLD batch</td>
+<td>100</td>
+</tr>
+<tr>
+<td><em>µ</em></td>
+<td>Data</td>
+<td>Dataset size for gradient minibatches</td>
+<td>13m</td>
+</tr>
+</tbody>
+</table>
+<h4><strong>A.4.2 LLC estimation details for in-context linear regression</strong></h4>
+<p>For in-context linear regression models, we generate a fixed dataset of 2<sup>20</sup> samples. Using SGLD, we sample 10 independent chains with 5,000 steps per chain, of which the first 1,000 are discarded as a burn-in, after which we draw observations once per step, at a temperature <em>nβ</em> = 66 <em>.</em> 7, <em>ϵ</em> = 0 <em>.</em> 0003, and <em>γ</em> = 13 <em>.</em> 3, over batches of size <em>m</em> = 1024. LLC estimation takes up to 72 CPU-hours per training run.</p>
+<p>Table 2: <strong>LLC estimation hyperparameters</strong> . A summary of the hyperparameters involved in estimating the LLC and the default values we use.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Hyperparameter</strong></th>
+<th><strong>Category</strong></th>
+<th><strong>Description/Notes</strong></th>
+<th><strong>Default Values</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C</td>
+<td>Sampler</td>
+<td># of chains</td>
+<td>10</td>
+</tr>
+<tr>
+<td>_T_SGLD</td>
+<td>Sampler</td>
+<td># of SGLD steps / chain</td>
+<td>5000</td>
+</tr>
+<tr>
+<td><em>ϵ</em></td>
+<td>SGLD</td>
+<td>Step size</td>
+<td>0_._0003</td>
+</tr>
+<tr>
+<td><em>γ</em></td>
+<td>SGLD</td>
+<td>Localization strength</td>
+<td>13_._3</td>
+</tr>
+<tr>
+<td><em>nβ</em></td>
+<td>SGLD</td>
+<td>Inverse temperature</td>
+<td>66_._7</td>
+</tr>
+<tr>
+<td><em>m</em></td>
+<td>SGLD</td>
+<td>The size of each SGLD batch</td>
+<td>1024</td>
+</tr>
+<tr>
+<td><em>µ</em></td>
+<td>Data</td>
+<td>Dataset size for gradient minibatches</td>
+<td>2<sup>20</sup></td>
+</tr>
+</tbody>
+</table>
+<h4><strong>A.5 A guide to SGLD-based LLC estimation</strong></h4>
+<p>This section walks through some of the hyperparameter choices and sweeps involved in calibrating LLC estimates. We provide it as a reference for others seeking to adjust LLC estimation to novel settings.</p>
+<h4><strong>A.5.1 Varying the temperature</strong></h4>
+<p>In Lau et al. (2025), the inverse temperature <em>β</em> is set to a fixed “optimal” value <em>β</em><sup><em>∗</em></sup> = 1 <em>/</em> log <em>n</em> , where <em>n</em> is the number of training samples. In practice, we find that it can be advantageous to sample at a higher temperature.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0020-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a)  (wt) Dependence on Dataset Size<br>= 1024<br>200 = 2048<br>= 4096<br>150 = 8192<br>= 16384<br>100 = 32768<br>= 65536<br>50 = 131072<br>= 262144<br>0 = 524288<br>10 3 10 4 10 5<br>t<br>()wt<br><!-- End of picture text --></p>
+<p>Figure A.1: Past some threshold, the choice of validation set size from which SGLD batches are sampled has little effect on learning coefficient estimates. Estimation hyperparameters are <em>C</em> = 8 <em>, T</em> SGLD = 2 <em>,</em> 000 <em>, m</em> = 1024 <em>, ϵ</em> = 0 <em>.</em> 0003 <em>,</em> ˜ <em>γ</em> = 0 <em>.</em> 01 <em>, β</em><sup>˜</sup> = 0 <em>.</em> 01. Loss is evaluated over gradient minibatches at a representative selection of checkpoints. LLCs quickly converge to a constant value as the size increases.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0020-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>= 1024 = 2048 = 4096 = 8192<br>300<br>200<br>100 Step t<br>t = 507<br>0 0 500 1000 1500 2000 0 500 1000 1500 2000 0 500 1000 1500 2000 0 500 1000 1500 2000 ttt = 1124 = 3247 = 9375<br>t = 27072<br>t = 59968<br>300 t = 121212<br>t = 499999<br>200<br>100<br>0<br>0 500 1000 1500 2000 0 500 1000 1500 2000 0 500 1000 1500 2000 0 500 1000 1500 2000<br>t<br>t<br><!-- End of picture text --></p>
+<p>Figure A.2: The size of SGLD minibatches has a negligible effect on LLC estimates (at least among the batch sizes considered). <em>Top:</em> Loss is evaluated on the same minibatch as the SGLD gradients. <em>Bottom:</em> Loss is evaluated on a newly sampled minibatch from the SGLD gradients (of the same size). Estimation hyperparameters are <em>C</em> = 8 <em>, T</em> SGLD = 2 <em>,</em> 000 <em>, µ</em> = 2<sup>20</sup> .</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0021-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Token<br>250<br>(1)<br>t<br>(2)<br>200 t<br>(3)<br>t<br>150 (4)t<br>(5)<br>t<br>100 (6)<br>t<br>(7)<br>t<br>50<br>(8)<br>t<br>Diff. seed<br>0 Same seed<br>10 2 10 3 10 4 10 5<br>Step t<br>t<br><!-- End of picture text --></p>
+<p>Figure A.3: Consistently seeding SGLD estimates at each checkpoint smooths out the resulting LLC-overtime curve. Except towards the end of training (this is plotted over a log time axis), the difference is barely noticeable. Variable seeds yield a noisier set of estimates.</p>
+<p>Since <em>β</em> always shows up in a product with <em>n</em> (in (8) for the SGLD step and in (3) for the LLC), we can view the inverse temperature as a multiplier that adjusts the effective size of your dataset. In a Bayesian setting, <em>β</em> = 2 would mean updating twice on each of the samples in your dataset.</p>
+<p>The problem with the default choice of <em>β</em><sup><em>∗</em></sup> is that as we increase <em>n</em> we have to decrease the SGLD step size <em>ϵ</em> to prevent the update from becoming ill-conditioned, and this eventually causes the gradient term to suppress the noise term. This, in turn, leads to requiring larger batches to suppress the gradient noise and requiring longer chains to sufficiently explore the local posterior (Appendix A.5.3).</p>
+<p>Instead of <em>nβ</em> = <em>n/</em> log <em>n</em> , we perform LLC estimation at <em>nβ</em> = <em>m/</em> log <em>m</em> , where <em>m</em> is the SGLD batch size.</p>
+<h4><strong>A.5.2 Seeding the random noise</strong></h4>
+<p>To smooth out the <em>λ</em><sup>ˆ</sup> <em>t</em> curves, we reset the random seed before LLC estimation run at each checkpoint. This means the sequence of injected Gaussian noise is the same for LLC estimation runs at different checkpoints. Additionally, if the batch size is held constant, the batch schedule will also be constant across different estimation runs. Figure A.3 shows that this does not affect the overall shape of the learning coefficient curves; it simply smooths it out.</p>
+<h4><strong>A.5.3 Calibrating</strong> <em>ϵ</em> <strong>,</strong> <em>β</em> <strong>, and</strong> <em>γ</em></h4>
+<p>As a rule of thumb, <em>ϵ</em> should be large enough that the <em>λ</em><sup>ˆ</sup> estimate converges within the <em>T</em> SGLD steps of each chain but not too large that you run into issues with numerical stability and divergent estimates. Subject to this constraint, <em>γ</em> should be as small as possible to encourage exploration without enabling the chains to “escape” to nearby better optima, and <em>β</em> should be as large as possible (but no greater than 1 <em>/</em> log <em>n</em> ).</p>
+<p>To determine the optimal SGLD hyperparameters, we perform a grid sweep over a reparametrization of the SGLD steps in terms of <em>β,</em><sup>˜</sup> ˜ <em>γ, ε</em> :</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0021-10.jpg" alt="" /></p>
+<p>where <em>β</em><sup>˜</sup> = <em>εβn/</em> 2, <em>γ</em> ˜ = <em>εγ/</em> 4.</p>
+<p>The results of this hyperparameter sweep are illustrated in Figure A.4 for final checkpoints. Separately (not pictured), we check the resulting hyperparameters for a subset of earlier checkpoints. This is needed since, for example, a well-behaved set of hyperparameters at the end of training may lead to failures like divergent estimates (Figure A.5) earlier in training when the geometry is more complex and thus the chains less stable.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0022-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>E[Ln(w)] vs. M for Various , , and  (t = 27072)<br>= 0.0001,  = 0.0001 = 0.0001,  = 0.0003 = 0.0001,  = 0.001 = 0.0001,  = 0.003 = 0.0001,  = 0.01 = 0.0001,  = 0.03<br>10 3<br>10 2<br>10 1<br>= 0.0003,  = 0.0001 = 0.0003,  = 0.0003 = 0.0003,  = 0.001 = 0.0003,  = 0.003 = 0.0003,  = 0.01 = 0.0003,  = 0.03<br>10 3<br>10 2<br>10 1<br>0.001<br>0.01<br>0.1<br>1.0<br>= 0.001,  = 0.0001 = 0.001,  = 0.0003 = 0.001,  = 0.001 = 0.001,  = 0.003 = 0.001,  = 0.01 = 0.001,  = 0.03 10.0<br>10 3 100.0<br>10 2<br>10 1<br>= 0.003,  = 0.0001 = 0.003,  = 0.0003 = 0.003,  = 0.001 = 0.003,  = 0.003 = 0.003,  = 0.01 = 0.003,  = 0.03<br>10 3<br>10 2<br>10 1<br>0 1000 2000 3000 4000 0 1000 2000 3000 4000 0 1000 2000 3000 4000 0 1000 2000 3000 4000 0 1000 2000 3000 4000 0 1000 2000 3000 4000<br>[)](ELwn<br>[)](ELwn<br>[)](ELwn<br>[)](ELwn<br><!-- End of picture text --></p>
+<p>Figure A.4: Results of grid sweep over SGLD hyperparameters for model 0 at <em>t</em> = 27k.</p>
+<h4><strong>A.5.4 LLC traces</strong></h4>
+<p>As a useful diagnostic when calibrating the LLC estimates, we propose an online variant for learning coefficient estimation. When overlaid on top of individual-chain LLC traces, this helps reveal common failure modes like divergent estimates, non-converged estimates, and escapes (Figure A.5). These traces display the running estimate of <em>λ</em><sup>ˆ</sup> as a function of the number of steps taken in a chain (with the estimate averaged across independent chains).</p>
+<p>Define <em>λ</em><sup>ˆ</sup> <em>τ</em> ( <em>w</em> 0), the LLC at <em>w</em> 0 after <em>τ</em> time-steps for a single SGLD chain as follows (Lau et al., 2025):</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0022-05.jpg" alt="" /></p>
+<p>Moving terms around, we get,</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0022-07.jpg" alt="" /></p>
+<p>where</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0022-09.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0023-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0023-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0023-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) Numerical instability (b) Non-convergence<br>(c) Negative estimates<br><!-- End of picture text --></p>
+<p>Figure A.5: <strong>Failure modes of SGLD estimation.</strong> <em>Top left</em> : the gradient term is too large, leading to issues with numerical instability and exploding <em>λ</em><sup>ˆ</sup> estimates. <em>Top right</em> : <em>ϵ</em> is too small, leading to <em>λ</em><sup>ˆ</sup> not converging within each chain. <em>Bottom</em> : the localization term is too small, which allows the chain to escape to better optima.</p>
+<p>This can be easily extended to an online estimate over chains by averaging the update <em>nβ</em> ( <em>ℓn</em> ( <em>wτ</em> ) <em>− ℓn</em> ( <em>w</em> 0)) over multiple chains.</p>
+<h4><strong>A.6 LLC estimates for a non-log-likelihood-based loss</strong></h4>
+<p>In the main body, we apply the LLC to empirical loss functions that do not arise as the log likelihood of independent random variables, due to the repeated use of dependent sub-sequences. Here we explain that it is possible to define a proper negative log likelihood over independent observations for the in-context linear regression setting: similar observations can be made in the language modeling setting.</p>
+<p>Let Π( <em>k</em> ) be a probability distribution over the context length <em>k</em> . Ideally, the transformer would be trained to make predictions <em>yk</em> given a context of length <em>k</em> where <em>k</em> is sampled from Π. With the given distribution over contexts this leads to a negative log likelihood of the form</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0023-08.jpg" alt="" /></p>
+<p>where <em>pk</em> is the probability of sampling <em>k</em> from Π and</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0023-10.jpg" alt="" /></p>
+<p>using the notation of Section 3 so <em>Sk</em> = ( <em>x</em> 1 <em>, y</em> 1 <em>, . . . , xk−</em> 1 <em>, yk−</em> 1 <em>, xk</em> ) is a context of length <em>k</em> . It is straightforward to check that this negative log likelihood <em>L</em> agrees with the population loss <em>ℓ</em> associated to the empirical loss defined in Section 3. However the empirical quantities <em>Ln</em> ( <em>w</em> ) and <em>ℓn</em> ( <em>w</em> ) defined for a set of samples of size <em>n</em> are <em>not</em> the same.</p>
+<p>Since we use the empirical loss <em>ℓn</em> in our calculation of the estimated LLC, whereas the foundational theory of SLT is written in terms of the empirical negative log likelihood <em>Ln</em> , it is natural to wonder how much of a difference this makes in practice. Figure A.6 depicts LLC traces (Appendix A.5) for a highlighted number of checkpoints using either a likelihood-based estimate (with variable sequence length) or loss-based estimate (with fixed sequence length). The relative orderings of complexities does not change, and even the values</p>
+<p>of the LLC estimates do not make much of a difference, except at the final checkpoint, which has a higher value for the sub-sequence-based estimate.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0024-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) MSE (b) Subsequence MSE<br>350 Step t<br>300 t = 507<br>t = 1124<br>250 t = 3247<br>200 t = 9375<br>t = 27072<br>150 t = 59968<br>t = 121212<br>100<br>t = 499999<br>50<br>0<br>0 250 500 750 1000 1250 1500 1750 2000 0 250 500 750 1000 1250 1500 1750 2000<br>t<br><!-- End of picture text --></p>
+<p>Figure A.6: Loss-based ( <em>left</em> ) and likelihood-based ( <em>right</em> ) LLC estimation yield identically ordered LLC estimates. With the exception of final checkpoint’s LLC estimate (which is larger for the loss-based estimate), the values are close to identical. These plots display <em>LLC traces</em> , which show the LLC estimate as a function of <em>SGLD steps</em> . This is a useful tool for calibrating LLC estimation (Appendix A.5).</p>
+<h4><strong>A.7 LLC estimates away from local minima</strong></h4>
+<p>Our methodology for detecting stages is to apply LLC estimation to compute <em>λ</em><sup>ˆ</sup> ( <em>w</em><sup><em>∗</em></sup> ) at neural network parameters <em>w</em><sup><em>∗</em></sup> = <em>wt</em> across training. In the typical case these parameters will <em>not</em> be local minima of the population loss, violating the theoretical conditions under which the LLC is defined.</p>
+<p>It is not surprising that the estimator appears to work if <em>w</em><sup><em>∗</em></sup> is approximately a local minima. Lau et al. (2025) validated their estimator at both parameters constructed to be local minima of the population loss and also at parameters found through training with stochastic gradient descent (possibly not local minima of the empirical loss, let alone the population loss). They showed that in both cases the estimator recovers the true learning coefficient associated with the global minimum of the population loss.</p>
+<p>On the other hand, if <em>w</em><sup><em>∗</em></sup> is far from any local minima, it is <em>a priori</em> quite surprising that the SGLD-based estimation procedure works at all, as in this situation one might expect the chains to explore directions in which the loss decreases. Nevertheless, Chen et al. (2023) found that, empirically, LLC estimation away from local minima appears to give sensible results in practice. In our case, with sufficient localization we see stable estimates throughout training.</p>
+<p>Theoretically accounting for this phenomenon is an interesting open problem. Perhaps there is a notion of <em>stably evolving equilibrium</em> in the setting of neural network training, echoing some of the ideas of Waddington (1957), such that the LLC estimation procedure is effectively giving us the LLC of a different potential to the population loss—a potential for which the current parameter actually <em>is</em> at a critical point. We leave addressing this question to future work.</p>
+<h3><strong>B LLC-based stage boundary identification</strong></h3>
+<h4><strong>B.1 Procedure for stage boundary identification</strong></h4>
+<p>To identify stage boundaries, we look for plateaus in the LLC: checkpoints at which the slope of <em>λ</em><sup>ˆ</sup> ( <em>wt</em> ) over <em>t</em> vanishes. To mitigate noise in the LLC estimates, we first fit a Gaussian process with some smoothing to the LLC-over-time curve. Then we numerically calculate the slope of this Gaussian process with respect to log <em>t</em> . The logarithm corrects for the fact that the learning coefficient, like the loss, changes less as training progresses. We identify stage boundaries by looking for checkpoints at which this estimated slope equals zero. The results of this procedure are depicted in Figure B.1 for language and Figure B.2 for in-context linear regression.</p>
+<p>At a local minima or maxima of the estimated LLC curve identifying a plateau from this estimated slope is straightforward, since the derivative crosses the x-axis. However at a saddle point, the slope may not exactly reach zero, so we have to specify a “tolerance” for the absolute value of the derivative, below which we treat the boundary as an effective plateau.</p>
+<p>In this case, we additionally require that the plateau be at a local minimum of the absolute first derivative. Otherwise, we may identify several adjacent points as all constituting a stage boundary.</p>
+<p>To summarize, identifying stage boundaries is sensitive to the following choices: the intervals between checkpoints, the amount of smoothing, whether to differentiate with respect to <em>t</em> or log <em>t</em> , and the choice of tolerance. However, once a given choice of these hyperparameters is fixed, stages can be <em>automatically</em> identified, without further human judgment.</p>
+<h4><strong>B.2 Stage boundary identification details for language model</strong></h4>
+<p>Figure B.1 displays the test loss and LLC curves from Figure 1a in addition to the weight norm over time and associated slopes. Stage boundaries coincide with where the slope of the LLC crosses zero, that is, where there is a plateau in the LLC.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0025-08.jpg" alt="" /></p>
+<p>Figure B.1: A more detailed version of Figure 1a for two-layer language models. <em>Top</em> : Loss, LLC, and weight norm, along with an overlaid Gaussian process fit to these curves (red dotted lines). <em>Bottom</em> : Associated slopes, both numerically estimated finite differences (transparent blue) and of the Gaussian process (red dotted lined). Note that stage LM5 may be subdivided into further stages (Appendix B.1). However, the noise in LLC estimates late in training is high, so we do not draw any conclusions from this.</p>
+<h4><strong>B.3 Stage boundary identification details for in-context linear regression</strong></h4>
+<p>Figure B.2 displays the test loss and LLC curves from Figure 1b in addition to the weight norm over time, and numerically estimated slopes associated to these three metrics. As in the case of language models, we identify stage boundaries by looking for plateaus in the LLC. Unlike the language models, here the boundaries LR1–LR2 and LR2–LR3 are clearly visible in the loss.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0026-02.jpg" alt="" /></p>
+<p>Figure B.2: A more detailed version of Figure 1b for in-context linear regression. <em>Top</em> : Loss, LLC, and weight norm, along with an overlaid Gaussian process fit to these curves (red dotted lines). <em>Bottom</em> : Associated slopes, both numerically estimated finite differences (transparent blue) and of the Gaussian process (red dotted lined). <em>Top middle</em> : Error bars displaying the standard deviation over the 10 SGLD chains are displayed in the background. Note that large error bars across chains are to be expected. Between different SGLD estimations, the variance is much lower. For example, averaged over training, the standard deviation over different seeds is only 4.2.</p>
+<h4><strong>B.4 Stage identification for additional training runs</strong></h4>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0026-05.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>5 4<br>4 3<br>2<br>3<br>10 2 10 3 10 4 10 2 10 3 10 4 10 5<br>150 150<br>125 100<br>100 50<br>75 0<br>10 2 10 3 10 4 10 2 10 3 10 4 10 5<br>Training step t Training step t<br>(a) Two-layer attention-only language transform- (b) In-context linear regression transformers.<br>ers.<br>()Test loss  wt ()Test loss  wt<br>()Local learning coeff.  wt ()Local learning coeff.  wt<br><!-- End of picture text --></p>
+<p>Figure B.3: Figure 1a and Figure 1b for multiple seeds. In both settings, LLC reveals a consistent set of stages across five seeds. Late-training behavior shows more variance across seeds (see Appendix B.4).</p>
+<p>Figure B.3a shows loss and LLC curves for five seeds (differing in model initialization and batch schedule). In each seed, LLC estimation reveals stage LM1–LM4. In three of the five seeds, stage LM5 is subdivided into two additional stages.</p>
+<p>Figure B.3b shows loss and LLC curves for five unique seeds (differing in model initialization and batch schedule). In each seed, LLC estimation reveals stages LR1–LR5. There is remarkably little variance across different seeds.</p>
+<h4><strong>B.5 Comparison to Hessian statistics</strong></h4>
+<p>Figure B.4 shows a quantification of the curvature-based notion of flatness captured by the Hessian (in contrast to the degeneracy-based notion of flatness captured by the LLC) for our in-context linear regression transformer. To estimate the trace and maximum eigenvalues shown in this figure, we use the PyHessian library (Yao et al., 2020) over a batch of <em>m</em> = 1024 samples.</p>
+<p>Crucially, we observe that these Hessian-derived metrics (henceforth, “curvature”) and the LLC are <em>not</em> consistently correlated. During the first part of LR2, the LLC and the curvature are jointly increasing. Starting at around <em>~~t~~</em> ~~= 20k, while the LLC is still increasing, the curvature starts decreasi~~ ng. In the first part of LR3, both metrics decrease in tandem, but as of around <em>t</em> = 120k, the curvature turns around and starts increasing.</p>
+<p>The Hessian fails to detect three of the four stage boundaries identified by our LLC-based methodology. Since these Hessian ~~-b~~ ased metrics are dominated by the largest eigenvalues—the directions of maximum curvature—they fail <u>to</u> observe the finer-grained measures of degeneracy that dominate the LLC. Moreover, we observe that LLC estimation is more scalable (empirically, it seems to be roughly linear in parameter count) than estimat ~~in~~ g the full Hessian (which is quadratic).</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0027-06.jpg" alt="" /></p>
+<p>Figure B.4: Hessian-based statistics reveal only one stage boundary in the development of our in-context linear regression transformer.</p>
+<h3><strong>C Developmental analysis of language models</strong></h3>
+<p>In this section, we present further evidence on behavioral (Appendix C.1) and structural (Appendix C.2) development of the language model over the course of training.</p>
+<h4><strong>C.1 Behavioral development</strong></h4>
+<h4><strong>C.1.1 Bigram score</strong></h4>
+<p>We empirically estimate the conditional bigram distribution by counting instances of bigrams over the training data. From this, we obtain the conditional distribution <em>q</em> ˜( <em>t</em><sup><em>′</em></sup> <em>|t</em> ), the likelihood that a token <em>t</em><sup><em>′</em></sup> follows <em>t</em> . The <em>bigram score Bk</em><sup>_S_at index</sup><sup>_k_of an input context</sup><sup>_S_is the cross entropy between the model’s predictions</sup> <em>p</em> ( <em>tk</em> +1 <em>|tk</em> ) at that position and the empirical bigram distribution,</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0028-05.jpg" alt="" /></p>
+<p>where the <em>t</em><sup>(</sup><sup><em>i</em>)</sup> <em>k</em> +1<sup>rangeoverthepossiblesecondtokensfromthetokenizervocabulary.Fromthisweobtain</sup> the <em>average bigram score</em></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0028-07.jpg" alt="" /></p>
+<p>where we take fixed random sequences of <em>ki</em> and <em>Si</em> for 1 <em>≤ i ≤ n</em> = 5 <em>,</em> 000, which is displayed over training in Figure 4(a). This is compared against the best-achievable bigram score, which is the bigram distribution entropy itself, averaged over the validation set.</p>
+<h4><strong>C.1.2</strong> <em>n</em> <strong>-gram scores</strong></h4>
+<p>In stage LM2 we consider <em>n</em> -grams, which are sequences of <em>n</em> consecutive tokens, meaning 2-grams and bigrams are the same. Specifically, we consider <em>common n</em> -grams, which is defined heuristically by comparing our 5,000 vocab size tokenizer with the full GPT-2 tokenizer. We use the GPT-2 tokenizer as our heuristic because its vocabulary is constructed iteratively by merging the most frequent pairs of tokens.</p>
+<p>We first tokenize the tokens in the full GPT-2 vocabulary to get a list of 50,257 <em>n</em> -grams for various <em>n</em> . The first 5,000 such <em>n</em> -grams are all 1-grams, after which 2-grams begin appearing, then 3-grams, 4-grams, and so on (where 2-grams and 3-grams may still continue to appear later in the vocabulary). We then define the set of common <em>n</em> -grams as the first 1,000 <em>n</em> -grams that appear in this list for a fixed <em>n</em> , <em>n ≥</em> 2.</p>
+<p>If we track the performance on <em>n</em> -grams and see it improve, we may ask whether this is simply a function of the model learning to use more context in general, rather than specifically improving on the set of <em>n</em> -grams being tracked. We measure performance against this baseline by defining an <em>n-gram score</em> . For a fixed <em>n</em> , we obtain the average loss <em>ℓ</em><sup><em>n</em></sup> gram<sup>ofthemodelonpredictingthefinaltokensofoursetof1,000</sup><sup><em>n</em>-gramsand</sup> also obtain the average loss <em>ℓ</em><sup><em>n</em></sup> test<sup>ofthemodelonavalidationsetatposition</sup><sup><em>n_ofeachvalidationsequence.</sup> The <em>n</em> -gram score is then defined to be <em>ℓ</em><sup><em>n</em></sup> test<sup></em>/ℓn_</sup> gram<sup>.</sup></p>
+<h4><strong>C.1.3 In-context learning score</strong></h4>
+<p>The <em>in-context learning score</em> is a behavioral measure of the relative performance of a model later in a sequence versus earlier in the sequence. We define ICL <em>k</em> 1: <em>k</em> 2 to be the loss on token <em>k</em> 2 minus the loss on token <em>k</em> 1, so a more negative score indicates better relative performance later in the sequence. A more negative ICL score does not, however, mean that a model is achieving better overall loss on later tokens; it is only about the relative improvement. For the language model, we follow a similar construction as Olsson et al. (2022), where we take <em>k</em> 2 to be the 500th token and <em>k</em> 1 to be the 50th token. This is then averaged over a 100k-row validation dataset. The performance of the language model over the course of training can be seen at the bottom of Figure 4(f).</p>
+<h4><strong>C.1.4 Visualizing behavioral changes</strong></h4>
+<p>In Figure C.1, we visualize changes in the model’s input/output behavior by comparing model predictions before and after developmental stages and highlighting tokens with the greatest differences.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0029-02.jpg" alt="" /></p>
+<p>Figure C.1: Samples are shown with tokens highlighted to indicate changes in logits during a given range. Red is improved performance (higher logit output for the true next token) and blue is worse. Sample (a): improvement in bigrams (LM1) such as “te/ll, ab/out, des/ire, mot/ion, eng/aged, strugg/le, etc.&quot; Sample (b): improvement in common <em>n</em> -grams (LM2) such as “L/in/ux, P/y/th/on, h/on/or/able, S/up/reme, dat/ab/ase, f/ram/ew/ork.&quot; Sample (c): development of in-context learning via induction circuits (LM3, LM4), visible in the improved predictions in the word “D/urs/ley&quot; after the first time it appears in the context, as initially observed by (Olsson et al., 2022).</p>
+<h4><strong>C.2 Structural development</strong></h4>
+<h4><strong>C.2.1 Positional embedding</strong></h4>
+<p>In Figure C.2, we measure the effect of the positional embedding on model performance by comparing the model’s performance at particular context positions on a validation set over the course of training against performance on the same validation set but with the positional embedding zero-ablated. The full context length is 1024, and we measure test loss at positions 1, 2, 3, 5, 10, 20, 30, 50, 100, 200, 300, 500, and 1000. In the transition from stage LM1 to LM2, the model begins using the learnable positional embedding to improve performance. The difference between test loss with and without the positional ablation is negligible at all measured positions until the LM1–LM2 boundary.</p>
+<p>Structurally, we might predict that the positional embeddings should organize themselves in a particular way: in order to understand relative positions, adjacent positions should be embedded close to each other, and far-away positions should be embedded far apart.</p>
+<p>In Figure C.3, we examine the development of the positional embedding itself over time from two angles. The first is to take the embeddings of each position in the context and to run PCA on those embeddings. The result is that as training progresses, the positional embedding PCAs gradually resolve into Lissajous curves, suggesting that the positional embeddings might look like a random walk (Antognini &amp; Sohl-Dickstein, 2018; Shinn, 2023). However, if we look to the explained variance, we see that it grows very large for PC1, reaching 94 <em>.</em> 2% at training step 6400. This is much higher than we would expect for Brownian motion, where we expect to see about 61% explained variance in PC1 (Antognini &amp; Sohl-Dickstein, 2018).</p>
+<p>The second perspective we use is to look at how the magnitudes of positional embeddings over the context length develop. In this case, we observe that the magnitudes seem to have a fairly regular structure. In conjunction with the PCAs and explained variance, we might infer that the positional embeddings look approximately like a (possibly curved) line in <em>d</em> model = 256 dimensional space. A positional embedding</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0030-00.jpg" alt="" /></p>
+<p>Figure C.2: The model learns to start using the positional encoding in LM2, when the performance starts to worsen when ablating the positional encoding. In both plots, earlier token positions are colored more purple, while later token positions are more yellow, and the overall mean loss is colored in red. Both sets of per-token losses are shown in both graphs for ease of comparison. <em>Left:</em> original test loss is emphasized. <em>Right:</em> test loss with the positional embedding ablated is emphasized.</p>
+<p>organized in this way would make it easier for an attention head to attend to multiple recent tokens, which is necessary if a single head is to learn <em>n</em> -grams.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0031-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Training step 0 Training step 400 Training step 800 Training step 1600 Training step 3200 Training step 6400<br>0.2 0.4 4 5.0 5.0<br>1<br>2 2.5 2.5<br>0.2<br>0.0 0 0 0.0 0.0<br>0.0<br>2 2.5 2.5<br>0.2 0.2 1 4 5.0 5.0<br>0.2 0.0 0.2 0.0 0.5 0.0 0.5 0 1 0 2 0 1<br>PC 2 PC 2 PC 2 PC 2 PC 2 PC 2<br>0.2 0.6 0.75 1.0 3<br>0.1 0.4 0.50 2 1<br>0.0 0.2 0.25 0.5<br>1<br>0.1 0.0 0.00 0.0 0<br>0.2 0<br>0.2 0.25<br>0.2 0.0 0.2 0.2 0.0 0.2 0.0 0.5 0 1 0 2 1 0 1<br>PC 3 PC 3 PC 3 PC 3 PC 3 PC 3<br>1.0<br>0.2 0.2 0.75 2<br>0.1 0.50 0.5 1 1<br>0.0 0.0 0.25 0.0 0<br>0.1 0.00 0.5 0<br>0.2 0.2 0.25 1<br>0.2 0.0 0.2 0.25 0.00 0.25 1 0 1 2.5 0.0 2.5 5 0 5 5 0 5<br>PC 1 PC 1 PC 1 PC 1 PC 1 PC 1<br>0.008 0.8 0.8 0.8<br>0.4<br>0.006 0.02 0.6 0.6 0.6<br>0.004 0.01 0.2 0.4 0.4 0.4<br>0.002 0.2 0.2 0.2<br>0.000 0.00 0.0 0.0 0.0 0.0<br>1 2 3 1 2 3 1 2 3 1 2 3 1 2 3 1 2 3<br>PC PC PC PC PC PC<br>0.90 1.2 4 6 6<br>0.85 1.50<br>0.80 1.0 1.25 3 4 4<br>0.75 0.8 1.00 2 2 2<br>0.70 0.75 1<br>0 500 1000 0 500 1000 0 500 1000 0 500 1000 0 500 1000 0 500 1000<br>Position Position Position Position Position Position<br>PC 1 PC 1 PC 1 PC 1 PC 1 PC 1<br>PC 2 PC 2 PC 2 PC 2 PC 2 PC 2<br>PC 3 PC 3 PC 3 PC 3 PC 3 PC 3<br>Explained variance Explained variance Explained variance Explained variance Explained variance Explained variance<br>Magnitude Magnitude Magnitude Magnitude Magnitude Magnitude<br><!-- End of picture text --></p>
+<p>Figure C.3: Columns progress through training time at training steps 0, 400, 800, 1600, 3200, and 6400. The first three rows are plots of the first three principle components of PCA on the positional embedding weights, while the fourth row shows the explained variance for each of the principal components. The fifth row plots the magnitude of the embedding of each position in the context length of 1024.</p>
+<h4><strong>C.2.2 Composition scores</strong></h4>
+<p>Let <em>WQ</em><sup><em>h, W</em></sup> <em>K</em><sup><em>h, W</em></sup> <em>V</em><sup>_h_bethequery,key,andvalueweightsofattentionhead</sup><sup>_h_respectively.Therearethree</sup> types of composition between attention heads in transformer models in Elhage et al. (2021):</p>
+<ul>
+<li>
+<p>Q-Composition: the query matrix <em>WQ</em><sup>_h_of an attention head reads in a subspace affected by a previous</sup> head</p>
+</li>
+<li>
+<p>K-Composition: the key matrix <em>WK</em><sup>_h_ofanattentionheadreadsinasubspaceaffectedbyaprevious</sup> head</p>
+</li>
+<li>
+<p>V-Composition: the value matrix <em>WV</em><sup>_h_of an attention head reads in a subspace affected by a previous</sup> head</p>
+</li>
+</ul>
+<p>If <em>WO</em><sup><em>h_istheoutputmatrixofanattentionhead,then</sup><sup><em>W h</em></sup> <em>QK</em><sup>=</sup><sup><em>W h</em></sup> <em>Q</em><sup><em>T</em></sup> <em>WK</em><sup><em>h_and</sup><sup><em>W h</em></sup> <em>OV</em><sup>=</sup><sup><em>W h</em></sup> <em>O</em><sup><em>W h</em></sup> <em>V</em><sup>.</sup> The composition scores are <em>||MWOV</em><sup><em>h_1</sup><sup></em>||F/</em>(</sup><sup></em>||M||F||W h_</sup> <em>OV</em><sup>1</sup><sup><em>||F</em>)</sup> (17)</p>
+<p>Where <em>M</em> = <em>WQK</em><sup>_h_2</sup><sup><em>T</em>,</sup><sup><em>M</em>=</sup><sup><em>W h</em></sup> <em>QK</em><sup>2, and</sup><sup><em>M</em>=</sup><sup><em>W h</em></sup> <em>OV</em><sup>2for Q-, K-, and V-Composition respectively.See Figure C.4</sup> for K-composition scores over time between attention heads in the induction circuits.</p>
+<h4><strong>C.2.3 Previous-token matching score</strong></h4>
+<p>The <em>previous-token matching score</em> is a structural measure of induction head attention. It is the attention score given to [ <em>A</em> ] by an attention head at [ <em>B</em> ] in the sequence <em>. . .</em> [ <em>A</em> ][ <em>B</em> ] (i.e., how much the head attends to the immediately preceding token).</p>
+<p>We compute this score using a synthetic data generating process, generating 10k fixed random sequences with length between 16 and 64. The first token is a special “beginning of string&quot; token, and the remaining tokens are uniformly randomly sampled from other tokens in the vocabulary.</p>
+<p>For each sample in this synthetic dataset, we measure the attention score that an attention head gives to the previous token when at the last token in the sequence. These scores are averaged across the dataset to produce the previous-token matching score for that attention head at a given checkpoint. The progression of previous-token matching scores over time can be seen in Figure 4(d).</p>
+<h4><strong>C.2.4 Prefix matching score</strong></h4>
+<p>The <em>prefix matching score</em> from Olsson et al. (2022) is defined similarly to the previous-token matching score. Given a sequence [ <em>A</em> ][ <em>B</em> ] <em>. . .</em> [ <em>A</em> ], the prefix matching score of a particular attention head is how much the attention head attends back to the first instance of [ <em>A</em> ] when at the second instance of [ <em>A</em> ].</p>
+<p>We compute this score using a synthetic data-generating process. We first generate 10k fixed random sequences of length 128. The first token is always a special “beginning of string&quot; token and the [ <em>A</em> ] and [ <em>B</em> ] tokens are selected and placed randomly. One [ <em>A</em> ] token is placed in the first half of the sequence, the other is placed in the second half, and the [ <em>B</em> ] token is placed directly after the first [ <em>A</em> ] token. The remaining tokens are randomly sampled from the tokenizer vocabulary, excluding the [ <em>A</em> ], [ <em>B</em> ], and beginning of string tokens.</p>
+<p>For each sample in this synthetic dataset, we measure the attention score that each attention head assigns to the earlier instance of [ <em>A</em> ] from the latter instance of [ <em>A</em> ]. These scores are averaged across the dataset to produce the prefix matching score for that attention head at a given checkpoint. The progression of prefix matching scores over time can be seen in Figure 4(e).</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0033-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1:1 &lt; &gt; 2:1 1:1 &lt; &gt; 2:7 1:1 &lt; &gt; 2:8<br>0.20<br>0.15<br>0.10<br>0.05<br>0.00<br>1:2 &lt; &gt; 2:1 1:2 &lt; &gt; 2:7 1:2 &lt; &gt; 2:8<br>0.20<br>0.15<br>0.10<br>0.05<br>0.00<br>1:5 &lt; &gt; 2:1 1:5 &lt; &gt; 2:7 1:5 &lt; &gt; 2:8<br>0.20<br>0.15<br>0.10<br>0.05<br>0.00<br>10 2 10 3 10 4 10 2 10 3 10 4 10 2 10 3 10 4<br>Training step, t Training step, t Training step, t<br>K-composition<br>K-composition<br>K-composition<br><!-- End of picture text --></p>
+<p>Figure C.4: The K-composition scores (Elhage et al., 2021) between first and second layer attention heads. The <em>h</em> th attention head in layer <em>l</em> is indexed by <em>l</em> : <em>h</em> . The attention heads that eventually become previous token heads are <em>h</em> = 2 <em>,</em> 5 in layer 1 (subplot rows 2 and 3), and the attention heads that eventually become induction heads are <em>h</em> = 7 <em>,</em> 8 in layer 2 (subplot columns 2 and 3). The attention heads 1 : 1 and 2 : 1 are included for comparison. The induction heads 2 : 7 and 2 : 8 begin K-composing with first layer heads near the start of stage LM2. They continue to compose with the previous token heads in stages LM3 and LM4 (highlighted in green) while their K-composition scores drop with other attention heads in layer 1 in later stages.</p>
+<h3><strong>D Developmental analysis of regression transformers</strong></h3>
+<p>In this section, we present further evidence on the behavioral (Appendix D.1) and structural (Appendix D.2) development of the transformer in the setting of in-context linear regression.</p>
+<h4><strong>D.1 Behavioral development</strong></h4>
+<h4><strong>D.1.1 Task prior score</strong></h4>
+<p>In addition to training models on a data distribution in which tasks <strong>t</strong> are generated on-the-fly, we examine the setting of Raventós et al. (2023), in which a finite set of <em>M</em> tasks is generated ahead of time, and training samples involve randomly selected tasks from this set.</p>
+<p>Figure D.1 depicts (a) the mean square distance between the model’s predictions and the zero prediction in addition to (b) the mean square distance between the model’s predictions and the “task prior” prediction, using the component-wise averaged <strong>t</strong> over the set of tasks encountered during training. For all models, the minimum distance to the task prior prediction is lower than the minimum distance to the zero prediction. Hence, we call stage LR1 “learning the task prior” rather than simply learning the zero prediction.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0034-06.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) MSE from 0 Prediction (b) MSE from t Prediction<br>10 1 10 1 M = 2 4<br>M = 2 8<br>M = 2 12<br>10 0 10 0 M = 2 16<br>M = 2 20<br>10 1 10 1<br>10 1 10 3 10 5 10 1 10 3 10 5<br>Step t Step t<br>MSE MSE<br><!-- End of picture text --></p>
+<p>Figure D.1: <strong>Learning the task prior</strong> is universal across models trained on very different data distributions. Each line represents a model trained on a data distribution with a different number of <em>M</em> distinct tasks (“task diversity” in Raventós et al., 2023). In addition to taking a finite <em>M</em> , the models depicted here differ from the other models considered in this paper in that the former were trained with a maximum learning rate of 0 <em>.</em> 01, and the models (inadvertently) lack an output matrix after the multi-head attention layer.</p>
+<h4><strong>D.1.2 ICL</strong></h4>
+<p>We consider two variants of the ICL score: ICL1: <em>D</em> , and ICL <em>D</em> : <em>K</em> .</p>
+<p>If the noise term <em>σ</em><sup>2</sup> equals zero and both tasks <strong>t</strong> and inputs <em>xk</em> are normalized (i.e., <strong>t</strong> <em>∈ S</em><sup>_D−_1</sup> ), then <em>D −</em> 1 observations of input/output pairs are enough to precisely identify <strong>t</strong> . Therefore, ICL1: <em>D</em> measures how successful the model is at initially locating the task. The fact that the tasks and inputs are not normalized changes this only slightly: the task will still sit near <em>S</em><sup>_D−_1</sup> within a shell of vanishing thickness as <em>D →∞</em> .</p>
+<p>Once localized, ICL <em>D</em> : <em>K</em> measures how successfully the model refines its internal estimate of <strong>t</strong> with additional examples, which it can use to reduce the error due to noise.</p>
+<p>In terms of implementation, it’s not necessary for the model to internally make a distinction between locating and refining its estimate of the task. For example, ridge regression makes no distinction. Still, we find it useful for reasoning about the progression of the model. In particular, we note that early in stage LR2, while the model begins to develop ICL for early tokens, it becomes <em>worse</em> at ICL over tokens late in the context. Later, at around 23k steps, ICL <em>D</em> : <em>K</em> stabilizes, while ICL1: <em>D</em> continues improving over the entire training run.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0035-00.jpg" alt="" /></p>
+<p>Figure D.2: <strong>ICL scores</strong> for the in-context linear regression model. <em>Right</em> : ICL scores between inputs 1 and 4 and inputs 4 and 8 over time. We see that ICL emerges during the first half of LR2. <em>Left</em> : Highlighted ICL score curves from the end of LR1 to halfway through LR2. Note that when the model first starts improving on early tokens, it temporarily becomes worse at predicting later tokens. Note also that the model ceases to become better at later tokens as of the second half of LR2, whereas ICL on early tokens continues to improve throughout training.</p>
+<h4><strong>D.1.3 OOD generalization</strong></h4>
+<p>To further investigate behavior in stages LR2 and LR3, we probe the model on data sampled from different distributions than encountered during training.<sup>1</sup> We evaluate behavior on two families of perturbations: “OOD inputs” <em>xk</em> , sampled according to a different scale</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0035-04.jpg" alt="" /></p>
+<p>for some gain parameter <em>g</em> , and “OOD tasks”</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0035-06.jpg" alt="" /></p>
+<p>Note that these inputs and tasks are not out-of-distribution in the sense of coming from a distribution with a different support than the training distribution. However, the samples drawn from these “extreme” distributions are exponentially suppressed by the original training distribution. Figure D.3 plots the normalized MSE for these two distributions over training time.</p>
+<p>Between <em>t</em> = 1 <em>k</em> and <em>t</em> = 4k the model’s outputs rapidly <em>diminish</em> in scale for out-of-distribution samples, both for <em>g &gt;</em> 1 and <em>g &lt;</em> 1, especially for out-of-distribution <em>inputs</em> . While the model is moving away from predicting with the task prior for in-distribution samples, it moves closer to predicting with the task prior for-in-distribution samples.</p>
+<p>Between <em>t</em> = 4k and <em>t</em> = 23k, the model recovers on moderately out-of-distribution inputs <em>g &lt;</em> 10<sup>1</sup><sup>_._5</sup> with performance remaining close to constant beyond this range. Past this stage, performance improves constantly for out-of-distribution tasks.</p>
+<p>For out-of-distribution inputs, performance eventually worsens for some ranges of <em>g</em> . Between <em>t</em> = 23k and <em>t</em> = 80k the model further approaches the task prior prediction for extreme out-of-distribution inputs <em>g &gt;</em> 10<sup>1</sup><sup>_.<em>5</sup> . Subsequently, between <em>t</em> = 75k and <em>t</em> = 130k the model moves away from the task prior prediction for extreme inputs, and performance deteriorates for inputs with <em>g &gt;</em> 10<sup>0</sup><sup></em>._5</sup> . As of LR5, performance is roughly constant.</p>
+<blockquote>
+<p>1Cf. Raventós et al. (2023) evaluating models trained on a set of discrete tasks on the “true” distribution consisting of novel tasks.</p>
+</blockquote>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0036-00.jpg" alt="" /></p>
+<p>Figure D.3: Performance on extreme inputs over time may reveal additional substages in LR2 and in LR3. <em>Left</em> : The model first becomes better, then worsens at ICL on inputs sampled from <em>N</em> (0 <em>, gID</em> ) for large <em>g</em> . <em>Right</em> : The model continues to improve on ICL at tasks sampled from <em>N</em> (0 <em>, gID</em> ). <em>Top</em> : Normalized loss (divided by <em>g</em><sup>2</sup> ) over time for OOD inputs and tasks. <em>Bottom</em> : Average <em>|y</em> ˆ <em>|</em> over time for OOD inputs and tasks.</p>
+<h4><strong>D.2 Structural development</strong></h4>
+<h4><strong>D.2.1 Embedding</strong></h4>
+<p>The embedding matrix <em>WE</em> is a linear transformation from R<sup><em>D</em>+1</sup> <em>→</em> R<sup>_d_embed</sup> . Plotting the <em>D</em> + 1 singular values of this matrix, we notice that the embedding partially loses one of its components starting at the end of LR2 (Figure D.4a).</p>
+<p>The input “tokens” <em>xk</em> span a <em>D</em> -dimensional subspace of the ( <em>D</em> + 1)-dimensional “token space.” The target tokens <em>yk</em> span an orthogonal 1-dimensional subspace. The collapse of one of the embedding matrix’s singular values means that the model learns to redundantly encode the inputs and targets in the same <em>D</em> - dimensional subspace of the space of residual stream activations. The almost order of magnitude separation in the magnitudes of the square singular value means that the ( <em>D</em> + 1)<sup>th</sup> component of the token embedding explains only 2.9% of the variance in activations of the residual stream immediately after the embedding, whereas the dominant components explain roughly 24% each.</p>
+<p><strong>Contributions to degeneracy</strong> Given a linear transformation <em>T</em> 1 : R<sup><em>D_1</sup> <em>→</em> R<sup><em>D_2</sup> followed by another linear transformation <em>T</em> 2 : R<sup><em>D_2</sup> <em>→</em> R<sup><em>D_3</sup> , reducing the rank of <em>T</em> 1 from <em>r</em> to <em>r</em><sup></em>′</em></sup> <em>&lt; r</em> renders <em>D</em> 3( <em>r − r</em><sup></em>′</em></sup> ) components of the second transformation irrelevant. This would mean a <em>decrease</em> in the learning coefficient of <em>D</em> 3( <em>r−r</em><sup><em>′</em></sup> ) <em>/</em> 2 (a decrease in the <em>effective dimensionality</em> of <em>d</em> leads to a decrease in the LLC of <em>d/</em> 2<sup>2</sup> ). In the actual model, we don’t see an exact decrease in the rank, and a layer normalization sits between the linear transformation of the embedding and the linear transformations of each transformer block and unembedding. It is unclear what the precise relation between structure and degeneracy is in this case (Appendix D.2.6). Still, suggestively, the onset of embedding collapse coincides with a decrease in the rate of increase of <em>λ</em><sup>ˆ</sup> ( <em>wt</em> ).</p>
+<blockquote>
+<p>2Note that this is not the only possible way for the LLC to decrease. Changing the local loss landscape from quadratic to quartic or some higher power would also lower the LLC, by a fractional amount.</p>
+</blockquote>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0037-00.jpg" alt="" /></p>
+<p>Figure D.4: <em>Left</em> : The embedding partially “collapses” during the second half of LR2. At the start of stage LR2, the minimum singular values explains only 3% of the variance in residual stream activations due to the sample. By the end of training, it explains half that. <em>Middle</em> : The positional encoding goes through a similar shift during LR3 (that begins earlier during LR2). <em>Right</em> : The cosine similarity between the 5 rows of <em>W</em> embed and the projection of those rows onto the subspace spanned by <em>W</em> unembed shows that the model learns to write to the same write tokens and positional information to the same subspace.</p>
+<h4><strong>D.2.2 Positional encoding</strong></h4>
+<p>The positional encoding goes through a similar collapse to the unembedding starting during the second part of LR2 and continuing into LR3 (Figure D.4b). Additionally, throughout these stages, the subspace spanned by the embedding becomes more aligned with the subspace spanned by the positional encoding (Figure D.4c).</p>
+<p><strong>Contributions to degeneracy</strong> For the same reason as with the token embedding, a decrease in the dimensionality of the subspace occupied by activations reduces the effective number of dimensions and thus the learning coefficient. This occurs both as the positional encoding’s effective dimensionality decreases (vanishing singular values, Figure D.4b) and as the token embedding subspace and positional embedding subspace align (increasing cosine similarity, Figure D.4b).</p>
+<h4><strong>D.2.3 Attention collapse</strong></h4>
+<p>Over the course of training, we observe that some attention heads learn to attend <em>solely</em> (soft attention becomes hard attention) and <em>consistently</em> to certain positions (the attention pattern becomes contentindependent). We call this phenomenon <em>attention collapse</em> in parallel with the other observed forms of collapse. Not only does this potentially contribute to a decrease in the LLC, but it also makes the attention heads identifiable: we find a self-attention head, previous-attention heads, previous- <em>x</em> -attention heads, and previous- <em>y</em> -attention heads.</p>
+<p><em>x</em> <strong>-attention vs.</strong> <em>y</em> <strong>-attention</strong> For convenience we separate each attention head in two: one part for the <em>x</em> -tokens, and the other for the <em>y</em> -tokens.</p>
+<p><strong>Attention entropy score</strong> To quantify attention hardness, we use the <em>attention entropy score</em> (Ghader &amp; Monz, 2017; Vig &amp; Belinkov, 2019). Given the attention pattern <em>αk,k</em><sup>(</sup><sup><em>b,h′</em>)forhowmuchtoken</sup><sup><em>k_inhead</sup><sup><em>h_in</sup> block <em>b</em> attends back to token <em>k</em><sup></em>′</em></sup> , its attention entropy score <em>Hk</em><sup>(</sup><sup><em>b,h</em>)</sup> is the Shannon entropy over preceding indices <em>k</em><sup><em>′</em></sup> <em>&lt; k</em> ,</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0037-09.jpg" alt="" /></p>
+<p>From this, we compute the normalized entropy <em>H</em><sup>ˆ</sup> <em>k</em><sup>(</sup><sup><em>b,k</em>)</sup> , which divides the attention entropy by the maximum entropy for the given context length,</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0037-11.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0038-00.jpg" alt="" /></p>
+<p>Figure D.5: <strong>Attention hardening</strong> as measured by the normalized attention entropy score (Appendix D.2.3). Block 1 heads 1y/3y and block 2 head 1y harden over training. In combination with the fact that these attention heads become less variable (Figure D.6), this may contribute to a decrease in the LLC (discussed in Appendix D.2.3) The x-components of the attention heads remain much softer over the entire training run.</p>
+<p>This accounts for the entropy being calculated over different numbers of tokens and is displayed in Figure D.5. Notably, the identified stages line up closely to stages of these attention entropy curves.</p>
+<p><strong>Constant attention</strong> Accomplishing constant attention requires the presence of biases in the query and key transformations, or if there is no bias (as is the case for the models we investigated), requires attending to the positional embedding. With the Shortformer-style positional encoding used for the language models (Appendix F.1.1), this is straightforward: the positional information is injected directly into the key and weight matrices. With the in-context linear regression models, where the positional embedding is added to the residual stream activations, this is less straightforward: achieving constant attention requires separating residual stream activations into orthogonal positional- and input-dependent subspaces, then reading from the former with the query and key weight matrices.</p>
+<p><strong>Attention variability score</strong> To quantify how constant the attention pattern is, we use measure <em>attention variability</em> (Vig &amp; Belinkov, 2019),</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0039-00.jpg" alt="" /></p>
+<p>Figure D.6: <strong>Attention variability</strong> over time. The heads that develop hard attention in Figure D.5 (block 1 heads 1y, 3y, and 4y) also become less variable over time.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0039-02.jpg" alt="" /></p>
+<p>where the division by 2 ensures the variability lies in the range [0 <em>,</em> 1]. This is displayed in Figure D.6. These reveal that though attention hardness and variability are independent axes of differentiation, empirically, we observe that hard attention is correlated with low variability.</p>
+<p><strong>Self-attention score</strong> Self-attention is measured by the average amount a token <em>k</em> attends to itself, <em>αk,k</em><sup>(</sup><sup><em>b,h</em>).</sup></p>
+<p><strong>Previous-token attention score</strong> Previous-token attention is measured the same as in the language model setting (Appendix C.2) with one difference: we compute the previous-token score not over a synthetic dataset but over a validation batch.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0039-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0039-07.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0040-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0040-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0040-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0040-03.jpg" alt="" /></p>
+<p>Figure D.7: Collection of attention heads identified by their consistent and recognizable attention patterns. <em>Left to right</em> : previous- <em>x</em> s head, previous-token head, previous- <em>y</em> s head, previous- <em>y</em> s head</p>
+<p><strong>Classifying attention heads</strong> Several attention heads are easy to identify by virtue of being both concentrated and consistent. These are depicted in Figure D.7 and include: (B1H3y) previous-token heads (also present in the language model case), (B1H1y) previous-x, and (B1H4x, B2H1y) previous-y heads. Other training runs also include self-attention heads.</p>
+<p><strong>Contributions to degeneracy</strong> Suppose an attention head <em>h</em> in block <em>b</em> has the following constant attention pattern (after the softmax) <em>A</em><sup>(</sup><sup><em>b,h</em>)</sup> =<sup>�</sup> <em>i</em><sup><em>δl</em>(</sup><sup><em>i</em>)</sup><sup><em>i</em>.That is, for each token</sup><sup><em>i</em>, that attention head attends solely to</sup> a single earlier token <em>l</em> ( <em>i</em> ) <em>≤ i</em> and no others. Restricting to single-head attention (the argument generalizes straightforwardly), the final contribution of this attention head to the residual stream is the following (Phuong &amp; Hutter, 2022):</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0040-07.jpg" alt="" /></p>
+<p>where <em>A ∈</em> R<sup><em>ℓz</em></sup> <em>×</em> R<sup><em>ℓx</em></sup> is the attention pattern, <em>V ∈</em> R<sup>_d_out</sup> <em>×</em> R<sup><em>ℓz</em></sup> is the value matrix, and <em>WO ∈</em> R<sup><em>dz</em></sup> <em>×</em> R<sup><em>ℓz</em></sup> is the matrix of residual stream activations, and <em>V ∈</em> R<sup>_d_out</sup> <em>×</em> R<sup><em>ℓz</em></sup> is the value matrix. The result of this operation is subsequently multiplied by the output matrix and then added back into the residual stream. Plugging in the hard and constant attention pattern, writing out the matrix multiplication, and filling in the definition of <em>A</em> we get</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0040-09.jpg" alt="" /></p>
+<p>For each column in <em>A</em> , the hard attention picks out a single element of <em>V</em> at column <em>l</em> ( <em>j</em> ) for each row <em>k</em> . Now suppose that there is a token <em>l</em><sup><em>′</em></sup> that receives no attention from any position <em>j</em> . That is, there exists no <em>j</em> such that <em>l</em><sup><em>′</em></sup> = <em>l</em> ( <em>j</em> ). Then, there is a column <em>l</em><sup><em>′</em></sup> in <em>V</em> which does not contribute to the result of <em>V · A</em> , and, in turn, a column <em>l</em><sup><em>′</em></sup> in <em>WO</em> , which does not contribute to the output of the head. As discussed for the embedding and layer norm, this decrease in effective dimensionality leads to a decrease in the learning coefficient.</p>
+<p>Note that this argument does not hold for all hard and constant attention patterns. It holds solely for attention patterns that consistently ignore some earlier token across all positions, such as the previous- <em>x</em> and previous- <em>y</em> heads, but not the self-attention and previous-token heads. As discussed in Appendix D.2.6, it remains unclear what exactly the threshold for “ignoring” a token should be before it contributes to degeneracy and whether any of the heads we examine actually meet this threshold.</p>
+<h4><strong>D.2.4 Unembedding collapse</strong></h4>
+<p>The unembedding block consists of a layer normalization layer LN( <em>z</em> ) followed by a linear transformation <em>WU z</em> + <em>bU</em> and finally a projection <em>πy</em> to extract the <em>y</em> -component. Given the 64-dimensional vector of activations <em>z</em> in the residual stream right before the unembedding (for a specific token), the full unembedding operation is:</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0040-14.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0041-00.jpg" alt="" /></p>
+<p>Figure D.8: <strong>Unembedding weights over time</strong> for the RT 1 transformer undergo a “collapse” that begins towards the end of LR2. When these weights reach zero in LR3 and LR4, it may contribute to the observed decrease in the LLC. <em>Top</em> : Weights over time. The outlier in the positive direction is the weight for the <em>y</em> - token output. <em>Bottom</em> : Biases over time. <em>Left</em> : Unembedding layer normalization weights over time. <em>Middle</em> : Unembedding linear weights over time (restricted to <em>y</em> -subspace). <em>Right</em> : Effective unembedding weights over time (obtained by element-wise multiplication of preceding columns, and focusing on the bias for only the <em>y</em> -token.</p>
+<p>where <em>⊙</em> denotes element-wise multiplication of two vectors and <em>γ, β</em> are the layer normalization weights and biases respectively.</p>
+<p><strong>Effective unembedding weights and biases</strong> Moving terms around, we can represent this as</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0041-04.jpg" alt="" /></p>
+<p>where we order the outputs so that the <em>y</em> -token corresponds to the 0th row. Because we are reading out a single <em>y</em> component, we can express the unembedding transformation in terms of “effective&quot; unembedding weights and biases</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0041-06.jpg" alt="" /></p>
+<p><strong>Unembedding weights over time</strong> In Figure D.8, we plot ( <em>γ, β</em> ), (( <em>WU</em> )[0 <em>,</em> :] <em>,</em> ( <em>bU</em> )[0]), and ( <em>W</em><sup>˜</sup> <em>U ,</em><sup>˜</sup> <em>bU</em> ) as a function of training steps, along with the mean weight over time. These are 64- and 1-dimensional vectors, so we can display the entire set of components. During stage LR3 the majority of weights <em>β</em> and <em>WU</em> “collapse” to zero. Additionally, the layer normalization biases temporarily experience a large increase in variance before returning to small values. Despite this, the mean of the linear weights, layer normalization biases, and effective weights remains remarkably constant and close to zero throughout the entire process.</p>
+<p><strong>Contributions to degeneracy</strong> Suppose that <em>D</em> of the layer normalization weights have vanished, say <em>γi</em> = 0 for 1 <em>≤ i ≤ D</em> . Then the corresponding columns of <em>WU</em> only contribute to the unembedding via their product ( <em>WU</em> )[: <em>,</em> 1: <em>D</em> ] <em>β</em> [1: <em>D</em> ] with the first <em>D</em> rows of <em>β</em> . This creates a typical form of degeneracy studied in SLT and found, for example, in deep linear networks, where we can change the weights to ( <em>WU</em> )[: <em>,</em> 1: <em>D</em> ] <em>A, A</em><sup>_−_1</sup> <em>β</em> [1: <em>D</em> ] for any invertible <em>D × D</em> matrix <em>A</em> without changing the function computed by the network. If in addition the <em>βi</em> vanish for 1 <em>≤ i ≤ D</em> then the entries of ( <em>WU</em> )[: <em>,</em> 1: <em>D</em> ] are completely unconstrained, creating further degeneracy.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0042-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0042-01.jpg" alt="" /></p>
+<p>Figure D.9: <strong>Layer norm weights over time</strong> . <em>Top</em> : After LR3, the layer normalization collapse expands from the unembedding to earlier layers, most notably in the first pre-attention layer norm. This occurs without explicit regularization and may contribute to the concurrent decrease in LLC. <em>Bottom</em> : During layer normalization collapse, the variance of layer normalization biases increases drastically while the mean of the biases remains relatively constant. <em>Inset</em> : Plotting the fraction of weights or biases whose magnitude is less than 0.1 over time reveals that the collapse is more measured for intermediate layer norms: weights shrink to small values but not extremely close to zero as in the unembedding and first attention layer.</p>
+<h4><strong>D.2.5 Layer normalization collapse</strong></h4>
+<p>The “collapse” in layer normalization weights is not unique to the unembedding. As depicted in Figure D.9, this behavior occurs in all layer norms except for the second MLP. The biases also remain centered close to zero even as the variance in biases grows much larger. Unlike in the unembedding, these layers begin to change earlier (starting halfway through LR2).</p>
+<p>What is most striking about the layer normalization collapse is that it occurs without any explicit regularization (neither weight decay nor dropout). As such, it demonstrates a clear example of <em>implicit regularization</em> , i.e., inductive biases in the optimizer or model that favor simpler solutions.</p>
+<p><strong>Contributions to degeneracy</strong> In the previous section, we describe how layer norm collapse in the unembedding is linked to an increase in degeneracy because it ensures that parameters in the subsequent linear layer become irrelevant. The same is true for layer norm which precedes the attention and MLP blocks.</p>
+<h4><strong>D.2.6 Degeneracy and development</strong></h4>
+<p>In the previous subsections, we provide a set of theoretical arguments for how embedding collapse (Appendix D.2.1), layer normalization collapse (Appendix D.2.5), and attention collapse (Appendix D.2.3) can lead to an increase in degeneracy, even while leaving the implemented function unchanged.</p>
+<p>The free energy formula tells us that, for two different solutions (sets of weights) with the same loss, the Bayesian posterior will asymptotically prefer the model that has the lower learning coefficient (i.e., higher degeneracy). This suggests that these different forms of collapse may be driven by a bias towards higher degeneracy, as captured in the free energy formula. However, in idealized Bayesian inference, we do not expect the posterior to concentrated around the neighborhood of an equal-loss-but-higher-degeneracy local minimum to begin with. That this kind of transition arises in practice might arise from one of the various differences between Bayesian inference and gradient-based training.</p>
+<p>Actually establishing a causal link between increasing degeneracy and structure development is beyond the scope of this paper. For one, the theoretical arguments hinge on the collapse being <em>complete</em> , that is, the components that go to zero must become <em>exactly</em> zero in the limit, where we take the number of samples to compute the loss to infinity. In practice, we expect there to be some threshold <em>ϵ</em> below which we can treat weights as effectively zero. Second, even if these explanations are correct, we do not know that they account for all of the empirically observed decrease in the LLC during these stages. There may be other drivers</p>
+<p>we missed. Finally, establishing a causal link requires theoretical progress in relating the Bayesian learning process to the SGD learning process. The arguments are suggestive, but currently only a source of intuition for how structure and degeneracy can be related, and a starting point for future research.</p>
+<h3><strong>E One-layer language model experiments</strong></h3>
+<p>We also trained and ran some experiments on a one-layer language model (see Appendix F.1.1 for details). We aggregate results for the one-layer language model here, mirroring the experiments for the two-layer language model where possible. The early development of the one-layer model has many parallels with the two-layer model. At a single stage boundary, just as it occurs in the two-layer model, the one-layer model minimizes its bigram score (see Appendix C.1.1), begins utilizing the positional embedding to noticeably improve performance (see Appendix C.2.1), and starts making sudden improvements to the same <em>n</em> -gram scores (see Appendix C.1.2). Remarkably this occurs at the same checkpoint as in the 2-layer model (at 900 training steps).</p>
+<p>One key difference, however, is that this occurs at the <em>second</em> stage boundary as discerned by the plateaus of the LLC estimation. We did not closely investigate why the LLC estimation appears to drop between steps 400 and 900 in this model. As a result though, we do observe an interesting qualitative similarity to the drop in LLC in stage LM3 of the two-layer model, that this drop precedes a noticeable bump in the loss function.</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0044-03.jpg" alt="" /></p>
+<p>Figure E.1: We train a one-layer transformer model in the language setting to compare with the twolayer model. The development of certain behavioral and structural metrics over time closely mirrors the development of the same metrics in the early stages of the two-layer language model. <em>Top:</em> test loss and LLC estimations over time for the one-layer attention-only transformer, compare with Figure 1a. <em>Bottom:</em> bigram score, test loss with positional embedding ablated, and <em>n</em> -gram scores for the one-layer attention-only transformer, compare with Figure 4(a,b,c).</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0045-00.jpg" alt="" /></p>
+<p>Figure E.2: A more detailed version of Figure E.1 for the one-layer language model. <em>Top</em> : Loss, LLC, and weight norm, along with an overlaid Gaussian process fit to these curves (red dotted lines). <em>Bottom</em> : Associated slopes, both numerically estimated finite differences (transparent blue) and of the Gaussian process (red dotted lined).</p>
+<h3><strong>F Transformer training experiment details</strong></h3>
+<h4><strong>F.1 Language models</strong></h4>
+<h4><strong>F.1.1 Architecture</strong></h4>
+<p>The language model architectures we consider are one- and two-layer attention-only transformers. They have a context length of 1024, a residual stream dimension of <em>dmodel</em> = 256, <em>H</em> = 8 attention heads per layer, and include layer normalization layers. We also used a learnable Shortformer positional embedding (Press et al., 2021). The resulting models have a total of <em>d</em> = 3 <em>,</em> 091 <em>,</em> 336 parameters for <em>L</em> = 1 and <em>d</em> = 3 <em>,</em> 355 <em>,</em> 016 parameters for <em>L</em> = 2. We used an implementation provided by TransformerLens (Nanda &amp; Bloom, 2022).</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0046-04.jpg" alt="" /></p>
+<table>
+<thead>
+<tr>
+<th><strong>Compo</strong></th>
+<th><strong>nent</strong></th>
+<th><strong>1-Layer</strong></th>
+<th><strong>2-Layer</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token E</td>
+<td>mbedding Weights</td>
+<td>1_,_280</td>
+<td>_,_000</td>
+</tr>
+<tr>
+<td>Position</td>
+<td>al Embedding Weights</td>
+<td>262_,_</td>
+<td>144</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Layer Norm Weights</td>
+<td>25</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Layer Norm Bias</td>
+<td>25</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Query Weights</td>
+<td>65_,_</td>
+<td>536</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Key Weights</td>
+<td>65_,_</td>
+<td>536</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Value Weights</td>
+<td>65_,_</td>
+<td>536</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Output Weights</td>
+<td>65_,_</td>
+<td>536</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Query Bias</td>
+<td>25</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Key Bias</td>
+<td>25</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Value Bias</td>
+<td>25</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Output Bias</td>
+<td>25</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Layer Norm Weights</td>
+<td>N/A</td>
+<td>256</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Layer Norm Bias</td>
+<td>N/A</td>
+<td>256</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Query Weights</td>
+<td>N/A</td>
+<td>65_,_536</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Key Weights</td>
+<td>N/A</td>
+<td>65_,_536</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Value Weights</td>
+<td>N/A</td>
+<td>65_,_536</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Output Weights</td>
+<td>N/A</td>
+<td>65_,_536</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Query Bias</td>
+<td>N/A</td>
+<td>256</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Key Bias</td>
+<td>N/A</td>
+<td>256</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Value Bias</td>
+<td>N/A</td>
+<td>256</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Output Bias</td>
+<td>N/A</td>
+<td>256</td>
+</tr>
+<tr>
+<td>Final La</td>
+<td>yer Norm Weights</td>
+<td>25</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Final La</td>
+<td>yer Norm Bias</td>
+<td>25</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Unembe</td>
+<td>dding Weights</td>
+<td>1_,_280</td>
+<td>_,_000</td>
+</tr>
+<tr>
+<td>Unembe</td>
+<td>dding Bias</td>
+<td>5_,_0</td>
+<td>00</td>
+</tr>
+</tbody>
+</table>
+<p>Figure F.1: <strong>Attention-only transformers</strong> with Shortformer position-infused attention and pre-layer norm. The one-layer model has a total of 3,091,336 trainable parameters, while the two-layer model has 3,355,016.</p>
+<h4><strong>F.1.2 Tokenization</strong></h4>
+<p>For tokenization, we used a truncated variant of the GPT-2 tokenizer that cut the original vocabulary of 50,000 tokens down to 5,000 (Eldan &amp; Li, 2023) to reduce the size of the model. We think this may contribute to the prominence of the the plateau at the end of LM1: the frequency of bigram statistics depends on your choice of tokens, and a larger tokenizer leads to bigrams that are individually much less frequent.</p>
+<h4><strong>F.1.3 Training</strong></h4>
+<p>The models are trained on a single epoch over 50 <em>,</em> 000 steps on <em>∼</em> 5 billion tokens using a resampled subset of the Pile (Gao et al., 2020; Xie et al., 2023) using a batch size of 100. A snapshot was saved every 10 steps</p>
+<p>for a total of 5000 checkpoints, though a majority of analysis used checkpoints every 100 steps. The training time was around 6 GPU hours per model on an A100. Additional seeds were trained on v4 TPUs at around 1.5 TPU hours per model.</p>
+<p>Training was conducted on the first 10 million lines of the DSIR-filtered Pile (Xie et al., 2023; Gao et al., 2020) but did not exhaust all 10 million lines. The model was subject to weight decay regularization, without the application of dropout. We did not employ a learning rate scheduler throughout the training process.</p>
+<p>Table 3: Summary of hyperparameters and their values for transformer language model training experiments.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Hyperparameter</strong></th>
+<th><strong>Category</strong></th>
+<th><strong>Description/Notes</strong></th>
+<th><strong>Value</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>n</em></td>
+<td>Data</td>
+<td># of training samples</td>
+<td>5_,<em>000</em>,_000</td>
+</tr>
+<tr>
+<td><em>T</em></td>
+<td>Data</td>
+<td># of training steps</td>
+<td>50_,_000</td>
+</tr>
+<tr>
+<td>_N_test</td>
+<td>Data</td>
+<td># of test samples</td>
+<td>512</td>
+</tr>
+<tr>
+<td>Tokenizer Type</td>
+<td>Data</td>
+<td>Type of Tokenizer</td>
+<td>Truncated GPT-2 Tokenizer</td>
+</tr>
+<tr>
+<td><em>D</em></td>
+<td>Data</td>
+<td>Vocabulary size</td>
+<td>5,000</td>
+</tr>
+<tr>
+<td><em>K</em></td>
+<td>Data</td>
+<td>Context size</td>
+<td>1,024</td>
+</tr>
+<tr>
+<td><em>L</em></td>
+<td>Model</td>
+<td># of layers in the model</td>
+<td>2</td>
+</tr>
+<tr>
+<td><em>H</em></td>
+<td>Model</td>
+<td># of heads per layer</td>
+<td>8</td>
+</tr>
+<tr>
+<td>_d_mlp</td>
+<td>Model</td>
+<td>MLP hidden layer size</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>_d_embed</td>
+<td>Model</td>
+<td>Embedding size</td>
+<td>256</td>
+</tr>
+<tr>
+<td>_d_head</td>
+<td>Model</td>
+<td>Head size</td>
+<td>32</td>
+</tr>
+<tr>
+<td>seed</td>
+<td>Model</td>
+<td>Model initialization</td>
+<td>1</td>
+</tr>
+<tr>
+<td>m</td>
+<td>Training</td>
+<td>Batch Size</td>
+<td>100</td>
+</tr>
+<tr>
+<td>Optimizer Type</td>
+<td>Optimizer</td>
+<td>Type of optimizer</td>
+<td>AdamW</td>
+</tr>
+<tr>
+<td><em>η</em></td>
+<td>Optimizer</td>
+<td>Learning rate</td>
+<td>0_._001</td>
+</tr>
+<tr>
+<td>_λ_wd</td>
+<td>Optimizer</td>
+<td>Weight Decay</td>
+<td>0_._05</td>
+</tr>
+<tr>
+<td><em>β_1</em>,_2</td>
+<td>Optimizer</td>
+<td>Betas</td>
+<td>(0_.<em>9</em>,<em>0</em>._999)</td>
+</tr>
+</tbody>
+</table>
+<h4><strong>F.2 In-context linear regression transformers</strong></h4>
+<h4><strong>F.2.1 Architecture</strong></h4>
+<p>In the following <em>L</em> refers to the number of layers (blocks) in the transformer, <em>H</em> is the number of heads in each layer, <em>D</em> is the dimension of inputs <em>x ∈</em> R<sup><em>D</em></sup> and <em>K</em> is the number of ( <em>x, y</em> ) pairs provided to the Transformer in-context.</p>
+<p>The architecture is a pre-layer-norm decoder-only transformer modeled after NanoGPT (Karpathy, 2022; see also Phuong &amp; Hutter, 2022) with a learnable positional embedding. For the models discussed in the main body, we consider <em>L</em> = 2, <em>H</em> = 4 transformers (with <em>d</em> = 51 <em>,</em> 717 parameters), i.e., two transformer blocks with four attention heads each.</p>
+<h4><strong>F.2.2 Tokenization</strong></h4>
+<p>To run contexts <em>SK</em> through the above model requires an initial encoding or “tokenization step” and final “projection step.” The context is encoded as a sequence of “tokens” <em>Tk</em> as follows:</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0047-10.jpg" alt="" /></p>
+<p>Through the main text, we write <em>fw</em> ( <em>Sk</em> ) for <em>fw</em> ( <em>Tk</em> ). Note that this tokenization includes the final <em>yk</em> token even though this receives no training signal. For this reason, we omit this token from the attention entropy and variability plots (Figures D.5 and D.6).</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0048-00.jpg" alt="" /></p>
+<table>
+<thead>
+<tr>
+<th><strong>Compo</strong></th>
+<th><strong>nent</strong></th>
+<th><strong># of Parameters</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Token E</td>
+<td>mbedding Weight</td>
+<td>320</td>
+</tr>
+<tr>
+<td>Position</td>
+<td>al Embedding Weight</td>
+<td>1_,_024</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Layer Norm Weight 2</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Layer Norm Bias 1</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Weights</td>
+<td>12_,_288</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Attention Output Weights</td>
+<td>4_,_096</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Layer Norm Weight 1</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Layer Norm Bias 2</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Feed-Forward MLP Weight</td>
+<td>4_,_096</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Feed-Forward MLP Bias</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Feed-Forward Output Weight</td>
+<td>4_,_096</td>
+</tr>
+<tr>
+<td>Layer 1</td>
+<td>Feed-Forward Output Bias</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Layer Norm Weight 1</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Layer Norm Bias 1</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Weights</td>
+<td>12_,_288</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Attention Output Weights</td>
+<td>4_,_096</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Layer Norm Weight 2</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Layer Norm Bias 2</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Feed-Forward MLP Weight</td>
+<td>4_,_096</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Feed-Forward MLP Bias</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Feed-Forward Output Weight</td>
+<td>4_,_096</td>
+</tr>
+<tr>
+<td>Layer 2</td>
+<td>Feed-Forward Output Bias</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Unembe</td>
+<td>dding Layer Norm Weight 1</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Unembe</td>
+<td>dding Layer Norm Bias 1</td>
+<td>64</td>
+</tr>
+<tr>
+<td>Unembe</td>
+<td>dding Weight 2</td>
+<td>320</td>
+</tr>
+<tr>
+<td>Unembe</td>
+<td>dding Bias 2</td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<p>Figure F.2: <strong>Transformer parameters in the in-context linear regression setting</strong> . The model has two transformer blocks for a total of 51 <em>,</em> 717 trainable parameters.</p>
+<p>The transformer outputs a series of tokens of the same shape as <em>Tk</em> . To read out the <em>y</em> ˆ <em>k</em> predictions, we read out the first component of every other token, i.e.,</p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0048-04.jpg" alt="" /></p>
+<p><img src="../markdown/images/stagewise_development/71_stagewise_development.pdf-0048-05.jpg" alt="" /></p>
+<h4><strong>F.2.3 Training</strong></h4>
+<p>We train from a single seed for each choice of architecture and optimizer hyperparameters using minibatch stochastic gradient descent. We train without explicit regularization and use the Adam optimizer (Kingma &amp; Ba, 2014). The training runs take 1 to 5 TPU-hours on TPUs provided by Google Research. Models are trained from the same initialization and on the data vectors within each batch (but for different sets of tasks and task orderings).</p>
+<p>Models are trained on a single epoch: each of the <em>T</em> = 500 <em>,</em> 000 batches consists of a new set of sequences with batch size 256. For the LLC estimates, we save 190 checkpoints: 100 are linearly spaced over the training run, and the remaining 90 are logarithmically spaced. We perform LLC estimation and other analyses on these checkpoints.</p>
+<p>Table 4: Summary of hyperparameters and their default values for in-context linear regression transformer model training experiments.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Hyperparameter</strong></th>
+<th><strong>Category</strong></th>
+<th><strong>Description/Notes</strong></th>
+<th><strong>Default Values</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>n</em></td>
+<td>Data</td>
+<td># of training samples</td>
+<td>128,000,000</td>
+</tr>
+<tr>
+<td><em>B</em></td>
+<td>Data</td>
+<td>Batch size during training</td>
+<td>256</td>
+</tr>
+<tr>
+<td><em>T</em></td>
+<td>Data</td>
+<td># of training steps</td>
+<td>500k</td>
+</tr>
+<tr>
+<td>_N_test</td>
+<td>Data</td>
+<td># of eval samples</td>
+<td>2048</td>
+</tr>
+<tr>
+<td><em>D</em></td>
+<td>Data</td>
+<td>Dimensions of linear regression task<br>(Task size)</td>
+<td>4</td>
+</tr>
+<tr>
+<td><em>K</em></td>
+<td>Data</td>
+<td>Maximum in-context examples</td>
+<td>8</td>
+</tr>
+<tr>
+<td><em>σ</em><sup>2</sup></td>
+<td>Data</td>
+<td>Variance of noise in data generation</td>
+<td>0.125</td>
+</tr>
+<tr>
+<td><em>L</em></td>
+<td>Model</td>
+<td># of layers in the model</td>
+<td>2</td>
+</tr>
+<tr>
+<td><em>H</em></td>
+<td>Model</td>
+<td># of attention heads per layer</td>
+<td>4</td>
+</tr>
+<tr>
+<td>_d_mlp</td>
+<td>Model</td>
+<td>Size of the hidden layer in MLP</td>
+<td>64</td>
+</tr>
+<tr>
+<td>_d_embed</td>
+<td>Model</td>
+<td>Embedding size</td>
+<td>64</td>
+</tr>
+<tr>
+<td>seed</td>
+<td>Misc</td>
+<td>Training run seeds</td>
+<td>{0, 1, 2, 3, 4}</td>
+</tr>
+<tr>
+<td>Optimizer Type</td>
+<td>Optimizer</td>
+<td>Type of optimizer</td>
+<td>Adam</td>
+</tr>
+<tr>
+<td><em>η</em></td>
+<td>Optimizer</td>
+<td>Maximum learning rate</td>
+<td>0.003</td>
+</tr>
+<tr>
+<td>_λ_wd</td>
+<td>Optimizer</td>
+<td>Weight Decay</td>
+<td>0</td>
+</tr>
+<tr>
+<td><em>β_1</em>,_2</td>
+<td>Optimizer</td>
+<td>Betas</td>
+<td>(0.9, 0.999)</td>
+</tr>
+<tr>
+<td>Scheduler Type</td>
+<td>Scheduler</td>
+<td>Type of learning rate scheduler</td>
+<td>OneCycleLR</td>
+</tr>
+<tr>
+<td>Strategy</td>
+<td>Scheduler</td>
+<td>Strategy for annealing the learning rate</td>
+<td>Linear</td>
+</tr>
+<tr>
+<td>% start</td>
+<td>Scheduler</td>
+<td>Percentage of the cycle when learning<br>rate is increasing</td>
+<td>0.5</td>
+</tr>
+</tbody>
+</table>
+
+</article>
+<nav class="pager"><a class="prev" href="70_natural_language_autoencoders.html"><small>Previous · 70</small>Natural Language Autoencoders</a><a class="mid" href="index.html#section-G">Contents</a><a class="next" href="72_representation_engineering.html"><small>Next · 72</small>Representation Engineering</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

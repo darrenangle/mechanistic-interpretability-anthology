@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>66 · Stochastic Parameter Decomposition — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 66 / 91 &nbsp;·&nbsp; Section G</span></div>
+<header class="cover">
+<div class="numeral">66</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>Stochastic Parameter Decomposition</h1>
+<p class="cite">Bushnaq et al. — 2025</p>
+<p class="authors">Lucius Bushnaq, Dan Braun, Lee Sharkey</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Introduces Stochastic Parameter Decomposition, which splits each weight matrix into rank-one subcomponents and learns how ablatable each is per input, making parameter decomposition more scalable and less hyperparameter-sensitive than its predecessor, APD.</p></div><div class="note"><div class="label">Reading focus</div><p>Causal importance defined as ablatability, the stochastic masks and reconstruction losses, the toy models of superposition, compressed computation and cross-layer distributed representations, and the discussion of why SPD is more robust than APD.</p></div><div class="note"><div class="label">In context</div><p>The founding method of the parameter-decomposition programme: it decomposes weights rather than activations, citing feature splitting (<a href="46_towards_monosemanticity.html">46</a>, <a href="49_feature_absorption.html">49</a>) and feature geometry (<a href="43_sae_feature_geometry.html">43</a>) as problems of dictionaries. Its tests are toy models in the tradition of <a href="33_toy_models_of_superposition.html">33</a>; <a href="67_interpreting_lm_parameters.html">67</a> scales it to a language model, and its last author led <a href="03_open_problems.html">03</a>. <a href="63_circuits_sparse_neuron_basis.html">63</a> and <a href="64_neural_networks_already_clean.html">64</a> contend that the neuron basis already suffices.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>G — Competing programmes, 2025–26</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2506.20790v2">https://arxiv.org/abs/2506.20790v2</a> &nbsp;·&nbsp; arXiv:2506.20790v2</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 2499–2528 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="65_weight_sparse_transformers.html"><small>Previous · 65</small>Weight-sparse Transformers</a><a class="mid" href="index.html#section-G">Contents</a><a class="next" href="67_interpreting_lm_parameters.html"><small>Next · 67</small>Interpreting Language Model Parameters (VPD)</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1><strong>Stochastic Parameter Decomposition</strong></h1>
+<p><strong>Lucius Bushnaq</strong><sup><em>∗</em></sup> <strong>Dan Braun</strong><sup><em>∗</em></sup> <strong>Lee Sharkey</strong><sup><em>†</em></sup> <code>lucius@goodfire.ai dan.braun@goodfire.ai lee@goodfire.ai</code></p>
+<h2><strong>Abstract</strong></h2>
+<p>A key step in reverse engineering neural networks is to decompose them into simpler parts that can be studied in relative isolation. Linear parameter decomposition— a framework that has been proposed to resolve several issues with current decomposition methods—decomposes neural network parameters into a sum of sparsely used vectors in parameter space. However, the current main method in this framework, Attribution-based Parameter Decomposition (APD), is impractical on account of its computational cost and sensitivity to hyperparameters. In this work, we introduce <em>Stochastic Parameter Decomposition</em> (SPD), a method that is more scalable and robust to hyperparameters than APD, which we demonstrate by decomposing models that are slightly larger and more complex than was possible to decompose with APD. We also show that SPD avoids other issues, such as shrinkage of the learned parameters, and better identifies ground truth mechanisms in toy models. By bridging causal mediation analysis and network decomposition methods, this demonstration opens up new research possibilities in mechanistic interpretability by removing barriers to scaling linear parameter decomposition methods to larger models. We release a library for running SPD and reproducing our experiments at <code>https://github.com/goodfire-ai/spd/tree/spd-paper</code> .</p>
+<h2><strong>1 Introduction</strong></h2>
+<p>We have little understanding of the internal mechanisms that neural networks learn that enable their impressive capabilities. Understanding—or reverse engineering—these mechanisms may enable us to better predict and design neural network behavior and propensities for the purposes of safety and control. It may also be useful for scientific knowledge discovery: Neural networks can often perform better than humans on some tasks. They must therefore ‘know’ things about the world that we do not know—things that we could uncover by understanding their mechanisms.</p>
+<p>An important first step to reverse engineering neural networks is to decompose them into individual mechanisms whose structure and interactions can be studied in relative isolation. Previous work has taken a variety of approaches to network decomposition. A popular approach is sparse dictionary learning (SDL) [Cunningham et al., 2024, Bricken et al., 2023], which aims to decompose neural network activations by optimizing sparsely activating dictionary elements to reconstruct or predict neural activation vectors. However, this approach suffers from a range of conceptual and practical problems, such as failing to account for feature geometry [Leask et al., 2025, Mendel, 2024] and not decomposing networks into functional components [Chanin et al., 2024, Bricken et al., 2023, Till, 2024] (see Sharkey et al. [2025] for a review).</p>
+<p>Recently, <em>linear parameter decomposition</em> [Braun et al., 2025], has been proposed to address some of the issues faced by SDL and other current approaches. Instead of decomposing networks into directions in activation space, linear parameter decomposition methods decompose networks into <em>vectors in parameter space</em> , called <em>parameter components</em> . Parameter components are selected such that, simultaneously, (a) they sum to the parameters of the original model, (b) as few as possible</p>
+<blockquote>
+<p><em>∗</em> Goodfire – Work primarily carried out while at Apollo Research</p>
+</blockquote>
+<blockquote>
+<p><em>†</em> Goodfire</p>
+</blockquote>
+<p>are required to replicate the network’s behavior on any given input, and (c) they are as ‘simple’ as possible. This approach promises a framework that suggests solutions to issues like ‘feature splitting’ [Chanin et al., 2024, Bricken et al., 2023]; the foundational conceptual issue of defining a ‘feature’ (by re-basing it in the language of ‘mechanisms’); and the issues of multidimensional features and feature geometry [Braun et al., 2025]. It also suggests a new way to bridge mechanistic interpretability and causal mediation analysis [Mueller et al., 2024].</p>
+<p>However, <em>Attribution-based Parameter Decomposition</em> (APD) [Braun et al., 2025], the only method that has been so far proposed for linear parameter decomposition (with which this paper assumes some familiarity), suffers from several significant issues that hinder its use in practice, including:</p>
+<ol>
+<li>
+<p><strong>Scalability</strong> : APD has a high memory cost, since it decomposes a network into many parameter components, each of which is a whole vector in parameter space. They therefore each have the same memory cost as the original network.</p>
+</li>
+<li>
+<p><strong>Sensitivity to hyperparameters</strong> : In the toy models it was tested on, APD only recovers ground-truth mechanisms for a very narrow range of hyperparameters. In particular, APD requires choosing the top- <em>k</em> hyperparameter, the expected number of active parameter components per datapoint, which would usually not be known in advance for non-toy models. As discussed in Braun et al. [2025], choosing a value for top- <em>k</em> that is too high or low makes it difficult for APD to identify optimal parameter components.</p>
+</li>
+<li>
+<p><strong>Use of attribution methods</strong> : APD relies on attribution methods (e.g. gradient attributions, used in Braun et al. [2025]), to estimate the causal importance of each parameter component for computing the model’s outputs on each datapoint. Gradient-based attributions, and attribution methods more generally, are often poor approximations of ground-truth causal importance [Syed et al., 2024] and sometimes fail to pass basic sanity checks [Adebayo et al., 2018].</p>
+</li>
+</ol>
+<p>In this work, we introduce a new method for linear parameter decomposition that overcomes all of these issues: <em>Stochastic Parameter Decomposition</em> (SPD) (Section 2).</p>
+<p>Our approach decomposes each matrix in a network into a set of rank-one matrices called <em>subcomponents</em> . The number of rank-one matrices can be higher than the rank of the decomposed matrix. Subcomponents are not full parameter components as in the APD method, but they can later be aggregated into full components. In this work, we use toy models with known ground-truth mechanisms, where the clusters are therefore straightforward to identify. However, in future it will be necessary to algorithmically cluster these components in cases where ground truth is not known.</p>
+<p>Instead of relying on attribution techniques and a top- <em>k</em> hyperparameter that needs to be chosen in advance, we define the <em>causal importance</em> of a subcomponent as how ablatable it is on a given datapoint. Causally important subcomponents should not be ablatable, and ablatable subcomponents should be causally unimportant for computing the output. We train a <em>causal importance function</em> to predict the causal importance <em>gi ∈</em> [0 <em>,</em> 1] of subcomponent <em>i</em> for computing the model’s output on a given datapoint and use the predicted causal importances to ablate unimportant subcomponents by random amounts by masking them multiplicatively with a random scalar sampled from a uniform distribution <em>U</em> ( <em>gi,</em> 1). We train a model that is parametrized by the sum of these randomly masked subcomponents to compute the same output as the target model. Crucially, we regularize the predicted causal importance values <em>gi</em> to be close to zero, so that as many subcomponents as possible will be predicted to be ablatable on any given datapoint. The core intuition behind this training setup is that all combinations of ablating the subcomponents are checked with some probability. And since the causal importance function is penalized for outputting large values of <em>g</em> , it should only output high values of <em>gi</em> when subcomponent <em>i</em> is really ‘used’ by the network.</p>
+<p>We apply SPD to all of the toy models that Braun et al. [2025] used to study APD, including: A Toy Model of Superposition [Elhage et al., 2022] (Section 3.1); a Toy Model of Compressed Computation [Braun et al., 2025] (Section 3.3); and a Toy Model of Cross-Layer Distributed Representations (Section 3.4). We demonstrate that the method recovers ground-truth mechanisms in all of these models. We also extend the suite of models to include two more challenging models where APD struggles but SPD succeeds: A Toy Model of Superposition with an additional identity matrix in the hidden space (Section 3.2) and a deeper Toy Model of Cross-Layer Distributed Representations (Section 3.4). Using APD, these new models were unmanageably difficult to correctly decompose, but SPD succeeds with relative ease.</p>
+<p>The successful application of SPD to more challenging models demonstrates that SPD is more scalable and stable than APD. Nevertheless, some challenges remain: Firstly, the method needs to be scaled to larger models, which will likely require further improvements in training stability. Second, SPD only finds rank-one components in individual layers, meaning that further clustering step is required to find components that span more than one rank and/or more than one layer. In the toy models presented in this paper, these clusters are known and are therefore straightforward to identify. However, a general clustering solution will be needed in order to find such components where ground-truth is unknown. Despite these challenges, SPD opens up new research avenues for mechanistic interpretability by introducing a linear parameter decomposition method that removes the main barriers to scaling to larger, non-toy models such as language models (Section 5).</p>
+<h2><strong>2 Method: Stochastic Parameter Decomposition</strong></h2>
+<p>Suppose we have a trained neural network <em>f</em> ( <em>x, W</em> ) that maps inputs <em>x</em> to outputs <em>y</em> = <em>f</em> ( <em>x, W</em> ), parametrized by a set of weight matrices<sup>1</sup> <em>W</em> = <em>{W</em><sup>1</sup> <em>, . . . , W</em><sup><em>L</em></sup> <em>}</em> . This set <em>W</em> can also be represented as a single vector in a high-dimensional vector space called <em>parameter space</em> . Linear parameter decomposition methods such as APD aim to decompose neural network parameters into a set of <em>parameter components</em> , which are vectors in parameter space that are trained to exhibit three desirable properties [Braun et al., 2025]:</p>
+<ul>
+<li>
+<p><strong>Faithfulness:</strong> The parameter components should sum to the parameters of the original network.</p>
+</li>
+<li>
+<p><strong>Minimality:</strong> As few parameter components as possible should be used by the network for a forward pass of any given datapoint in the training dataset.</p>
+</li>
+<li>
+<p><strong>Simplicity:</strong> Parameter components should use as little computational machinery as possible, in that they should span as few matrices and as few ranks as possible.</p>
+</li>
+</ul>
+<p>If a set of parameter components exhibit these three properties, we say that they comprise the network’s <em>mechanisms</em><sup>2</sup> . In APD, gradient-based attributions are used to estimate the importance of each parameter component for a given datapoint. Then, the top- <em>k</em> most important parameter components are summed together and used for a second forward pass. These active parameter components are trained to produce the same output on that datapoint as the target model. Simultaneously, the parameter components are trained to sum to the parameters of the target model, and are trained to be simple by penalizing the sum of the spectral <em>p</em> -norms of their individual weight matrices, encouraging them to be low-rank.</p>
+<p>In our work, we aim to identify parameter components with the same three properties, but we achieve it in a different way.</p>
+<h3><strong>2.1 Our approach optimizes rank-one subcomponents instead of full-rank parameter components</strong></h3>
+<p>A major issue with the APD method is that it is computationally very expensive: It involves optimizing <em>L</em> full-rank matrices for every parameter component (where <em>L</em> is the number of matrices in the model). But this is wasteful if we expect most parameter components to be low-rank and localized only to a subset of layers. With SPD, instead of using full-rank parameter components that span every layer, we decompose each of a neural network’s weight matrices <em>W</em><sup>1</sup> <em>, . . . , W</em><sup><em>L</em></sup> into a set of <em>C</em> rank-one matrices called <em>subcomponents</em> , <em>⃗Uc</em><sup><em>l</em></sup> <em>⃗Vc</em><sup><em>l⊤</em>:</sup></p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0003-10.jpg" alt="" /></p>
+<blockquote>
+<p>1As in Braun et al. [2025], we do not decompose biases. Biases can be folded into the weights by treating them as an additional column in each weight matrix, meaning they can in theory be decomposed like any other type of parameter. However, in this work, for simplicity we treat them as their own parameter component that is active for every input, and leave their decomposition for future work.</p>
+</blockquote>
+<blockquote>
+<p>2Note that these properties can trade off against each other. Therefore, in practice, we quantify how much we care about each property, and find the set of parameter components that minimise the resulting overall loss.</p>
+</blockquote>
+<p>Here, <em>l</em> indexes the neural network’s matrices and <em>i, j</em> are its hidden indices. We will later cluster these subcomponents into full parameter components if they tend to co-activate together. In this paper, the groups are easy to identify and this clustering process is implicit. However, future work will require an explicit clustering algorithm for cases where groups of subcomponents are harder to identify.</p>
+<p>Note that the number of subcomponents in each layer <em>C</em> may be larger than the minimum of the number of rows or columns of the matrix at that layer, thus enabling SPD to identify computations in superposition.</p>
+<h3><strong>2.2 Optimizing for faithfulness</strong></h3>
+<p>The way we optimize for faithfulness is the same as in Braun et al. [2025], by optimizing the sum of our subcomponents to approximate the parameters of the target model:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0004-04.jpg" alt="" /></p>
+<p>where <em>N</em> is the total number of parameters in the target model.</p>
+<h3><strong>2.3 Optimizing for minimality and simplicity by learning a causal importance function to stochastically sample masks</strong></h3>
+<p>The way we optimize for minimality and simplicity is different from Braun et al. [2025]. Since we already start with rank-one subcomponents that are localized in single layers, we don’t need to optimize for subcomponent simplicity. Instead, we only need to train our set of subcomponents such that as few as possible are &quot; <em>active</em> &quot; or &quot; <em>used</em> &quot; or &quot; <em>required</em> &quot; by the network to compute its output on any given datapoint in the training set. We consider this equivalent to requiring that as few subcomponents as possible be <em>causally important</em> for computing the network’s output.</p>
+<p>To optimize our set of subcomponents such that as few as possible are causally important for computing the model’s output on any given datapoint, we have three requirements:</p>
+<ol>
+<li>
+<p>A formal definition of what it means for a subcomponent to be ‘causally important’ for computing the model’s outputs (Section 2.3.1);</p>
+</li>
+<li>
+<p>A loss function that trains causally important subcomponents to compute the same function as the original network (Section 2.3.2);</p>
+</li>
+<li>
+<p>A loss function that encourages as many subcomponents as possible to be causally <em>un</em> - important on each datapoint (Section 2.3.3).</p>
+</li>
+</ol>
+<h3><strong>2.3.1 Requirement 1: Formally defining a subcomponent’s</strong> <strong><em>causal importance</em> as the extent to which it can be ablated</strong></h3>
+<p>Intuitively, we say a subcomponent is <em>causally important</em> on a particular datapoint <em>x</em> if and only if it is required to compute the model’s output for that datapoint. Conversely, we say a subcomponent is <em>causally unimportant</em> if it can be ablated by some arbitrary amount while leaving the model’s output unchanged. In particular, if a component is fully unimportant, then it shouldn’t matter how much we ablate it by; we should be able to fully ablate all causally unimportant components, or only partially ablate them, or ablate only a subset of them, and still get the same model output. Note, the distinction between causally important and unimportant is not binary; we can say that a subcomponent is causally unimportant <em>to the extent</em> that it can be ablated without affecting the model’s output.</p>
+<p>Formally, suppose <em>gc</em><sup><em>l</em>(</sup><sup><em>x</em>)</sup><sup><em>∈</em>[0</sup><sup>_,_1] indicates the causal importance of subcomponent (</sup><sup><em>c</em>) of weight</sup> matrix <em>l</em> on a given datapoint <em>x</em> . For now, we take this quantity as given, but later we discuss how we obtain it. In general, we want to get the same model output for any weight matrices along all monotonic ‘ablation curves’ <em>m</em><sup><em>l</em></sup> <em>c</em><sup>(</sup><sup><em>x, r</em>) that interpolate between the original model and the model with</sup></p>
+<p>all inactive subcomponents ablated. Here, <em>r</em> is a vector sampled such that:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0005-01.jpg" alt="" /></p>
+<p>Now we need a differentiable loss function(s) in order to be able to train the masked model <em>f</em> ( <em>x|W</em><sup><em>′<em>1</sup> ( <em>x, r</em> ) <em>, . . . , W</em><sup></em>′L</em></sup> ( <em>x, r</em> )) to approximate the target model <em>f</em> ( <em>x|W</em><sup>1</sup> <em>, . . . , W</em><sup><em>L</em></sup> ) for all values of <em>r ∈</em> [0 <em>,</em> 1]<sup><em>C×L</em></sup> .</p>
+<h3><strong>2.3.2 Requirement 2: A loss function that lets us optimize causally important subcomponents to approximate the same function as the original network</strong></h3>
+<p>Unfortunately, calculating <em>f</em> ( <em>x|W</em><sup><em>′<em>1</sup> ( <em>x, r</em> ) <em>, . . . , W</em><sup></em>′L</em></sup> ( <em>x, r</em> )) for all values of <em>r ∈</em> [0 <em>,</em> 1]<sup><em>C×L</em></sup> is computationally intractable because there are infinitely many possible values. But we can calculate it for a randomly chosen subset of values. To do this, we uniformly sample <em>S</em> points, <em>rc</em><sup><em>l,</em>(</sup><sup><em>s</em>)</sup> <em>∼U</em> (0 <em>,</em> 1) and mask the subcomponents with the resulting stochastic masks <em>m</em><sup><em>l</em></sup> <em>c</em><sup>(</sup><sup><em>x, r</em>(</sup><sup><em>s</em>)).Then,as</sup><sup><em>S→∞</em>,the</sup> following loss approximately optimizes <em>f</em> ( <em>x|W</em><sup><em>′<em>1</sup> ( <em>x, r</em> ) <em>, . . . , W</em><sup></em>′L</em></sup> ( <em>x, r</em> )) to satisfy Equation 3:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0005-05.jpg" alt="" /></p>
+<p>Here, <em>D</em> is some appropriate divergence measure in the space of model outputs, such as KL-divergence for language models, or MSE loss.</p>
+<p>However, this loss can be somewhat noisy because it involves a forward pass in which every subcomponent has been multiplied by a random mask. Therefore, in addition to this loss, we also use an auxiliary loss <em>L</em> stochastic-recon-layerwise, which is simply a layerwise version of <em>L</em> stochastic-recon where only the parameters in a single layer at a time are replaced by stochastically masked subcomponents. The gradients are still calculated at the output of the model:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0005-08.jpg" alt="" /></p>
+<p>This should not substantially alter the global optimum of training, because Equation 5 is equivalent to Equation 4 if the subcomponents sum to the original weights and if we sample <em>rc</em><sup><em>l</em>= 1 for all layers</sup> except one at a time.</p>
+<h3><strong>2.3.3 Requirement 3: A loss function that encourages as many subcomponents as possible to be causally unimportant</strong></h3>
+<p>We have not yet defined how we obtain subcomponents’ causal importance values <em>gc</em><sup><em>l</em>(</sup><sup><em>x</em>).Measuring</sup> this directly would be intractable, so we learn a function to predict it.</p>
+<p>In theory, we could use any arbitrary <em>causal importance function</em> Γ : <em>X →</em> [0 <em>,</em> 1]<sup><em>C×L</em></sup> to predict causal importance values. In practice, we use a set of independent functions Γ<sup><em>l</em></sup> <em>c</em><sup>, one for each subcomponent.</sup> Each function consists of a very small trained MLP <em>γc</em><sup><em>l</em>(see Appendix A.1 for its architecture).Each</sup> MLP takes as input a scalar, the subcomponent’s ‘inner activation’, <em>h</em><sup><em>l</em></sup> <em>c</em><sup>(</sup><sup><em>x</em>) := �</sup> <em>j</em><sup><em>V</em></sup> <em>c,j</em><sup><em>lal</em></sup> <em>j</em><sup>(</sup><sup><em>x</em>), where</sup> <em>a</em><sup><em>l</em></sup> ( <em>x</em> ) is the activation vector in the target model that gets multiplied by weight matrix <em>W</em><sup><em>l</em></sup> . The MLP outputs are passed to a hard sigmoid <em>σH</em> to get a prediction of the subcomponent’s causal</p>
+<p>importance<sup>3</sup> :</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0006-01.jpg" alt="" /></p>
+<p>The output of the causal importance function for each subcomponent is therefore a single scalar number that should be in the range [0 <em>,</em> 1].</p>
+<p>While this form of causal importance function works well for the toy models in this paper, it is likely that the best causal importance functions for arbitrary models require more expressivity. For example, a subcomponent’s causal importance function may take as input the inner activations of all subcomponents, rather than just its own. Such variants may be explored in future work.</p>
+<p>The causal importance values <em>gc</em><sup><em>l</em>(</sup><sup><em>x</em>) are used to sample masks that randomly ablate each subcom-</sup> ponent <em>m</em><sup><em>l</em></sup> <em>c</em><sup>(</sup><sup><em>x, g</em></sup> <em>c</em><sup><em>l</em>(</sup><sup><em>x</em>))</sup><sup><em>∼U</em>(</sup><sup><em>g</em></sup> <em>c</em><sup><em>l</em>(</sup><sup><em>x</em>)</sup><sup>_,_1).Weusethereparametrizationtrick[KingmaandWelling,</sup> 2013](Equation 3) to allow gradients to be backpropagated through the masks <em>m</em><sup><em>l</em></sup> <em>c</em><sup>(</sup><sup><em>x, g</em></sup> <em>c</em><sup><em>l</em>(</sup><sup><em>x</em>)) to train</sup> the causal importance functions Γ<sup><em>l</em></sup> <em>c</em><sup>.The causal importance functions can therefore learn to produce</sup> masks that better predict the ablatability of each subcomponent on a given datapoint. However, if the causal importance functions were trained using only the <em>L</em> stochastic-recon loss, they could perform optimally (but pathologically) by outputting a causal importance value of <em>gc</em><sup><em>l</em>(</sup><sup><em>x</em>)=1forevery</sup> subcomponent on every input, since there is no incentive to learn to predict the full extent of the ablatability of the subcomponents. An additional loss is required to encourage the causal importance function to always try to ablate as much as possible. We therefore penalize causal importance values for being above 0 using a <em>L</em> importance-minimality loss:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0006-05.jpg" alt="" /></p>
+<p>where <em>p &gt;</em> 0<sup>4</sup> .</p>
+<h3><strong>2.4 Summary of training setup</strong></h3>
+<p>Our full loss function consists of four losses:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0006-09.jpg" alt="" /></p>
+<p>Our training setup involves five hyperparameters (excluding optimizer hyperparameters such as learning rate): The coefficients <em>β</em> 1 <em>, β</em> 2 <em>, β</em> 3 for each of the losses; the <em>p</em> -norm used in <em>L</em> importance-minimality and the number of mask samples <em>S</em> that are used for each training step, for which we find <em>S</em> = 1 sufficient. We discuss some heuristics for choosing the loss coefficients in Appendix A.3. Pseudocode for the SPD algorithm can be found in Appendix A.6.</p>
+<h2><strong>3 Results</strong></h2>
+<p>We apply SPD to decompose a set of toy models with known ground-truth mechanisms. Some of these models were previously studied by Braun et al. [2025] to evaluate APD, while others are new. We study:</p>
+<blockquote>
+<p>3We use hard sigmoids rather than standard sigmoids because we would like to make it possible for causal importance values to take values of exactly 0 or 1 or anywhere in between; a standard sigmoid function only tends toward 0 or 1 as its input tends toward <em>−∞</em> or <em>∞</em> respectively. However, note that hard sigmoids have large regions where gradients are 0. We therefore actually use leaky-hard sigmoids to increase training stability. Outputs may therefore lie slightly outside of the [0 <em>,</em> 1] range (Appendix A.2).</p>
+</blockquote>
+<blockquote>
+<p>4It is important to note that <em>L</em> importance-minimality is somewhat different from the <em>Lp</em> penalties often used to sparsify latents in SDL, where <em>p</em> is restricted to (0 <em>,</em> 1]. We find that training with <em>L</em> importance-minimality successfully minimizes importance values even when <em>p &gt;</em> 1. We believe that this happens for the following reason: If <em>p &gt;</em> 1 in SDL, a single active feature can always be split into many active features to improve the sparsity loss. However, if <em>p &gt;</em> 1 in SPD, then if one causally important subcomponent were pathologically split into two, both resulting subcomponents would still have causal importance of <em>≈</em> 1, since both are still needed to maintain low <em>L</em> stochastic-recon, meaning <em>L</em> importance-minimality would increase.</p>
+</blockquote>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0007-00.jpg" alt="" /></p>
+<p>Figure 1: Results of running SPD on TMS5 <em>−</em> 2. <strong>Top row:</strong> Plots of (left to right) the columns of the weight matrix of the target model; the sum of the SPD parameter components; and individual parameter components. Although this run of SPD used 20 subcomponents, only 6 subcomponents are shown, ordered by the sum of the norms of each of the columns of their (rank-one) weight matrices. The first five have learned one direction each, each corresponding to one of the columns of the target model. The final column and the other 14 components (not shown) have a negligible norm because they are superfluous for replicating the behavior of the target model. <strong>Bottom row:</strong> Depiction of the corresponding parametrized networks.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>MMCS</th>
+<th>ML2R</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TMS5_−_2</td>
+<td>1.000 ± 0.000</td>
+<td>0.993 ± 0.002</td>
+</tr>
+<tr>
+<td>TMS40_−_10</td>
+<td>1.000 ± 0.000</td>
+<td>1.010 ± 0.007</td>
+</tr>
+<tr>
+<td>TMS5_−_2+ID</td>
+<td>1.000 ± 0.000</td>
+<td>0.992 ± 0.010</td>
+</tr>
+<tr>
+<td>TMS40_−_10+ID</td>
+<td>1.000 ± 0.000</td>
+<td>1.031 ± 0.001</td>
+</tr>
+</tbody>
+</table>
+<p>Table 1: Mean Max Cosine Similarity (MMCS) and Mean L2 Ratio (ML2R) with their standard deviations (to 3 decimal places) between learned parameter subcomponents and the target model weights in the subcomponents found by SPD for the embedding matrix <em>W</em> matrix in the TMS5 <em>−</em> 2 and TMS40 <em>−</em> 10 models (Section 3.1) and TMS5 <em>−</em> 2+ID and TMS40 <em>−</em> 10+ID models (Section 3.2). These results indicate that the ground truth mechanisms are recovered perfectly and with negligible shrinkage for all models.</p>
+<ol>
+<li>
+<p>A <strong>Toy Model of Superposition (TMS)</strong> [Elhage et al., 2022] previously studied by Braun et al. [2025] (Section 3.1);</p>
+</li>
+<li>
+<p>A <strong>TMS model with an identity matrix</strong> inserted in the middle of the model (not previously studied) (Section 3.2);</p>
+</li>
+<li>
+<p>A <strong>Toy Model of Compressed Computation</strong> previously studied by Braun et al. [2025] (Section 3.3);</p>
+</li>
+<li>
+<p>Two <strong>Toy Models of Cross-Layer Distributed Representations</strong> : One with two residual MLP blocks (previously studied by Braun et al. [2025]) and one with three MLP blocks (not previously studied) (Section 3.4);</p>
+</li>
+</ol>
+<p>In all cases, we find that SPD seems to identify known ground-truth mechanisms up to a small error. For the models that were also decomposed with APD in Braun et al. [2025], we find that the SPD decompositions have fewer errors despite requiring less hyperparameter tuning to find the ground-truth mechanisms.</p>
+<p>Code to reproduce our experiments can be found at <code>https://github.com/goodfire-ai/spd/ tree/spd-paper</code> . Training details and hyperparameters can be found in Appendix A.4. Additional figures and training logs can be found in the WandB report here.</p>
+<h3><strong>3.1 Toy Model of Superposition</strong></h3>
+<p>We decompose Elhage et al. [2022]’s Toy Model of Superposition (TMS), which can be written as <em>x</em> ˆ = ReLU( <em>W</em><sup><em>⊤</em></sup> <em>Wx</em> + <em>b</em> ), with weight matrix <em>W ∈</em> R<sup><em>m_1</sup><sup></em>×m_2</sup> . The model is trained to reconstruct its inputs, which are sparse sums of one-hot <em>m</em> 2-dimensional input features whose activations are scaled</p>
+<p>to a random uniform distribution [0 <em>,</em> 1]. Typically, <em>m</em> 1 <em>&lt; m</em> 2, so the model is forced to ‘squeeze’ representations through a <em>m</em> 1-dimensional bottleneck. When the model is trained on sufficiently sparse data distributions, it can learn to represent features in superposition in this bottleneck. For certain values of <em>m</em> 1 and <em>m</em> 2, the columns of the W matrix can form regular polygons in the <em>m</em> 1- dimensional hidden activation space (Figure 1 - Leftmost panel).</p>
+<p>The ground truth mechanisms in this model should be a set of rank-1 matrices that are zero everywhere except in the <em>c</em><sup>th</sup> column, where they take the values <em>⃗W</em> : <em>,c</em> . Intuitively, a column of <em>W</em> is only ‘used’ if the corresponding input feature is active; other columns can be ablated without significantly affecting the output of the model.</p>
+<h3><strong>SPD Results: Toy Model of Superposition</strong></h3>
+<p>We apply SPD to TMS models with 5 features in 2 dimensions, denoted TMS5 <em>−</em> 2 and 40 features in 10 dimensions, denoted TMS40 <em>−</em> 10. In both cases, SPD successfully decomposes the model into subcomponents that closely correspond to the columns of <em>W</em> (Figure 1). This result is robust to different training seeds and required less hyperparameter tuning than APD [Braun et al., 2025].</p>
+<p>We quantify how aligned the learned parameter components vectors are to the columns of <em>W</em> in the target model using the mean max cosine similarity (MMCS) [Sharkey et al., 2022]. The MMCS measures alignment between each column of <em>W</em> and the corresponding column in the parameter component that it best aligns with:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0008-05.jpg" alt="" /></p>
+<p>where <em>c ∈ C</em> are parameter component indices and <em>j ∈{</em> 1 <em>, · · · , m</em> 2 <em>}</em> are input feature indices. A value of 1 for MMCS indicates that, for all input feature directions in the target model, there exists a parameter subcomponent whose corresponding column points in the same direction.</p>
+<p>We also quantify how close their magnitudes are with the mean L2 Ratio (ML2R) between the Euclidean norm of the columns of <em>W</em> and the Euclidean norm of the columns of the parameter components with which they have the highest cosine similarity:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0008-08.jpg" alt="" /></p>
+<p>where mcs( <em>j</em> ) is the index of the subcomponent that has maximum cosine similarity with weight column <em>j</em> of the target model. A value close to 1 for the ML2R indicates that the magnitude of each parameter component is close to that of its corresponding target model column.</p>
+<p>For both TMS5 <em>−</em> 2 and TMS40 <em>−</em> 10, the MMCS and ML2R values are <em>≈</em> 1, with a closer match than that obtained for the decomposition in [Braun et al., 2025] (Table 1). This indicates that the parameter components are close representations of the target model geometrically. In contrast, APD exhibited significant shrinkage of the learned parameter components, with an ML2R of approximately 0.9 for both models [Braun et al., 2025], reminiscent of feature shrinkage in SAEs [Jermyn et al., 2024, Wright and Sharkey, 2024].</p>
+<h3><strong>3.2 Toy Model of Superposition with hidden identity</strong></h3>
+<p>SDL methods are known to suffer from the phenomenon of ‘feature splitting’, where the features that are learned depend on the dictionary size, with larger dictionaries finding more sparsely activating, finer-grained features than smaller dictionaries [Bricken et al., 2023, Chanin et al., 2024]: Suppose a network has a hidden layer that simply implements a linear map. When decomposing this layer with a transcoder, we can continually increase the number of latents and learn ever more sparsely activating, ever more fine-grained latents to better minimize its reconstruction and sparsity losses. This problem is particularly salient in the case of a linear map, but similar arguments apply to nonlinear maps.</p>
+<p>By contrast, Braun et al. [2025] claimed that linear parameter decomposition methods do not suffer from feature splitting. In the linear case, SPD losses would be minimized by learning a single <em>d</em> -dimensional component that performs the linear map. The losses cannot be further reduced by</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0009-00.jpg" alt="" /></p>
+<p>Figure 2: Plots of (left to right) the columns of the input weight matrix <em>W</em> of the TMS5 <em>−</em> 2+ID model (which can be written as <em>x</em> ˆ = ReLU( <em>W</em><sup><em>⊤</em></sup> <em>IWx</em> + <em>b</em> ), with a weight matrix <em>W ∈</em> R<sup><em>m_1</sup><sup></em>×m_2</sup> and an identity matrix <em>I ∈</em> R<sup><em>m_1</sup><sup></em>×m_1</sup> ); the sum of the parameter subcomponents for that matrix found by SPD; and the individual parameter subcomponents. Although this run of SPD used 20 subcomponents, only 6 subcomponents are shown, ordered by the sum of their matrix norms. The first five have learned one direction each, each corresponding to one of the columns of the target model. The final column and the other 14 components (not shown) have a negligible norm because they are superfluous for replicating the behavior of the target model.</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0009-02.jpg" alt="" /></p>
+<p>Figure 3: Plots of (left to right) the weights in the hidden identity matrix <em>I</em> of the TMS5 <em>−</em> 2+ID; the sum of all subcomponents found by SPD for that matrix (including small-norm subcomponents that are not shown); and the largest three individual subcomponents. We see that SPD finds two subcomponents that together sum to the original rank-2 identity matrix of the target model, while the other subcomponents have a negligible weight norm.</p>
+<p>adding more subcomponents, because that would prevent the components from summing to the original network weights.</p>
+<p>Here, we empirically demonstrate this claim in a simple setting. We train a toy model of superposition identical to the TMS5 <em>−</em> 2 and TMS40 <em>−</em> 10, but with identity matrices inserted between the down-projection and up-projection steps of the models. These models, denoted TMS5 <em>−</em> 2+ID and TMS40 <em>−</em> 10+ID, can be written as <em>x</em> ˆ = ReLU( <em>W</em><sup><em>⊤</em></sup> <em>IWx</em> + <em>b</em> ), with a weight matrix <em>W ∈</em> R<sup><em>m_1</sup><sup></em>×m_2</sup> and an identity matrix <em>I ∈</em> R<sup><em>m_1</sup><sup></em>×m_1</sup> .</p>
+<p>We should expect SPD to find <em>m</em> 2 + <em>m</em> 1 subcomponents in total: <em>m</em> 2 subcomponents that correspond to the columns of the matrix <em>W</em> (each having causal importance for the model output if and only if one particular feature is present in the input, as in standard TMS (Section 3.1)) and <em>m</em> 1 subcomponents for the matrix <em>I</em> (almost all of which should have causal importance for the model output on every input). There are <em>m</em> 1 subcomponents because we need <em>m</em> 1 rank-one matrices to sum to a rank- <em>m</em> 1 matrix.</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0009-07.jpg" alt="" /></p>
+<p>Figure 4: Plots of (left to right) the TMS5 <em>−</em> 2+ID networks parametrized by: The target model parameters; the sum of all parameter subcomponents found by SPD the decomposition of the model; and the seven individual subcomponents of non-negligible size. We see that SPD finds five subcomponents for the embedding matrix <em>W</em> , corresponding to the five input features, and two subcomponents that span the identity matrix <em>I</em> in the middle of the model.</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0010-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0010-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Inpu t<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0010-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Ou t pu t<br><!-- End of picture text --></p>
+<p>Figure 5: The architecture of the Toy Model of Compressed Computation. It uses a 1-layer residual MLP. Figure adapted from Braun et al. [2025].</p>
+<h3><strong>SPD Results: Toy Model of Superposition with hidden identity</strong></h3>
+<p>As expected, we find that SPD decomposes the embedding matrices <em>W</em> of both the TMS5 <em>−</em> 2+ID and TMS40 <em>−</em> 10+ID models into parameter subcomponents that closely correspond to their columns (Figure 3; Table 1).</p>
+<p>Also as expected, SPD decomposes the identity matrix <em>I ∈</em> R<sup><em>m_1</sup><sup></em>×m_1</sup> into only <em>m</em> 1 subcomponents that sum to the original matrix <em>I</em> (Figure 3). In total, SPD identifies only <em>m</em> 2 + <em>m</em> 1 subcomponents with non-negligible norm, thus identifying the ground truth mechanisms in each layer (Figure 4). APD fails to learn ground truth mechanisms in this model.</p>
+<h3><strong>3.3 Toy Model of Compressed Computation</strong></h3>
+<p>In this setting, the target network is a residual MLP that was previously studied by Braun et al. [2025] (Figure 5). It consists of a single residual MLP layer of width <em>d</em> mlp = 50; a fixed, random embedding matrix with unit norm rows <em>WE</em> ; an unembedding matrix <em>WU</em> = <em>WE</em><sup><em>⊤</em>;and 100 input</sup> features, with a residual stream width of <em>d</em> resid = 1000. This model is trained to approximate a function of sparsely activating input features <em>xi ∈</em> [ <em>−</em> 1 <em>,</em> 1], using a Mean Squared Error (MSE) loss between the model output and the labels. The labels we train the model to predict are produced by the function <em>yi</em> = <em>xi</em> + ReLU( <em>xi</em> ). Crucially, the task involves learning to compute more ReLU functions than the network has neurons.</p>
+<p>A naive solution to this task would be to dedicate each of the 50 neurons ‘monosemantically’ to computing one of the 100 input-output mappings. But this solution would perform poorly on the other 50 mappings. Instead, the model seems to achieve a better loss by using multiple neurons ‘polysemantically’ to compute a single input-output mapping. We thus expected that, for each mapping, a single subcomponent in the model’s MLP input weight matrix <em>W</em> in would be responsible for computing it, with every component connecting to many neurons<sup>5</sup> .</p>
+<p>Originally, we were unsure what the ground-truth mechanisms in the model’s MLP output weight matrix <em>W</em> out were. It seemed both possible that (a) for each input-output mapping, the model would have a single mechanism within <em>W</em> out that projects the result of MLP activations back into the residual stream, or (b) that <em>W</em> out was a single mechanism embedding the entire MLP output back into the residual stream, similar to the case of the identity matrix in the TMS model in Section 3.2. The analysis based on the APD decomposition in Braun et al. [2025] claimed the former, but our SPD decomposition, as shown below, clearly finds the latter.</p>
+<h3><strong>SPD Results: Toy Model of Compressed Computation</strong></h3>
+<p>To understand how each neuron participates in computing the output for a given input feature, Braun et al. [2025] measured the neuron’s <em>contribution</em> to each input feature computation. The neuron contributions for input features <em>i ∈{</em> 0 <em>, · · · ,</em> 99 <em>}</em> are calculated as:</p>
+<p>NeuronContributionmodel( <em>i</em> ) = ( <em>WU</em> [ <em>i,</em> :] <em>W</em> out) <em>⊙</em> ( <em>W</em> in <em>WE</em> [: <em>,i</em> ]) (11)</p>
+<p>where <em>WE</em> [: <em>,i</em> ] <em>, WU</em> [ <em>i,</em> :] are the <em>i</em> -th column of the embedding matrix and the <em>i</em> -th row of the unembedding matrix, and <em>⊙</em> denotes element-wise multiplication. A large positive contribution indicates that the neuron plays an important role in computing the output for input feature <em>i</em> .</p>
+<blockquote>
+<p>5See Bhagat et al. [2025] for further discussion on how the model may be performing this task.</p>
+</blockquote>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0011-00.jpg" alt="" /></p>
+<p>Figure 6: Toy Model of Compressed Computation: Similarity between target model weights and SPD subcomponents for the first 10 (out of 100) input feature dimensions. <strong>Top</strong> : Neuron contributions measured by Equation 11 for each input feature index <em>i ∈{</em> 0 <em>, . . . ,</em> 9 <em>}</em> . <strong>Bottom</strong> : Neuron contributions for the corresponding parameter subcomponents, measured by Equation 12 for each input feature index <em>i ∈{</em> 0 <em>, . . . ,</em> 9 <em>}</em> . The neurons are numbered from 0 to 49 based on their raw position in the MLP layer. An extended version of this figure showing all input features and parameter components can be found here.</p>
+<p>Neuron contributions for individual subcomponents of <em>W</em> in are calculated in a similar way:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0011-03.jpg" alt="" /></p>
+<p>We apply SPD to the MLP weight matrices <em>W</em> in <em>, W</em> out in the target model. We find that SPD decomposes the <em>W</em> in matrix into 100 subcomponents, each of which is involved in implementing <em>yi</em> = <em>xi</em> + ReLU( <em>xi</em> ) for a unique input dimension <em>i ∈{</em> 0 <em>, · · · ,</em> 99 <em>}</em> . The computations required to produce the output for each input dimension in the target network (Figure 6 - top) are well replicated by individual parameter subcomponents in the SPD model (Figure 6 - bottom). For each input dimension, there is a corresponding parameter subcomponent of <em>W</em> in that uses the same neurons to compute the function as the target model does. In other words, for each input dimension, the neuron contributions for each input dimension match the neuron contributions of some corresponding subcomponent. Figure 7 also summarizes all neuron contributions in the target model compared to individual subcomponents in the SPD model and shows they all match closely. Given a one-hot input <em>xi</em> of magnitude 0 <em>.</em> 75 to the model, the masking functions in <em>W</em> in select only their corresponding component to activate (Figure 8 - middle column).</p>
+<p>Meanwhile, SPD splits its corresponding <em>W</em> out into 50 subcomponents, which appear to all be effectively part of a single rank-50 component comprising the entire <em>W</em> out matrix, since the masking functions seem to activate many components despite being a one-hot input <em>xi</em> = 0 <em>.</em> 75 to the model. Both APD and SPD split the MLP input weight matrices <em>W</em> in into one component per input feature [Braun et al., 2025]. However, APD also decomposed the MLP output weight matrix <em>W</em> out into 100 components roughly corresponding to different input features, instead of a single rank-50 component. We believe that the SPD decomposition is more accurate, and that the APD decomposition of <em>W</em> out was incorrect due to a poorly chosen value for the top- <em>k</em> hyperparameter. The SPD decomposition seems to reconstruct the computations of the original model more cleanly. In particular, Braun et al. [2025] note that some components partially represent secondary features (See Appendix C2 of Braun et al. [2025]), whereas SPD’s masks do not have this issue. Additionally, the neuron contributions of the SPD decomposition are much closer to the target model and have less shrinkage (Compare neuron</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0012-00.jpg" alt="" /></p>
+<p>Figure 7: Toy Model of Compressed Computation: Similarity between target model weights and SPD subcomponents for all 100 input feature dimensions. <strong>X-axis</strong> : Neuron contributions measured by Equation 11 for each input feature index <em>i ∈{</em> 0 <em>, . . . ,</em> 99 <em>}</em> . <strong>Y-axis</strong> : Neuron contributions for the corresponding parameter subcomponents of <em>W</em> in, measured by Equation 12 for each feature index <em>i ∈{</em> 0 <em>, . . . ,</em> 99 <em>}</em> . There is a very close match between the X and Y axis for each neuron contribution, indicating that each subcomponent connects its corresponding feature to the MLP neurons with almost the same weights as the target model.</p>
+<p>contributions in Figure 6 of Braun et al. [2025] to our Figure 6). The SPD results also seem to better match theoretical predictions made by a mathematical framework for computation in superposition [unpublished work, forthcoming].</p>
+<p>When the importance loss coefficient <em>β</em> 3 is too small, a single input feature activates a large number of components in <em>W</em> in (Figure 8 - left two columns). This is suboptimal with respect to minimality, and is therefore a poor decomposition. When the importance loss coefficient <em>β</em> 3 is too high, the importance values decrease below 1 (Figure 8 - right two columns), which, aside from being a suboptimal decomposition, is also associated with high reconstruction losses.</p>
+<h3><strong>3.4 Toy Models of Cross-Layer Distributed Representations</strong></h3>
+<p>Realistic neural networks seem capable of implementing mechanisms distributed across more than one layer [Yun et al., 2021, Lindsay et al., 2024]. To study the ability of SPD to identify components that are spread over multiple layers, Braun et al. [2025] also studied a toy model trained on the same task with the same residual MLP architecture as the one in Section 3.3, but with the 50 neurons spread over two MLPs instead of one (Figure 9).</p>
+<p>As in the Toy Model of Compressed Computation, the model learns to compute individual functions using multiple neurons. But here it learns to do so using neurons that are spread over two layers. SPD should find subcomponents in both <em>W</em> in<sup>1and</sup><sup>_W_2</sup> in<sup>that are causally important for computing each</sup> function. And, for the same reasons as in the Toy Model of Compressed Computation, <em>W</em> out<sup>1and</sup><sup>_W_2</sup> out should be decomposed into subcomponents that are in fact all part of one large parameter component, but in this model this one large component should span both layers.</p>
+<p>We apply SPD on this model, as well as another model that spreads 51 neurons over three MLPs to compute functions of 102 input features. APD struggled to decompose a model with more than two layers due to hyperparameter sensitivity, but SPD succeeds.</p>
+<h3><strong>SPD Results for two- and three-layer models of Cross-Layer Distributed Representations</strong></h3>
+<p>SPD finds qualitatively similar results to the 1-layer Toy Model of Compressed Computation presented in Section 3.3. In the two-layer model, the MLP input matrices <em>W</em> in<sup>1</sup><sup><em>, W</em></sup> in<sup>2, which each have shape</sup></p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0013-00.jpg" alt="" /></p>
+<p>Figure 8: Causal importance values of each subcomponent (clipped between 0 and 1) in response to one-hot inputs ( <em>xi</em> = 0 <em>.</em> 75) for multiple importance loss coefficients <em>β</em> 3. The columns of each matrix are permuted differently, ordered by iteratively choosing the subcomponent (without replacement) with the highest causal importance for each input feature. When the importance loss coefficient <em>β</em> 3 is too low (Left), subcomponents in <em>W</em> in are not ‘monosemantic’ (i.e. multiple subcomponents have causal importance for the same feature). When the importance loss coefficient <em>β</em> 3 is just right (middle column), each subcomponent in <em>W</em> in has causal importance for computing a unique input feature. It also identifies the correct number of subcomponents in <em>W</em> out (50). Although it identifies the correct number of components, these subcomponents need not align with any particular basis, and hence look ‘noisy’ because they align with multiple features. But this does not matter, since they always co-activate together and sum to the target model’s identity-matrix parameters. When the importance loss coefficient <em>β</em> 3 is too high (Right), the rank-50 <em>W</em> out component is split into too many subcomponents—approximately one subcomponent for each feature, but where many of the subcomponents have small causal importance values for other features. Also, the causal importance values on the diagonal shrink far below 1 <em>.</em> 0, resulting in high <em>L</em> stochastic-recon and <em>L</em> stochastic-recon-layerwise losses.</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0013-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Inpu t Ou t pu t<br><!-- End of picture text --></p>
+<p>Figure 9: The architecture of one of our two Toy models of Cross-Layer Distributed representations. The other toy model has three MLP blocks instead of two. Figure adapted from Braun et al. [2025].</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0014-00.jpg" alt="" /></p>
+<p>Figure 10: Toy Model of Distributed Representations (Two Layers): Similarity between target model weights and SPD subcomponents for all 100 input feature dimensions in a 2-layer residual MLP. Each point represents one neuron’s contribution to a particular input feature. <strong>X-axis</strong> : Neuron contributions measured by Equation 11. <strong>Y-axis</strong> : Neuron contributions for the same neuron on the same input feature in the corresponding parameter subcomponents of <em>W</em> in<sup>1</sup><sup><em>, W</em></sup> in<sup>2, measured by Equation</sup> 12. There is a close match between the X and Y axes for each neuron contribution, indicating that each subcomponent connects its corresponding feature to the MLP neurons with similar weights as the target model. However, there is a systematic skew toward higher values on the Y-axis, indicating that the neuron contributions of the subcomponents tend to be slightly larger. This is in contrast to the one-layer case (Figure 7) and three-layer case (Figure 11). We currently do not understand the source of this discrepancy, but it is possibly an outcome of suboptimal hyperparameters.</p>
+<p>(d_mlp=25, d_embed=1000), are decomposed into 100 components that each compute the functions for one of the input features, using neurons spread over both MLP layers. The MLP output matrices <em>W</em> out<sup>1</sup><sup><em>, W</em></sup> out<sup>2are decomposed into a single rank 50 component.Notably, however, this component is</sup> now spread over both layers (Figure 12). This demonstrates that SPD can identify mechanisms that span multiple layers.</p>
+<p>In the three-layer model, the MLP input matrices <em>W</em> in<sup>1</sup><sup><em>, W</em></sup> in<sup>2</sup><sup><em>, W</em></sup> in<sup>3, which each have shape (d_mlp = 17,</sup> d_embed = 1000), are likewise decomposed into 102 components all spread over 3 layers, and the MLP output matrices <em>W</em> out<sup>1</sup><sup><em>, W</em></sup> out<sup>2</sup><sup><em>, W</em></sup> out<sup>3are decomposed into a single rank 51 component spread over</sup> all three layers (Figure 13). In both the two- and three-layer models, we find that the computations occurring in each parameter subcomponent of the <em>Win</em> matrices closely correspond to individual input feature computations in the target model (Figures 10, 11, 14, 15). We note, however, that there is sensitivity to random seeds in these results for these models, possibly due to unfavorable random initialization, which we intend to explore in future work.</p>
+<h2><strong>4 Related Work</strong></h2>
+<p>SPD uses randomly sampled masks in order to identify the minimal set of parameter subcomponents that are causally important for computing a model’s output on a given input. This is, in essence, a method for finding a good set of causal mediators [Mueller et al., 2024, Vig et al., 2020, Geiger et al., 2024a,b]: Our causal importance function can be thought of as learning how to causally intervene on our target model in order to identify a minimal set of simple causal mediators of a model’s computation. However, unlike many approaches in the causal intervention literature (e.g. Chan et al. [2022], Wang et al. [2022], Conmy et al. [2023]), our approach does not assume a particular basis for these interventions. Instead, it learns the basis in which causal interventions are made. It also makes these interventions in parameter space.</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0015-00.jpg" alt="" /></p>
+<p>Figure 11: Toy Model of Distributed Representations (Three Layers): Similarity between target model weights and SPD subcomponents for all 102 input feature dimensions in a 3-layer residual MLP. Each point represents one neuron’s contribution for a particular input feature. <strong>X-axis</strong> : Neuron contributions measured by Equation 11. <strong>Y-axis</strong> : Neuron contributions for the same neuron on the same input feature in the corresponding parameter subcomponents of <em>W</em> in<sup>1</sup><sup><em>, W</em></sup> in<sup>2</sup><sup><em>, W</em></sup> in<sup>3, measured by Equation 12.</sup> There is a close match between the X and Y axes for each neuron contribution, indicating that each subcomponent connects its corresponding feature to the MLP neurons with similar weights as the target model.</p>
+<p>Some previous work learns fixed masks to ablate parts of the model’s input or parts of its parameters [Csordás et al., 2021, Cao et al., 2021, Zhang et al., 2021]. But these masks tend to be for fixed inputs, and also often assume a particular basis. Our work also has an important difference to other masking-based attribution approaches: While our causal importances are predicted, the masks themselves are stochastically sampled with an amount of randomness based on the predicted causal importances.</p>
+<p>Our definition of causal importance of subcomponents is related but not identical to the definition of causal dependence used in other literature [Lewis, 1973, Mueller, 2024]. For one, it may be possible that networks compute particular outputs even if one causally important subcomponent is ablated, using emergent self-repair [McGrath et al., 2023]. In that case, a subcomponent may be causally important for a particular output, but the output may not be causally dependent on it.</p>
+<p>SPD also has parallels to work that uses attribution methods to approximate the causal importance of model components (e.g. Mozer and Smolensky [1988], Syed et al. [2024], Marks et al. [2024], Braun et al. [2025]) or the inputs (as in saliency maps) (e.g. Fong and Vedaldi [2017], Simonyan et al. [2014]). Our approach learns to predict causal importances given an input, which can be thought of as learning to predict attributions. To the best of our knowledge, we are not aware of similar approaches that learn to predict the input-dependent ablatability of model components using the method described in this paper.</p>
+<p>Chrisman et al. [2025] decomposed networks in parameter space by finding low-rank parameter components that can reconstruct, using sparse coefficients, the gradient of a loss between the network output and a baseline output. Somewhat similarly, Matena and Raffel [2025] decomposed models in parameter space via non-negative factorisation of the models’ per-sample Fisher Information matrices into components. SPD also decomposes networks into low-rank components in parameter space based on how the network output responds to perturbations. But instead of relying on local approximations like gradients to estimate the effects of a perturbation, it is trained by directly checking the effect ablating components in various combinations has on the output.</p>
+<p>SPD can be viewed as approximately quantifying the degeneracy in neural network weights over different subdistributions of the data. SPD was in part inspired by singular learning theory [Watanabe,</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0016-00.jpg" alt="" /></p>
+<p>Figure 12: Toy Model of Distributed Representations (Two Layers): Causal importance values of each subcomponent (clipped between 0 and 1) for the matrices in both MLP layers, <em>W</em> in<sup>1</sup><sup><em>, W</em></sup> out<sup>1</sup><sup><em>, W</em></sup> in<sup>2</sup><sup><em>, W</em></sup> out<sup>2</sup> in response to one-hot inputs ( <em>xi</em> = 0 <em>.</em> 75). Each subcomponent in <em>W</em> in<sup>1</sup><sup><em>, W</em></sup> in<sup>2has causal importance</sup> for computing a unique input feature. On the other hand, the combined 50 subcomponents of <em>W</em> out<sup>1</sup><sup><em>, W</em></sup> out<sup>2all coactivate for all input features, indicating they are part of a single rank-50 identity</sup> component. The columns of each matrix are permuted differently, ordered by iteratively choosing the subcomponent (without replacement) with the highest causal importance for each input feature.</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0017-00.jpg" alt="" /></p>
+<p>Figure 13: Toy Model of Distributed Representations (Three Layers): Causal importance values of each subcomponent (clipped between 0 and 1) for the matrices in all three MLP layers, <em>W</em> in<sup>1</sup><sup><em>, W</em></sup> out<sup>1</sup><sup><em>, W</em></sup> in<sup>2</sup><sup><em>, W</em></sup> out<sup>2</sup><sup><em>, W</em></sup> in<sup>3</sup><sup><em>, W</em></sup> out<sup>3in response to one-hot inputs (</sup><sup><em>xi</em>=0</sup><sup><em>.<em>75).Each subcomponent in</sup> <em>W</em> in<sup>1</sup><sup></em>, W</em></sup> in<sup>2</sup><sup><em>, W</em></sup> in<sup>3has causal importance for computing a unique input feature.On the other hand, the</sup> combined 51 subcomponents of <em>W</em> out<sup>1</sup><sup><em>, W</em></sup> out<sup>2</sup><sup><em>, W</em></sup> out<sup>3all coactivate for all input features, indicating they</sup> are part of a single rank-51 identity component. The columns of each matrix are permuted differently, ordered by iteratively choosing the subcomponent (without replacement) with the highest causal importance for each input feature.</p>
+<p>2009], which quantifies degeneracy in network weights present over the entire data distribution using the learning coefficient. Wang et al. [2024] defined the data-refined learning coefficient, which measures degeneracy in neural network weights over a chosen subset of the distribution. In contrast, SPD works in an unsupervised manner, finding a single set of vectors to represent the neural network parameters, such that as many vectors as possible are degenerate on any given datapoint in the distribution. SPD also requires vectors to be ablatable to zero rather than just being degenerate locally.</p>
+<p>See Braun et al. [2025] for further discussion on the relationship between linear parameter decomposition methods and sparse autoencoders; transcoders; weight masking and pruning; circuit discovery and causal mediation analysis; interpretability of neural network parameters; mixture of experts; and loss landscape intrinsic dimensionality and degeneracy.</p>
+<h2><strong>5 Discussion</strong></h2>
+<p>In this paper we introduced SPD, a method that resolves many of the issues of APD [Braun et al., 2025]. The method is considerably more scalable and robust to hyperparameters, which we demonstrate by using the method to decompose deeper and more complex models than APD has successfully decomposed.</p>
+<p>We hypothesize that this relative robustness comes from various sources:</p>
+<ol>
+<li>
+<p><strong>APD required estimating the expected number of active components in advance</strong> , because it needed to set the hyperparameter <em>k</em> for selecting the top- <em>k</em> most attributed components per batch. This number would usually not be known in advance for realistic models. APD results were very sensitive to it. SPD uses trained causal importance functions instead, and therefore no longer needs to use a fixed estimate for the number of active subcomponents per datapoint. We still need to pick the loss coefficient for the causal importance penalty <em>β</em> 3, but this is a much more forgiving hyperparameter than the hyper-sensitive top- <em>k</em> hyperparameter<sup>6</sup></p>
+</li>
+<li>
+<p><strong>Gradients flow through every subcomponent on every datapoint</strong> , unlike in APD, where gradients only flowed through the top- <em>k</em> most attributed components. Top- <em>k</em> activation functions create discontinuities that, in general, tend to lead to unstable gradient-based training. In SPD, even subcomponents with causal importance values of zero will almost always permit gradients to flow, thus helping them error-correct if they are wrong.</p>
+</li>
+<li>
+<p><strong>SPD does not need to optimize for ‘simplicity’</strong> (in the sense of Braun et al. [2025], where simple parameter components span as few ranks and layers as possible). Not only does this remove one hyperparameter (making tuning easier), but it also avoids inducing shrinkage in the singular values of the parameter component weight matrices. SPD does not exhibit shrinkage in the parameter subcomponents because the importance norm penalizes the probability that a subcomponent will be unmasked, but does not directly penalize norms of the singular values of the parameter matrices themselves. This can be helpful for learning correct solutions: For example, if correctly-oriented parameter components exhibit shrinkage, then their sum will not sum to the parameters of the target model, and therefore other parameter components will need to compensate. For this reason, the faithfulness and simplicity losses in APD were in tension. Removing this tension, and removing a whole hyperparameter to tune, makes it easier to hit small targets in parameter space. Although there is shrinkage in the causal importance values, this does not appear to be very influential since causal importance values only determine the allowed minimum value of the masks. For example, a causal importance value of 0 <em>.</em> 95 indicates that we can ablate a subcomponent by up to five percent without significantly affecting the network output, but we can also just not ablate it at all.</p>
+</li>
+<li>
+<p><strong>APD used gradient-based attribution methods to estimate causal importance</strong> , even though those methods are only first-order approximations of ideal causal attributions, which is often a poor approximation [Watson, 2022, Kramár et al., 2024]. If causal attributions</p>
+</li>
+</ol>
+<blockquote>
+<p>6In an idealized setting where (a) there is no batch noise in the loss, (b) no finite floating point precision, and (c) inactive mechanisms do not causally influence the network output at all, then setting <em>β</em> 3 to any value infinitesimally larger than zero should suffice to make our desired decomposition the global optimum.</p>
+</blockquote>
+<p>are wrong, then the wrong parameter components would activate, so the wrong parameter components would be trained to compute the model’s function on particular inputs. Systematic errors in causal attributions will lead to systematic biases in the gradients, which can be catastrophic when trying to hit a very particular target in parameter space. SPD instead directly optimizes for causal importance and is likely a much better estimate than the approximations found by even somewhat sophisticated attribution methods (e.g. Sundararajan et al. [2017]).</p>
+<p>We hope that the stability and scalability of SPD will facilitate further scaling to much larger models than the ones studied here. In future work, we plan to test the scaling limits of the current method and explore any necessary adjustments for increased scalability and robustness.</p>
+<p>We plan to investigate several outlying issues in future work. One issue is that we are unsure if learning independent subcomponents will enable the method to learn subcomponents that can describe the network’s function using as short a description as possible. It may be possible that information from future layers is necessary to identify whether a given subcomponent is causally important. If it is, then calculating causal importance values layerwise will mean that some subcomponents are active when they need not be. It may therefore be interesting to explore causal importance functions that take as input more global information from throughout the network, rather than only the subcomponent inner activations at a given layer. Another issue is that both APD and SPD privilege mechanisms that span individual layers due to the importance loss or simplicity loss in SPD and APD respectively; it may be desirable to identify loss functions that privilege layers less.</p>
+<p>The toy models in our work had known ground truth mechanisms, and therefore it was straightforward to identify which subcomponents should be grouped together into full parameter components. However, in the general case we will not know this by default. We therefore need to develop approaches that cluster subcomponents together in a way that combines the sparse and dense coding schemes laid out in the appendix of Braun et al. [2025] to achieve components that permit a minimum length description of the network’s function in terms of parameter components.</p>
+<p>It is worth noting that the SPD approach can be generalized in multiple straightforward ways. It is not necessary, for instance, to decompose parameter components strictly into subcomponents consisting of rank-one matrices. Subcomponents could, for instance, span only one rank but across all matrices in all layers. Alternatively, different implementations of the causal importance function could be used.</p>
+<p>We expect that SPD’s scalability and stability will enable new research directions previously inaccessible with APD, such as investigating mechanisms of memorization and their relationship to neural network parameter storage capacity. Additionally, the principles behind SPD may be useful for training intrinsically decomposed models.</p>
+<h2><strong>Acknowledgments</strong></h2>
+<p>We thank Tom McGrath, Stefan Heimersheim, Daniel Filan, Bart Bussmann, Logan Smith, Nathan Hu, Dashiell Stander, Brianna Chrisman, Kola Ayonrinde, and Atticus Geiger for helpful feedback on previous drafts of this paper. We also thank Stefan Heimersheim for initially suggesting the idea to train on an early version of what became the stochastic loss, which we had up to then only treated as a validation metric. Additionally, we thank Kaarel Hänni, whose inputs helped us develop the definition of component causal importance, and Linda Linsefors, whose corrections of earlier work on interference terms arising in computation in superposition helped us interpret the toy model of compressed computation.</p>
+<h2><strong>References</strong></h2>
+<ul>
+<li>
+<p>Julius Adebayo, Justin Gilmer, Michael Muelly, Ian Goodfellow, Moritz Hardt, and Been Kim. Sanity checks for saliency maps. In S. Bengio, H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, and R. Garnett, editors, <em>Advances in Neural Information Processing Systems</em> , volume 31. Curran Associates, Inc., 2018. URL <code>https://proceedings.neurips.cc/paper_ files/paper/2018/file/294a8ed24b1ad22ec2e7efea049b8737-Paper.pdf</code> .</p>
+</li>
+<li>
+<p>Jai Bhagat, Sara Molas Medina, Giorgi Giglemiani, and Stefan Heimersheim. Compressed computation is (probably) not computation in superposition. <code>https://www.lesswrong.com/posts/ZxFchCFJFcgysYsT9/ compressed-computation-is-probably-not-computation-in</code> , 2025.</p>
+</li>
+<li>
+<p>Dan Braun, Lucius Bushnaq, Stefan Heimersheim, Jake Mendel, and Lee Sharkey. Interpretability in parameter space: Minimizing mechanistic description length with attribution-based parameter decomposition, 2025. URL <code>https://arxiv.org/abs/2501.14926</code> .</p>
+</li>
+<li>
+<p>Trenton Bricken, Adly Templeton, Joshua Batson, Brian Chen, Adam Jermyn, Tom Conerly, Nick Turner, Cem Anil, Carson Denison, Amanda Askell, Robert Lasenby, Yifan Wu, Shauna Kravec, Nicholas Schiefer, Tim Maxwell, Nicholas Joseph, Zac Hatfield-Dodds, Alex Tamkin, Karina Nguyen, Brayden McLean, Josiah E Burke, Tristan Hume, Shan Carter, Tom Henighan, and Christopher Olah. Towards monosemanticity: Decomposing language models with dictionary learning. <em>Transformer Circuits Thread</em> , 2023. URL <code>https://transformer-circuits.pub/2023/monosemantic-features/index.html</code> .</p>
+</li>
+<li>
+<p>Steven Cao, Victor Sanh, and Alexander M. Rush. Low-complexity probing via finding subnetworks, 2021. URL <code>https://arxiv.org/abs/2104.03514</code> .</p>
+</li>
+<li>
+<p>Lawrence Chan, Adrià Garriga-Alonso, Nicholas Goldowsky-Dill, Ryan Greenblatt, Jenny Nitishinskaya, Ansh Radhakrishnan, Buck Shlegeris, and Nate Thomas. Causal scrubbing: a method for rigorously testing interpretability hypotheses [redwood research], December 2022. URL <code>https://www.alignmentforum.org/posts/JvZhhzycHu2Yd57RN/ causal-scrubbing-a-method-for-rigorously-testing</code> .</p>
+</li>
+<li>
+<p>David Chanin, James Wilken-Smith, Tomáš Dulka, Hardik Bhatnagar, and Joseph Bloom. A is for absorption: Studying feature splitting and absorption in sparse autoencoders, 2024. URL <code>https://arxiv.org/abs/2409.14507</code> .</p>
+</li>
+<li>
+<p>Brianna Chrisman, Lucius Bushnaq, and Lee Sharkey. Identifying sparsely active circuits through local loss landscape decomposition, 2025. URL <code>https://arxiv.org/abs/2504.00194</code> .</p>
+</li>
+<li>
+<p>Arthur Conmy, Augustine Mavor-Parker, Aengus Lynch, Stefan Heimersheim, and Adrià Garriga-Alonso. Towards automated circuit discovery for mechanistic interpretability. In A. Oh, T. Naumann, A. Globerson, K. Saenko, M. Hardt, and S. Levine, editors, <em>Advances in Neural Information Processing Systems</em> , volume 36, pages 16318–16352. Curran Associates, Inc., 2023. URL <code>https://proceedings.neurips.cc/paper_files/paper/2023/file/ 34e1dbe95d34d7ebaf99b9bcaeb5b2be-Paper-Conference.pdf</code> .</p>
+</li>
+<li>
+<p>Róbert Csordás, Sjoerd van Steenkiste, and Jürgen Schmidhuber. Are neural nets modular? inspecting functional modularity through differentiable weight masks. In <em>International Conference on Learning Representations</em> , 2021. URL <code>https://openreview.net/forum?id=7uVcpu-gMD</code> .</p>
+</li>
+<li>
+<p>Hoagy Cunningham, Logan Riggs Smith, Aidan Ewart, Robert Huben, and Lee Sharkey. Sparse autoencoders find highly interpretable features in language models. In <em>The Twelfth International Conference on Learning Representations</em> , 2024. URL <code>https://openreview.net/forum?id=F76bwRSLeK</code> .</p>
+</li>
+<li>
+<p>Nelson Elhage, Tristan Hume, Catherine Olsson, Nicholas Schiefer, Tom Henighan, Shauna Kravec, Zac Hatfield-Dodds, Robert Lasenby, Dawn Drain, Carol Chen, Roger Grosse, Sam McCandlish, Jared Kaplan, Dario Amodei, Martin Wattenberg, and Christopher Olah. Toy models of superposition, 2022.</p>
+</li>
+<li>
+<p>Ruth C. Fong and Andrea Vedaldi. Interpretable explanations of black boxes by meaningful perturbation. In <em>2017 IEEE International Conference on Computer Vision (ICCV)</em> . IEEE, October 2017. doi: 10.1109/iccv.2017.371. URL <code>http://dx.doi.org/10.1109/ICCV.2017.371</code> .</p>
+</li>
+<li>
+<p>Leo Gao, Tom Dupré la Tour, Henk Tillman, Gabriel Goh, Rajan Troll, Alec Radford, Ilya Sutskever, Jan Leike, and Jeffrey Wu. Scaling and evaluating sparse autoencoders, 2024. URL <code>https://arxiv.org/abs/2406.04093</code> .</p>
+</li>
+<li>
+<p>Atticus Geiger, Hanson Lu, Thomas Icard, and Christopher Potts. Causal abstractions of neural networks. In <em>Proceedings of the 35th International Conference on Neural Information Processing Systems</em> , NIPS ’21, Red Hook, NY, USA, 2024a. Curran Associates Inc. ISBN 9781713845393.</p>
+</li>
+<li>
+<p>Atticus Geiger, Zhengxuan Wu, Christopher Potts, Thomas Icard, and Noah Goodman. Finding alignments between interpretable causal variables and distributed neural representations. In Francesco Locatello and Vanessa Didelez, editors, <em>Proceedings of the Third Conference on Causal Learning and Reasoning</em> , volume 236 of <em>Proceedings of Machine Learning Research</em> , pages 160–187. PMLR, 01–03 Apr 2024b. URL</p>
+</li>
+<li>
+<p><code>https://proceedings.mlr.press/v236/geiger24a.html</code> .</p>
+</li>
+<li>
+<p>Kaarel Hänni, Jake Mendel, Dmitry Vaintrob, and Lawrence Chan. Mathematical models of computation in superposition, 2024. URL <code>https://arxiv.org/abs/2408.05451</code> .</p>
+</li>
+<li>
+<p>Adam Jermyn, Adly Templeton, Joshua Batson, and Trenton Bricken. Tanh penalty in dictionary learning. <code>https://transformer-circuits.pub/2024/feb-update/index.html#:~: text=handle%20dying%20neurons.-,Tanh%20Penalty%20in%20Dictionary% 20Learning,-Adam%20Jermyn%2C%20Adly</code> , 2024.</p>
+</li>
+<li>
+<p>Diederik P Kingma and Max Welling. Auto-encoding variational bayes, 2013. URL <code>https://arxiv.org/abs/1312.6114</code> .</p>
+</li>
+<li>
+<p>János Kramár, Tom Lieberum, Rohin Shah, and Neel Nanda. Atp*: An efficient and scalable method for localizing llm behaviour to components, 2024. URL <code>https://arxiv.org/abs/2403.00745</code> .</p>
+</li>
+<li>
+<p>Patrick Leask, Bart Bussmann, Michael Pearce, Joseph Bloom, Curt Tigges, Noura Al Moubayed, Lee Sharkey, and Neel Nanda. Sparse autoencoders do not find canonical units of analysis, 2025. URL <code>https://arxiv.org/abs/2502.04878</code> .</p>
+</li>
+<li>
+<p>David K. Lewis. <em>Counterfactuals</em> . Blackwell, Malden, Mass., 1973.</p>
+</li>
+<li>
+<p>Jack Lindsay, Adly Templeton, Jonathan Marcus, Thomas Conerly, Joshua Batson, and Christopher Olah. Sparse crosscoders for cross-layer features and model diffing, October 2024. URL <code>https://transformer-circuits.pub/2024/crosscoders/index.html</code> .</p>
+</li>
+<li>
+<p>Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization, 2019. URL <code>https://arxiv.org/abs/1711.05101</code> .</p>
+</li>
+<li>
+<p>Samuel Marks, Can Rager, Eric J. Michaud, Yonatan Belinkov, David Bau, and Aaron Mueller. Sparse feature circuits: Discovering and editing interpretable causal graphs in language models, 2024. URL <code>https://arxiv.org/abs/2403.19647</code> .</p>
+</li>
+<li>
+<p>Michael Matena and Colin Raffel. Uncovering model processing strategies with non-negative per-example fisher factorization, 2025. URL <code>https://arxiv.org/abs/2310.04649</code> .</p>
+</li>
+<li>
+<p>Thomas McGrath, Matthew Rahtz, Janos Kramar, Vladimir Mikulik, and Shane Legg. The hydra effect: Emergent self-repair in language model computations, 2023. URL <code>https://arxiv.org/abs/2307.15771</code> .</p>
+</li>
+<li>
+<p>Jake Mendel. SAE feature geometry is outside the superposition hypothesis. <em>Alignment Forum</em> , 2024. URL <code>https://www.alignmentforum.org/posts/MFBTjb2qf3ziWmzz6/ sae-feature-geometry-is-outside-the-superposition-hypothesis</code> .</p>
+</li>
+<li>
+<p>Michael C Mozer and Paul Smolensky. Skeletonization: A technique for trimming the fat from a network via relevance assessment. In D. Touretzky, editor, <em>Advances in Neural Information Processing Systems</em> , volume 1. Morgan-Kaufmann, 1988. URL <code>https://proceedings.neurips.cc/paper_files/paper/1988/file/ 07e1cd7dca89a1678042477183b7ac3f-Paper.pdf</code> .</p>
+</li>
+<li>
+<p>Aaron Mueller. Missed causes and ambiguous effects: Counterfactuals pose challenges for interpreting neural networks, 2024. URL <code>https://arxiv.org/abs/2407.04690</code> .</p>
+</li>
+<li>
+<p>Aaron Mueller, Jannik Brinkmann, Millicent Li, Samuel Marks, Koyena Pal, Nikhil Prakash, Can Rager, Aruna Sankaranarayanan, Arnab Sen Sharma, Jiuding Sun, Eric Todd, David Bau, and Yonatan Belinkov. The quest for the right mediator: A history, survey, and theoretical grounding of causal interpretability, 2024. URL <code>https://arxiv.org/abs/2408.01416</code> .</p>
+</li>
+<li>
+<p>Lee Sharkey, Dan Braun, and Beren Millidge. Taking features out of superposition with sparse autoencoders, Dec 2022. URL <code>https://www.alignmentforum.org/posts/z6QQJbtpkEAX3Aojj/</code></p>
+</li>
+<li>
+<p><code>interim-research-report-taking-features-out-of-superposition</code> .</p>
+</li>
+<li>
+<p>Lee Sharkey, Bilal Chughtai, Joshua Batson, Jack Lindsey, Jeff Wu, Lucius Bushnaq, Nicholas Goldowsky-Dill, Stefan Heimersheim, Alejandro Ortega, Joseph Bloom, Stella Biderman, Adria Garriga-Alonso, Arthur Conmy, Neel Nanda, Jessica Rumbelow, Martin Wattenberg, Nandi Schoots, Joseph Miller, Eric J. Michaud, Stephen Casper, Max Tegmark, William Saunders, David Bau, Eric Todd, Atticus Geiger, Mor Geva, Jesse Hoogland, Daniel Murfet, and Tom McGrath. Open problems in mechanistic interpretability, 2025. URL</p>
+</li>
+<li>
+<p><code>https://arxiv.org/abs/2501.16496</code> .</p>
+</li>
+<li>
+<p>Karen Simonyan, Andrea Vedaldi, and Andrew Zisserman. Deep inside convolutional networks: Visualising image classification models and saliency maps, 2014. URL <code>https://arxiv.org/abs/1312.6034</code> .</p>
+</li>
+<li>
+<p>Mukund Sundararajan, Ankur Taly, and Qiqi Yan. Axiomatic attribution for deep networks, 2017.</p>
+</li>
+<li>
+<p>Aaquib Syed, Can Rager, and Arthur Conmy. Attribution patching outperforms automated circuit discovery. In Yonatan Belinkov, Najoung Kim, Jaap Jumelet, Hosein Mohebbi, Aaron Mueller, and Hanjie Chen, editors, <em>Proceedings of the 7th BlackboxNLP Workshop: Analyzing and Interpreting Neural Networks for NLP</em> , pages 407–416, Miami, Florida, US, November 2024. Association for Computational Linguistics. doi: 10.18653/v1/2024.blackboxnlp-1.25. URL <code>https://aclanthology.org/2024.blackboxnlp-1.25/</code> .</p>
+</li>
+<li>
+<p>Demian Till. Do sparse autoencoders find &quot;true features&quot;?, February 2024. URL <code>https://www.lesswrong.com/posts/QoR8noAB3Mp2KBA4B/ do-sparse-autoencoders-find-true-features</code> .</p>
+</li>
+<li>
+<p>Jesse Vig, Sebastian Gehrmann, Yonatan Belinkov, Sharon Qian, Daniel Nevo, Yaron Singer, and Stuart Shieber. Investigating gender bias in language models using causal mediation analysis. In H. Larochelle, M. Ranzato, R. Hadsell, M.F. Balcan, and H. Lin, editors, <em>Advances in Neural Information Processing Systems</em> , volume 33, pages 12388–12401. Curran Associates, Inc., 2020. URL <code>https://proceedings.neurips.cc/paper_files/paper/2020/file/ 92650b2e92217715fe312e6fa7b90d82-Paper.pdf</code> .</p>
+</li>
+<li>
+<p>George Wang, Jesse Hoogland, Stan van Wingerden, Zach Furman, and Daniel Murfet. Differentiation and specialization of attention heads via the refined local learning coefficient, 2024. URL <code>https://arxiv.org/abs/2410.02984</code> .</p>
+</li>
+<li>
+<p>Kevin Wang, Alexandre Variengien, Arthur Conmy, Buck Shlegeris, and Jacob Steinhardt. Interpretability in the wild: a circuit for indirect object identification in gpt-2 small. <em>arXiv preprint arXiv:2211.00593</em> , 2022.</p>
+</li>
+<li>
+<p>Sumio Watanabe. <em>Algebraic geometry and statistical learning theory</em> , volume 25. Cambridge university press, 2009.</p>
+</li>
+<li>
+<p>David S. Watson. Conceptual challenges for interpretable machine learning. <em>Synthese</em> , 200:65, 2022. doi: 10.1007/s11229-022-03485-5. URL <code>https://doi.org/10.1007/s11229-022-03485-5</code> .</p>
+</li>
+<li>
+<p>Benjamin Wright and Lee Sharkey. Addressing feature suppression in saes, Feb 2024. URL <code>https://www.alignmentforum.org/posts/3JuSjTZyMzaSeTxKk/ addressing-feature-suppression-in-saes</code> .</p>
+</li>
+<li>
+<p>Zeyu Yun, Yubei Chen, Bruno Olshausen, and Yann LeCun. Transformer visualization via dictionary learning: contextualized embedding as a linear superposition of transformer factors. In Eneko Agirre, Marianna Apidianaki, and Ivan Vuli´c, editors, <em>Proceedings of Deep Learning Inside Out (DeeLIO): The 2nd Workshop on Knowledge Extraction and Integration for Deep Learning Architectures</em> , pages 1–10, Online, June 2021. Association for Computational Linguistics. doi: 10.18653/v1/2021.deelio-1.1. URL <code>https://aclanthology.org/2021.deelio-1.1/</code> .</p>
+</li>
+<li>
+<p>Dinghuai Zhang, Kartik Ahuja, Yilun Xu, Yisen Wang, and Aaron Courville. Can subnetwork structure be the key to out-of-distribution generalization?, 2021. URL <code>https://arxiv.org/abs/2106.02890</code> .</p>
+</li>
+</ul>
+<h2><strong>A Appendix</strong></h2>
+<h3><strong>A.1 Architecture of Causal Importance Function MLPs</strong></h3>
+<p>The MLPs <em>γc</em><sup>_l_thatareusedinthecausalimportancefunctionconsistofasinglehiddenlayerof</sup> GELU neurons with width <em>d</em> gate, followed by a hard sigmoid function:</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0024-03.jpg" alt="" /></p>
+<p>Here, <em>h</em><sup><em>l</em></sup> <em>c</em><sup>(</sup><sup><em>x</em>)</sup> := � <em>j</em><sup><em>V</em></sup> <em>c,j</em><sup><em>lal</em></sup> <em>j</em><sup>(</sup><sup><em>x</em>)istheinneractivationofthecomponentand</sup><sup><em>W l,</em></sup> <em>c</em><sup>gate in</sup> <em>∈</em> R<sup><em>d_gate</sup><sup></em>×_1</sup> <em>, W</em><sup>_l,<em>gate out</sup> <em>∈</em> R<sup>1</sup><sup></em>×d_gate</sup> <em>, b</em><sup>_l,_gate in</sup> <em>∈</em> R<sup>_d_gate</sup> <em>, b</em><sup>_l,_gate out</sup> <em>∈</em> R are trainable parameters. Note that there is no sum over <em>c</em> in the above expression: Every subcomponent has its own separate causal importance MLP. This keeps the computational costs of training the gates low compared to the cost of training the subcomponents themselves.</p>
+<p>It is important to note that this choice of causal importance function is only one of many possibilities. We chose it for its relative simplicity and low cost. In theory, SPD should be compatible with any method of predicting causal importance values <em>gc</em><sup><em>l</em>(</sup><sup><em>x</em>) for the subcomponents.This is somewhat in</sup> contrast to sparse dictionary learning methods, where using arbitrarily expressive nonlinearities and optimization methods to determine dictionary activations raises concerns about whether a ‘feature’ is really represented by the network if it can only be identified in neural activations using a very complex nonlinear function versus a simple thresholded-linear function. See e.g. Bricken et al. [2023] for discussion.</p>
+<h3><strong>A.2 Avoiding dead gradients with leaky hard sigmoids</strong></h3>
+<p>The flat regions in a hard sigmoid function can lead to dead gradients for inputs below 0 or above 1. To avoid this, we use leaky hard sigmoids instead, which introduce a small non-zero slope below 0 or above 1. Specifically, we use <em>lower-leaky</em> hard sigmoids <em>σH,</em> lower( <em>x</em> ) with slope 0 <em>.</em> 01 below 0 for the gates used in the forward pass for the <em>L</em> stochastic-recon and <em>L</em> stochastic-recon-layerwise losses. And we use <em>upper-leaky</em> hard sigmoids <em>σH,</em> upper( <em>x</em> ) with slope 0 <em>.</em> 01 above 1 in the causal importance loss <em>L</em> importance-minimality :</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0024-08.jpg" alt="" /></p>
+<p>We use the lower leaky hard sigmoid for the forward pass because we should usually be able to scale a subcomponent that does not influence the output of the model below zero, but we cannot scale a subcomponent that does influence the output of the model above 1. So we can use masks smaller than zero in the forward pass, but not masks greater than one.</p>
+<p>We use the upper leaky hard sigmoid in the importance loss because the causal importance values cannot be allowed to take negative values, else the training would not be incentivized to sparsify them. But there is no issue with allowing causal importance function outputs to be greater than 1 <em>.</em> 0 when computing the importance loss.</p>
+<h3><strong>A.3 Heuristics for Hyperparameter Selection</strong></h3>
+<p>Here we list some heuristics for how to select hyperparameters to balance the different loss terms of SPD in Equation 8. In particular, we focus on how to determine the appropriate trade-off between the stochastic reconstruction losses <em>L</em> stochastic-recon and <em>L</em> stochastic-recon-layerwise (controlled by <em>β</em> 1 <em>, β</em> 2) and importance minimality loss <em>L</em> importance-minimality (controlled by <em>β</em> 3).</p>
+<ul>
+<li>
+<p>Negligible performance loss: The performance difference between the SPD model and the original model on the training dataset should be small enough to be mostly negligible. Quantitatively, one might want to judge how large the performance drop is based on LM scaling curves, as Gao et al. [2024] suggested for judging the quality of SAE reconstructions.</p>
+</li>
+<li>
+<p>Noise from superposition: Inactive mechanisms in superposition can still contribute to the model output through small interference terms [Hänni et al., 2024]. We can estimate the expected size of such terms, and ensure that <em>L</em> stochastic-recon <em>, L</em> stochastic-recon-layerwise are no larger than what could plausibly be caused by such noise terms.</p>
+</li>
+<li>
+<p>Recovering known mechanisms: If some of the ground truth mechanisms in the target model are already known, we can restrict hyperparameters such that they recover those mechanisms. For example, in a language model, the embedding matrix mechanisms are usually known: Each vocabulary element should be assigned one mechanism. If none of a model’s mechanisms are known to start with, we could insert known mechanisms into it. For example, one might insert an identity matrix at some layer in an LLM and check whether the SPD decomposition recovers it as a single high-rank component, as in the TMS-with-identity model in Section 3.2.</p>
+</li>
+<li>
+<p>Other sanity checks: The decomposition should pass other sanity checks. For example, a model parametrized by the sum of unmasked subcomponents should recover the performance of the target model. And at least some of the causal importance values should take values of 1 for most inputs; if they do not, then it is likely that the importance minimality loss coefficient <em>β</em> 3 is too high.</p>
+</li>
+</ul>
+<h3><strong>A.4 Training details and hyperparameters</strong></h3>
+<h3><strong>A.4.1 Toy models of superposition (TMS)</strong></h3>
+<p><strong>Target model training</strong> All target models were trained for 10k steps using the AdamW optimizer [Loshchilov and Hutter, 2019] with weight decay 0.01 and constant learning rate 5 <em>×</em> 10<sup>_−_3</sup> . The dataset uses input features sampled from [0 <em>,</em> 1] uniformly with probability 0.05, and 0 otherwise.</p>
+<ul>
+<li>
+<p>TMS5 <em>−</em> 2 and TMS5 <em>−</em> 2+ID: batch size 1024</p>
+</li>
+<li>
+<p>TMS40 <em>−</em> 10 and TMS40 <em>−</em> 10+ID: batch size 8192</p>
+</li>
+</ul>
+<h3><strong>SPD training: Common hyperparameters</strong></h3>
+<ul>
+<li>
+<p>Optimizer: Adam with max learning rate 1 <em>×</em> 10<sup>_−_3</sup> and cosine learning rate schedule</p>
+</li>
+<li>
+<p>Training: 40k steps, batch size 4096</p>
+</li>
+<li>
+<p>Data distribution: same as target model (feature probability 0.05)</p>
+</li>
+<li>
+<p>Stochastic sampling: <em>S</em> = 1 for <em>L</em> stochastic-recon and <em>L</em> stochastic-recon-layerwise</p>
+</li>
+<li>
+<p>Loss coefficients: <em>L</em> faithfulness = 1, <em>L</em> stochastic-recon = 1, <em>L</em> stochastic-recon-layerwise = 1</p>
+</li>
+<li>
+<p>Causal importance functions: One MLP per subcomponent, each with one hidden layer of <em>d</em> gate = 16 GELU neurons.</p>
+</li>
+</ul>
+<h3><strong>SPD training: Model-specific hyperparameters</strong></h3>
+<ul>
+<li>
+<p>TMS5 <em>−</em> 2 and TMS5 <em>−</em> 2+ID: <em>L</em> importance-minimality coefficient 3 <em>×</em> 10<sup>_−_3</sup> , <em>p</em> = 1</p>
+</li>
+<li>
+<p>TMS40 <em>−</em> 10 and TMS40 <em>−</em> 10+ID: <em>L</em> importance-minimality coefficient 1 <em>×</em> 10<sup>_−_4</sup> , <em>p</em> = 2 (we expect that one could obtain similar results in these toy models with many different settings for <em>p</em> )</p>
+</li>
+</ul>
+<h3><strong>A.4.2 Toy models of Compressed computation and Cross-Layer Distributed Representation</strong></h3>
+<h3><strong>Model architectures</strong></h3>
+<ul>
+<li>
+<p>1-layer and 2-layer residual MLPs: 100 input features, embedding dimension 1000, 50 MLP neurons total (25 per layer for 2-layer)</p>
+</li>
+<li>
+<p>3-layer residual MLP: 102 input features, embedding dimension 1000, 51 MLP neurons total (17 per layer)</p>
+</li>
+</ul>
+<p><strong>Target model training</strong> All models trained using AdamW with weight decay 0.01, max learning rate 3 <em>×</em> 10<sup>_−_3</sup> with cosine decay, batch size 2048. The dataset uses input features sampled from [ <em>−</em> 1 <em>,</em> 1] uniformly with probability 0.01, and 0 otherwise.</p>
+<h3><strong>SPD training: Common hyperparameters</strong></h3>
+<ul>
+<li>
+<p>Optimizer: Adam with constant learning rate</p>
+</li>
+<li>
+<p>Batch size: 2048</p>
+</li>
+<li>
+<p>Data distribution: same as target model (feature probability 0.01)</p>
+</li>
+<li>
+<p>Stochastic sampling: <em>S</em> = 1 for both stochastic losses</p>
+</li>
+<li>
+<p>Loss coefficients: <em>L</em> stochastic-recon = 1, <em>L</em> stochastic-recon-layerwise = 1</p>
+</li>
+<li>
+<p><em>p</em> = 2 for <em>L</em> importance-minimality</p>
+</li>
+</ul>
+<h3><strong>SPD training: Model-specific hyperparameters</strong></h3>
+<ul>
+<li>
+<p>1-layer residual MLP: learning rate 2 <em>×</em> 10<sup>_−<em>3</sup> , <em>L</em> importance-minimality coefficient 1 <em>×</em> 10<sup></em>−_5</sup> , <em>C</em> = 100 initial subcomponents, 30k training steps, causal importance function with <em>d</em> gate = 16 hidden neurons per subcomponent</p>
+</li>
+<li>
+<p>2-layer residual MLP: learning rate 1 <em>×</em> 10<sup>_−<em>3</sup> , <em>L</em> importance-minimality coefficient 1 <em>×</em> 10<sup></em>−_5</sup> , <em>C</em> = 400 initial subcomponents, 50k training steps, causal importance function with <em>d</em> gate = 16 hidden GELU neurons per subcomponent</p>
+</li>
+<li>
+<p>3-layer residual MLP: learning rate 1 <em>×</em> 10<sup>_−<em>3</sup> , <em>L</em> importance-minimality coefficient 0 <em>.</em> 5 <em>×</em> 10<sup></em>−_5</sup> , <em>C</em> = 500 initial subcomponents, 200k training steps (converges around 70k), causal importance function with <em>d</em> gate = 128 hidden GELU neurons per subcomponent</p>
+</li>
+</ul>
+<p>The hyperparameters can also be found in the WandB report here.</p>
+<h3><strong>A.5 Supplementary figures</strong></h3>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0027-00.jpg" alt="" /></p>
+<p>Figure 14: Toy Model of Distributed Representations (Two Layers): Similarity between target model weights and SPD model components for the first 10 input feature dimensions in a 2-layer residual MLP. <strong>Top</strong> : Neuron contributions measured by ( <em>WEW</em> IN) <em>⊙</em> ( <em>W</em> OUT <em>WU</em> ), where <em>⊙</em> is an element-wise product and <em>W</em> IN and <em>W</em> OUT are the MLP input and output matrices in both layers concatenated together. <strong>Bottom</strong> : Neuron contributions for the learned parameter components, measured by max <em>m</em> [( <em>WU</em> [ <em>i,</em> :] <em>U</em><sup>OUT</sup> <em>V</em><sup>OUT</sup> ) <em>⊙</em> ( <em>U</em> [:<sup>IN</sup> <em>,m</em> ]<sup><em>V</em></sup> [<sup>IN</sup> <em>m,</em> :]<sup><em>WE</em>[:</sup><sup><em>,i</em>])] for each feature index</sup><sup><em>i ∈</em>[0</sup><sup>_,_9].The</sup> neurons are numbered based on their raw position in the network, with neurons 0 to 24 in the first layer and neurons 25 to 49 in the second layer.</p>
+<p><img src="../markdown/images/stochastic_parameter_decomposition/66_stochastic_parameter_decomposition.pdf-0028-00.jpg" alt="" /></p>
+<p>Figure 15: Toy Model of Distributed Representations (Three Layers): Similarity between target model weights and SPD model components for the first 10 input feature dimensions in a 3-layer residual MLP. <strong>Top</strong> : Neuron contributions measured by ( <em>WEW</em> IN) <em>⊙</em> ( <em>W</em> OUT <em>WU</em> ) where <em>⊙</em> is an element-wise product and <em>W</em> IN and <em>W</em> OUT are the MLP input and output matrices in all three layers concatenated together. <strong>Bottom</strong> : Neuron contributions for the learned parameter components, measured by max <em>m</em> [( <em>WU</em> [ <em>i,</em> :] <em>U</em><sup>OUT</sup> <em>V</em><sup>OUT</sup> ) <em>⊙</em> ( <em>U</em> [:<sup>IN</sup> <em>,m</em> ]<sup><em>V</em></sup> [<sup>IN</sup> <em>m,</em> :]<sup><em>WE</em>[:</sup><sup><em>,i</em>])] for each feature index</sup><sup><em>i ∈</em>[0</sup><sup>_,_9].The</sup> neurons are numbered based on their raw position in the network, with neurons 0 to 16 in the first layer, 17 to 33 in the second layer and neurons 34 to 50 in the third layer.</p>
+<h3><strong>A.6 SPD Pseudocode</strong></h3>
+<p><strong>Algorithm 1</strong> Stochastic Parameter Decomposition (SPD) <strong>Require:</strong> Target model <em>f</em> ( <em>·, W</em> ) with parameters <em>W</em> = <em>{W</em><sup><em>l</em></sup> <em>}</em><sup><em>L</em></sup> <em>l</em> =1<sup>to be decomposed.</sup> <strong>Require:</strong> Dataset <em>D</em> . <strong>Require:</strong> <em>C</em> subcomponents per layer. <strong>Require:</strong> Loss coefficients <em>β</em> 1 <em>, β</em> 2 <em>, β</em> 3. <strong>Require:</strong> Causal Importance Minimality loss p-norm <em>p &gt;</em> 0. <strong>Require:</strong> Number of mask samples <em>S ≥</em> 1. <strong>Ensure:</strong> Learned subcomponents <em>{U</em><sup><em>l</em></sup> <em>, V</em><sup><em>l</em></sup> <em>}</em><sup><em>L</em></sup> <em>l</em> =1<sup>and parameters for causal importance MLP</sup><sup><em>{<em>Γ</sup><sup><em>l}L</em></sup> <em>l</em> =1<sup>.</sup> 1: Initialize subcomponents <em>U</em><sup><em>l</em></sup> <em>∈</em> R<sup><em>dout×C</em></sup> , <em>V</em><sup><em>l</em></sup> <em>∈</em> R<sup><em>C×din</em></sup> for each layer <em>l</em> . 2: Initialize parameters for causal importance MLPs Γ<sup><em>l</em></sup> . 3: Initialize an optimizer for all trainable parameters ( <em>{U</em><sup><em>l</em></sup> <em>, V</em><sup><em>l</em></sup> <em>,</em> Γ<sup><em>l</em></sup> <em>}</em><sup><em>L</em></sup> <em>l</em> =1<sup>).</sup> 4: <strong>for</strong> each training step <strong>do</strong> 5: Sample a data batch <em>X</em> = <em>{x</em> 1 <em>, . . . , xB}</em> from <em>D</em> . 6: Compute target model outputs <em>Y</em> target and pre-weight activations <em>{a</em><sup><em>l</em></sup> <em>}l</em><sup><em>L</em></sup> =1<sup>for batch</sup><sup><em>X</em>.</sup> 7: <em>L</em> faithfulness <em>← N</em><sup><u>1</u></sup> � <em>Ll</em> =1<sup></em>∥W l −U lVl∥</em></sup> <em>F</em><sup>2</sup> 8: <strong>for</strong> each layer <em>l</em> = 1 <em>, . . . , L</em> <strong>do</strong> 9: <em>h</em><sup><em>l</em></sup> <em>← V</em><sup><em>l</em></sup> <em>a</em><sup><em>l</em></sup> <em>// Inner activations</em> 10: <em>G</em><sup><em>l</em></sup> raw<sup><em>←<em>Γ</sup><sup><em>l</em>(</sup><sup><em>hl</em>)</sup> <em>// Raw causal importance MLP outputs</em> 11: <strong>end for</strong> 12: <em>L</em> importance-minimality <em>← B</em><sup><u>1</u></sup> � <em>Bb</em> =1 � <em>Ll</em> =1 � <em>Cc</em> =1<sup></em>|σH,<em>upper(</sup><sup><em>Gl</em></sup> raw <em>,b,c</em><sup>)</sup><sup></em>|p</em></sup> 13: <em>L</em> stochastic-recon <em>←</em> 0 14: <em>L</em> stochastic-recon-layerwise <em>←</em> 0 15: Let <em>G</em><sup><em>l</em></sup> = <em>σH,</em> lower( <em>G</em> raw<sup><em>l</em>) for all</sup><sup><em>l</em>.</sup> 16: <strong>for</strong> <em>s</em> = 1 <em>, . . . , S</em> <strong>do</strong> 17: Sample <em>Rs</em><sup><em>l∼U</em>(0</sup><sup><em>,<em>1)</sup><sup><em>B×C_for each layer</sup><sup><em>l</em>.</sup> 18: Compute masks <em>Ms</em><sup><em>l←Gl</em>+ (1</sup><sup></em>−Gl</em>)</sup><sup></em>⊙R_</sup> <em>s</em><sup><em>l</em>.</sup> 19: Construct masked weights <em>{Wb</em><sup><em>′</em>(</sup><sup><em>s</em>)</sup> <em>}</em><sup><em>B</em></sup> <em>b</em> =1<sup>with</sup><sup><em>W ′</em></sup> <em>b</em><sup>(</sup><sup><em>s</em>)</sup><sup><em>,l</em></sup> = <em>U</em><sup><em>l</em></sup> <em>·</em> Diag( <em>Ms,b</em><sup><em>l</em>)</sup><sup><em>· Vl</em>.</sup> 20: <em>Y</em> masked <em>← f</em> ( <em>X, W</em><sup><em>′</em>(</sup><sup><em>s</em>)</sup> ) 21: <em>L</em> stochastic-recon <em>←L</em> stochastic-recon + <em>D</em> ( <em>Y</em> masked <em>, Y</em> target) 22: <strong>for</strong> layer <em>l</em><sup><em>′</em></sup> = 1 <em>, . . . , L</em> <strong>do</strong> 23: Construct layerwise masked weights <em>{Wb</em><sup><em>′</em>(</sup><sup><em>s,l′</em>)</sup> <em>}</em><sup><em>B</em></sup> <em>b</em> =1<sup>as follows:</sup> <em>Wb</em><sup><em>′</em>(</sup><sup><em>s,l′</em>)</sup><sup><em>,l</em></sup> = <em>U</em><sup><em>l</em></sup> <em>·</em> Diag( <em>Ms,b</em><sup><em>l_if</sup><sup><em>l</em>=</sup><sup><em>l′<em>else</sup><sup><strong>1</strong>)</sup><sup></em>· Vl</em></sup> 24: <em>Y</em> masked-layerwise <em>← f</em> ( <em>X, W</em><sup></em>′_(</sup><sup><em>s,l′</em>)</sup> ) 25: <em>L</em> stochastic-recon-layerwise <em>←L</em> stochastic-recon-layerwise + <em>D</em> ( <em>Y</em> masked-layerwise <em>, Y</em> target) 26: <strong>end for</strong> 27: <strong>end for</strong> 28: Normalize <em>L</em> stochastic-recon <em>←L</em> stochastic-recon <em>/S</em> 29: Normalize <em>L</em> stochastic-recon-layerwise <em>←L</em> stochastic-recon-layerwise <em>/</em> ( <em>S · L</em> ) 30: <em>L</em> SPD <em>←L</em> faithfulness + <em>β</em> 1 <em>L</em> stochastic-recon + <em>β</em> 2 <em>L</em> stochastic-recon-layerwise + <em>β</em> 3 <em>L</em> importance-minimality 31: Update parameters of <em>{U</em><sup><em>l</em></sup> <em>, V</em><sup><em>l</em></sup> <em>,</em> Γ<sup><em>l</em></sup> <em>}</em><sup><em>L</em></sup> <em>l</em> =1<sup>using gradients of</sup><sup>_L_SPD.</sup> 32: <strong>end for</strong></p>
+
+</article>
+<nav class="pager"><a class="prev" href="65_weight_sparse_transformers.html"><small>Previous · 65</small>Weight-sparse Transformers</a><a class="mid" href="index.html#section-G">Contents</a><a class="next" href="67_interpreting_lm_parameters.html"><small>Next · 67</small>Interpreting Language Model Parameters (VPD)</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

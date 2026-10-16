@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>38 · Universal Neurons in GPT2 Language Models — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 38 / 91 &nbsp;·&nbsp; Section D</span></div>
+<header class="cover">
+<div class="numeral">38</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>Universal Neurons in GPT2 Language Models</h1>
+<p class="cite">Gurnee et al. — 2024</p>
+<p class="authors">Wes Gurnee, Theo Horsley, Zifan Carl Guo, Tara Rezaei Kheirkhah, Qinyi Sun, Will Hathaway, Neel Nanda, Dimitris Bertsimas</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Correlates neuron activations across five GPT-2 models trained from different seeds, finding only 1–5% of neurons universal; those usually have clear interpretations and fall into a few families with identifiable functional roles.</p></div><div class="note"><div class="label">Reading focus</div><p>The excess-correlation measure of universality, the neuron families (unigram, alphabet, position, syntax, context), prediction and suppression neurons, entropy neurons acting through the final LayerNorm, attention-deactivation neurons, and the small-model limits.</p></div><div class="note"><div class="label">In context</div><p>Tests the universality claim of <a href="07_zoom_in.html">07</a> on single language-model neurons, by the lead author of <a href="37_neurons_in_haystack.html">37</a>. Its low universal fraction is a datum for both the neuron-first programmes of <a href="63_circuits_sparse_neuron_basis.html">63</a> and <a href="64_neural_networks_already_clean.html">64</a> and the seed-instability <a href="60_sae_same_data_different_features.html">60</a> reports for SAE features; its suppression neurons connect to the late-layer downregulation seen in <a href="29_hydra_effect.html">29</a> and to neurons scored in <a href="39_explaining_neurons.html">39</a>.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>D — What is a feature?</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2401.12181v1">https://arxiv.org/abs/2401.12181v1</a> &nbsp;·&nbsp; arXiv:2401.12181v1</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 1187–1220 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="37_neurons_in_haystack.html"><small>Previous · 37</small>Finding Neurons in a Haystack</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="39_explaining_neurons.html"><small>Next · 39</small>Language Models Can Explain Neurons</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<p><strong>Wes Gurnee</strong><sup>1</sup><sup><em>∗</em></sup> <strong>Theo Horsley</strong><sup>2</sup> <strong>Zifan Carl Guo</strong><sup>1</sup> <strong>Tara Rezaei Kheirkhah</strong><sup>1</sup> <strong>Qinyi Sun</strong><sup>1</sup> <strong>Will Hathaway</strong><sup>1</sup> <strong>Neel Nanda</strong><sup><em>†</em></sup> <strong>Dimitris Bertsimas</strong><sup>1</sup><sup><em>†</em></sup> 1MIT 2University of Cambridge</p>
+<h1><strong>ABSTRACT</strong></h1>
+<p>A basic question within the emerging field of mechanistic interpretability is the degree to which neural networks learn the same underlying mechanisms. In other words, are neural mechanisms universal across different models? In this work, we study the universality of individual neurons across GPT2 models trained from different initial random seeds, motivated by the hypothesis that universal neurons are likely to be interpretable. In particular, we compute pairwise correlations of neuron activations over 100 million tokens for every neuron pair across five different seeds and find that 1-5% of neurons are universal, that is, pairs of neurons which consistently activate on the same inputs. We then study these universal neurons in detail, finding that they usually have clear interpretations and taxonomize them into a small number of neuron families. We conclude by studying patterns in neuron weights to establish several universal functional roles of neurons in simple circuits: deactivating attention heads, changing the entropy of the next token distribution, and predicting the next token to (not) be within a particular set.</p>
+<h1><strong>1 Introduction</strong></h1>
+<p>As large language models (LLMs) become more widely deployed in high-stakes settings, our lack of understanding of why or how models make decisions creates many potential vulnerabilities and risks (Bommasani et al., 2021; Hendrycks et al., 2023; Bengio et al., 2023). While some claim deep learning based systems are fundamentally inscrutable, artificial neural networks seem unusually amenable to empirical science compared to other complex systems: they are fully observable, (mostly) deterministic, created by processes we control, admit complete mathematical descriptions of their form and function, can be run on any input with arbitrary modifications made to their internals, all at low cost and on computational timescales (Olah, 2021). An advanced science of interpretability enables a more informed discussion of the risks posed by advanced AI systems and lays firmer ground to engineer systems less likely to cause harm (Doshi-Velez and Kim, 2017; Bender et al., 2021; Weidinger et al., 2022; Ngo et al., 2023; Carlsmith, 2023).</p>
+<p>Olah et al. (2020b) propose three speculative claims regarding the interpretation of artificial neural networks: that features—directions in activation space representing properites of the input—are the fundamental unit of analysis, that features are connected into circuits via network weights, and that features and circuits are universal across models. That is, analogous features and circuits form in a diverse array of models and that different training trajectories converge on similar solutions (Li et al., 2015). Taken seriously, these hypotheses suggest a strategy for discovering important features and circuits: look for that which is universal. This line of reasoning motivates our work, where we leverage different notions of universality to identify and study individual neurons that represent features or underlie circuits.</p>
+<p>Beyond discovery, the degree to which neural mechanisms are universal is a basic open question that informs what kinds of interpretability research are most likely to be tractable and important. If the universality hypothesis is largely true in practice, we would expect detailed mechanistic analyses (Cammarata et al., 2021; Wang et al., 2022a; Olsson et al., 2022; Nanda et al., 2023; McDougall et al., 2023) to generalize across models such that it might be possible to develop a periodic table of neural circuits which can be automatically referenced when interpreting new models (Olah et al., 2020b). Conversely, it becomes less sensible to dedicate substantial manual labor to understand low-level details of circuits if they are completely different in every model, and instead more efficient to allocate effort to engineering scalable and automated methods that can aid in understanding and monitoring higher-level representations of particular interest (Burns et al., 2022; Conmy et al., 2023; Bills et al., 2023; Zou et al., 2023; Bricken et al., 2023). However, even in the case</p>
+<blockquote>
+<p><em>∗</em> Correspondence: <code>wesg@mit.edu</code> ; <em>†</em> Senior Author</p>
+</blockquote>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0002-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0002-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0002-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0002-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0002-04.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0002-05.jpg" alt="" /></p>
+<p>Figure 1: Universal neurons in GPT2 models, interpreted via their activations (a-d), weights (e), and causal interventions (f). (a) Neurons which activate primarily on a specific individual letter and secondarily on tokens which begin with the letter; (b) Neuron which activates approximately if and only if the previous token contains a comma; (c) Neurons which activate as a function of absolute token position in the context (shaded area denotes standard deviation around the mean); (d) A neuron which activates in medical contexts (e.g. pubmed abstracts) but not in non-medical distributions; (e) a neuron which decreases the probability of predicting any integer tokens between 1700 and 2050 (i.e., years); (f) Neurons which change the entropy of the next token distribution when causally intervened.</p>
+<p>that not all features or circuits are universal, those which are common across models are likely to be more fundamental (Bau et al., 2018; Olsson et al., 2022), and studying them should be prioritized accordingly.</p>
+<p>In this work, we study the universality of individual neurons across GPT2 language models (Radford et al., 2019) trained from five different random initializations (Karamcheti et al., 2021). While it is well known that individual neurons are often polysemantic (Nguyen et al., 2016; Olah et al., 2020b; Elhage et al., 2022b; Gurnee et al., 2023) i.e., represent multiple unrelated concepts, we hypothesized that universal neurons were more likely to be monosemantic, potentially giving an approximation on the number of independently meaningful neurons. We choose to study models of the same architecture trained on the same data to have the most favorable experimental conditions for measuring universality to establish a rough bound for the universality over larger changes. We begin by operationalizing neuron universality in terms of activation correlations, that is, whether there exist pairs of neurons across different models which consistently activate on the same inputs. We compute pairwise correlations of neuron activations over 100 million tokens for every neuron pair across the different seeds and find that only 1-5% of neurons pass a target threshold of universality compared to random baselines (§ 4.1). We then study these universal neurons in detail, analyzing various statistical properties of both weights and activations (§ 4.2), and find that they usually have clear interpretations and taxonomize them into a small number of neuron families (§ 4.3).</p>
+<p>In Section 5 we study a more abstract form of universality in terms of neuron weights rather than activations. That is, rather than understand a neuron in terms of the inputs which cause it to activate, understand a neuron in terms of the effects the neuron has on later model components or directly on the final prediction. Specifically, we analyze patterns in the compositional structure of the weights and find consistent outliers in how neurons affect other network components, constituting very simple circuits. In Section 5.1, we show there exists a large family of late layer neurons which have clear roles in predicting or suppressing a coherent set of tokens (e.g., second-person pronouns or single digit numbers), where the suppression neurons typically come in later layers than the prediction neurons. We then investigate a small set of neurons that leverage the final layer-norm operation to modulate the overall entropy of the next token prediction distribution (§ 5.2). We conclude with an analysis of neurons which control the extent to which an attention head attends to the first token, which empirically controls the output norm of the head, effectively turning a head on or off (§ 5.3).</p>
+<h1><strong>2 Related Work</strong></h1>
+<p><strong>Universal Neural Mechanisms</strong> Features and circuits like high-low frequency detectors (Schubert et al., 2021a) and curve circuits (Cammarata et al., 2021) have been found to reoccur in vision models, with some features even reappearing in biological neural networks (Goh et al., 2021). In language models, recent research has found similarly universal circuits and components like induction heads (Olsson et al., 2022) and successor heads (Gould et al., 2023) and that models reuse certain circuit components to implement different tasks (Merullo et al., 2023). There has also been a flurry of recent work on studying more abstract universal mechanisms in language models like function vectors (Todd et al., 2023; Hendel et al., 2023), variable binding mechanisms (Feng and Steinhardt, 2023), and long context retrieval (Variengien and Winsor, 2023). Studying universality in toy models has provided “mixed evidence” on the universality hypothesis (Chughtai et al., 2023) and shown that multiple algorithms exist to implement the same tasks (Zhong et al., 2023; Liao et al., 2023).</p>
+<p><strong>Representational Similarity</strong> Preceding the statement of the universality hypothesis in mechanistic interpretability, there has been substantial work measuring representational similarity (Klabunde et al., 2023). Common methods include canonical correlation analysis-based measures (Raghu et al., 2017; Morcos et al., 2018), alignment-based measures (Hamilton et al., 2018; Ding et al., 2021; Williams et al., 2022; Duong et al., 2023), matrix-based measures (Kornblith et al., 2019; Tang et al., 2020; Shahbazi et al., 2021; Lin, 2022; Boix-Adsera et al., 2022; Godfrey et al., 2023), neighborhoodbased measures (Hryniowski and Wong, 2020; Gwilliam and Shrivastava, 2022), topology-based measures (Khrulkov and Oseledets, 2018; Barannikov et al., 2022), and descriptive statistics (Wang and Isola, 2022; Lu et al., 2022; Lange et al., 2022). Previous work, mostly in vision models, has yielded mixed conclusions on whether networks with the same architecture learn similar representations. Some studies have found that networks with different initializations “exhibit very low similarity” (Wang et al., 2018) and “do not converge to a unique basis” (Brown et al., 2023), while others have shown that networkslearnthesamelow-dimensionalsubspacesbutnotidenticalbasisvectors(Lietal.,2016)andthatdifferentmodels can be linearly stitched together with minimal loss suggesting they learn similar representations (Bansal et al., 2021).</p>
+<p><strong>Analyzing Individual Neurons</strong> Many prior interpretability studies have analyzed individual neurons. In vision models, researchers have found neurons which activate for specific objects (Bau et al., 2020), curves at specific orientations (Cammarata et al., 2021), high frequency boundaries (Schubert et al., 2021b), multimodal concepts (Goh et al., 2021), as well as for facets (Nguyen et al., 2016) and compositions (Mu and Andreas, 2020) thereof. Moreover, many of these neurons seem universal across models Dravid et al. (2023). In language models, neurons have been found to correspond to sentiment (Radford et al., 2017; Donnelly and Roegiest, 2019), knowledge (Dai et al., 2021), skills (Wang et al., 2022b), de-/re-tokenization (Elhage et al., 2022a), contexts (Gurnee et al., 2023; Bills et al., 2023), position (Voita et al., 2023), space and time (Gurnee and Tegmark, 2023), and many other linguistic and grammatical features (Bau et al., 2018; Xin et al., 2019; Dalvi et al., 2019, 2020; Durrani et al., 2022; Sajjad et al., 2022). More generally, it is hypothesized that neurons in language models form key-value stores (Geva et al., 2020) that facilitate next token prediction by promoting concepts in the vocabulary space (Geva et al., 2022). However, many challenges exist in studying individual neurons, especially in drawing causal conclusions (Antverg and Belinkov, 2021; Huang et al., 2023).</p>
+<h1><strong>3 Conceptual and Empirical Preliminaries</strong></h1>
+<h2><strong>3.1 Universality</strong></h2>
+<p><strong>Notions of Universality</strong> Universality can refer to many different notions of similarity, each at a different level of abstraction and with differing measures and methodologies. Similar to Marr’s levels of analysis in neuroscience (Hamrick and Mohamed, 2020; Marr, 2010), relevant notions of universality are: <em>computational</em> or <em>functional</em> universality regarding whether a (sub)network implements a particular input-output-behavior (e.g., whether the next token predictions for two different networks are the same); <em>algorithmic</em> universality regarding whether or not a particular function is implemented using the same computational steps (e.g., whether a transformer trained to sort strings always learns the same sorting algorithm); <em>representational</em> universality, or the degree of similarity of the information contained within different representations (Kornblith et al., 2019) (e.g., whether every network represents absolute position in the context); and finally <em>implementation</em> universality, i.e., whether individual model components learned by different models implement the same specialized computations (e.g., induction heads (Olsson et al., 2022), successor heads (Gould et al., 2023), French neurons (Gurnee et al., 2023), <em>interalia</em> ). Noneofthesenotionsofuniversalityareusuallybinary, andtheuniversalitybetweencomponentsorcomputations can range from being formally isomorphic to simply sharing a common high-level conceptual or statistical motif.</p>
+<p>In this work, we are primarily concerned with implementation universality in the form of whether individual neurons learn to specialize and activate for the same inputs across models. If such universal neurons do exist, then this is also a simple form of functional universality, as the distinct neurons constitute the final node of distinct subnetworks which compute the same output.</p>
+<p><strong>Dimensions of Variations</strong> Universality must be measured over some independent dimension of variation, that is, some change in the model, data or, training. For example, model variables include random seed, model size, hyperparameters, and architectural changes; data variables include the data size, ordering, and distribution of contents; training variables include loss function, optimizer, regularization, finetuning, and hyperparameters thereof. Assuming that changing random seed is the smallest change, this work primarily focuses on initialization universality in an attempt to bound the degree of similarity expected when studying larger changes.</p>
+<h2><strong>3.2 Models</strong></h2>
+<p>We restrict our scope to transformer-based auto-regressive language models (Radford et al., 2018) that currently power the most capable AI systems (Bubeck et al., 2023). Given an input sequence of tokens <em>x</em> = [ <em>x</em> 1 <em>,...,xt</em> ] <em>∈X ⊆V</em><sup><em>t</em></sup> from the vocabulary <em>V</em> , a language model <em>M</em> : <em>X →Y</em> outputs a probability distribution over the vocabulary to predict the next token in the sequence.</p>
+<p>We focus on a replication of the GPT2 series of models (Radford et al., 2019) with some supporting experiments on the Pythia family (Biderman et al., 2023). For a GPT2-small and GPT2-medium architecture (see § A.3 for hyperparameters) we study five models trained from different random seeds, referred to as GPT2-{small, medium}-[a-e] (Karamcheti et al., 2021).</p>
+<p><strong>Anatomy of a Neuron</strong> Of particular importance to this investigation is the functional form of the neurons in the feed forward (also known as multi-layer perceptron (MLP)) layers in the transformer. The output of an MLP layer given a normalized hidden state <strong>x</strong> <em>∈</em> R<sup><em>d_model</sup> is MLP( <strong>x</strong> )= <strong>W</strong> out <em>σ</em> ( <strong>W</strong> in <strong>x</strong> + <strong>b</strong> in)+ <strong>b</strong> out (1) where <strong>W</strong> out<sup><em>T,</em></sup><sup><strong>W</strong>in</sup><sup></em>∈_R</sup><sup><em>d_mlp</sup><sup></em>×d_modelare learned weight matrices,</sup><sup><strong>b</strong>inand</sup><sup><strong>b</strong>outare learned biases, and</sup><sup>_σ_is an elementwise</sup> nonlinear activation function. For all models we study, <em>σ</em> is the GeLU activation function <em>σ</em> ( <strong>x</strong> ) = <strong>x</strong> Φ( <strong>x</strong> ) (Hendrycks and Gimpel, 2016). One can analyze an individual neuron <em>j</em> in terms of the its activation <em>σ</em> ( <strong>w</strong> in<sup><em>j</em></sup><sup><strong>x</strong>+</sup><sup><em>bj</em></sup> in<sup>) for different inputs</sup> <strong>x</strong> , or its weights—row <em>j</em> of <strong>W</strong> in or <strong>W</strong> out<sup>_T_which respectively dictate for what inputs a neuron activates and what effects</sup> it has downstream.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0004-05.jpg" alt="" /></p>
+<p>We refer the reader to (Elhage et al., 2021) for a full description of the transformer architecture. We employ standard weight preprocessing techniques described further in A.1.</p>
+<h1><strong>4 The Search for Universal Neurons</strong></h1>
+<h2><strong>4.1 How Universal are Individual Neurons?</strong></h2>
+<p><strong>Experiment</strong> Inspired by prior work studying common neurons in neural networks (Li et al., 2015; Bau et al., 2018; Dravid et al., 2023), we compute maximum pairwise correlations of neuron activations across five different models GPT2-{a, b, c, d, e} to find pairs of neurons across models which activate on the same inputs. In particular, let <em>N</em> ( <em>a</em> ) be the set of neurons in model <em>a</em> . For each neuron <em>i ∈ N</em> ( <em>a</em> ), we compute the Pearson correlation</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0004-10.jpg" alt="" /></p>
+<p>with all neurons <em>j ∈ N</em> ( <em>m</em> ) in every model <em>m ∈</em> {b, c, d, e}, where <em>µi</em> and <em>σi</em> are the mean and standard deviation of a vector of neuron activations <strong>v</strong><sup><em>i</em></sup> computed across a dataset of 100 million tokens from the Pile test set (Gao et al., 2020). For a baseline, we also compute <em>ρ</em> ¯<sup><em>a,m</em></sup> <em>i,j</em><sup>, where instead of taking the correlation of</sup><sup><em>ρ</em>(</sup><sup><strong>v</strong></sup><sup><em>i,</em></sup><sup><strong>v</strong></sup><sup><em>j</em>), we compute</sup><sup><em>ρ</em>(</sup><sup><strong>v</strong></sup><sup><em>i,</em>(</sup><sup><strong>RV</strong>)</sup><sup><em>j</em>)</sup> for a random <em>d</em> mlp <em>×d</em> mlp Gaussian matrix <strong>R</strong> and the matrix of activations <strong>V</strong> for all neurons in a particular layer <em>Nℓ</em> ( <em>m</em> ). In other words, we compute the correlation between neurons and elements within a random (approximate) rotation of a layer of neurons to establish a baseline correlation for the case where there does not exist a privileged basis (Elhage et al., 2021; Brown et al., 2023) to verify the importance of the neuron basis.</p>
+<p>For a set of models <em>M</em> we define the <em>excess correlation</em> of neuron <em>i</em> as the difference between the mean maximum correlation across models and the mean maximum baseline correlation in the rotated basis:</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0004-13.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0005-00.jpg" alt="" /></p>
+<p>Figure 2: Summary of neuron correlation experiments in GPT2-medium-a. (a) Distribution of the mean (over models b-e) max (over neurons) correlation, the mean baseline correlation, and the difference (excess). (b) The max (over models) max (over neurons) correlation compared to the min (over models) max (over neuron) correlation for each neuron. (c) Percentage of layer pairs with most similar neuron pairs.</p>
+<p><strong>Results</strong> Figure 2 summarizes our results. In Figure 2a, we depict the average of the maximum neuron correlations across models [b-e], the average of the baseline correlations, and the excess correlation i.e., the left term, the right term, and the difference in (3). While there is no principled threshold at which a neuron should be deemed universal, only 1253 out of the 98304 neurons in GPT2-medium-a have an excess correlation greater than 0.5.</p>
+<p>To understand if high (low) correlation in one model implies high (low) correlation in all the models, in Figure 2b we report max <em>m</em> max <em>j∈N</em> ( <em>x</em> ) <em>ρ</em><sup><em>a,m</em></sup> <em>i,j</em><sup>compared to min</sup><sup><em>m_max</sup><sup><em>j∈N</em>(</sup><sup><em>m</em>)</sup><sup><em>ρa,m</em></sup> <em>i,j</em><sup>for every neuron</sup><sup><em>i∈N</em>(</sup><sup><em>a</em>). Figure 2b suggests there</sup> is relatively little variation in the correlations, as the mean difference between the max-max and min-max correlation is 0.049 for all neurons and 0.105 for neurons with <em>ϱ&gt;</em> 0 <em>.</em> 5. Another natural hypothesis is that neurons specialize into roles based on how deep they are within the network (as suggested by (Olah et al., 2020b; Elhage et al., 2022a)). In 2c, for each layer <em>l</em> of model <em>a</em> , we compute the fraction of neurons in layer <em>l</em> that have their most correlated neuron in layer <em>l</em><sup></em>′<em></sup> for all <em>ℓ</em><sup></em>′_</sup> in models [b-e]. Averaging across the different models, we observe significant <em>depth specialization</em> , suggesting that neurons do perform depth specific computations, which we explore further in § 4.3.</p>
+<p>We repeat these experiments on GPT2-small and Pythia-160m displayed in Figures 12 and 13 respectively. A rather surprising finding is that while the percentage of universal neurons ( <em>ϱi &gt;</em> 0 <em>.</em> 5) within GPT2-medium and Pythia-160M are quite consistent (1.23% and 1.26% respectively), the number in GPT2-small-a is far higher at 4.16%. We offer additional results and speculations in § 6.3.</p>
+<h2><strong>4.2 Properties of Universal Neurons</strong></h2>
+<p>We now seek to understand whether there are statistical proprieties associated with whether a neuron is universal or not, defined as having an excess correlation <em>ϱi &gt;</em> 0 <em>.</em> 5. For all neurons in GPT2-medium-a, GPT2-small-a, and Pythia-160m, we compute various summary statistics of their weights and activations. For activations, we compute the mean, skew, and kurtosis of the pre-activation distribution over 100 million tokens, as well as the fraction of activations greater than zero, termed activation sparsity. For weights, we record the input bias <strong>b</strong> in, the cosine similarity between the input and output weight cos( <strong>w</strong> in <em>,</em> <strong>w</strong> out), the weight decay penalty <em>∥</em> <strong>w</strong> in <em>∥</em><sup>2</sup> 2<sup>+</sup><sup><em>∥</em></sup><sup><strong>w</strong>out</sup><sup><em>∥</em></sup> 2<sup>2, and the kurtosis of the neuron output weights</sup> with the unembedding kurt(cos( <strong>w</strong> out <em>,</em> <strong>w</strong> <em>U</em> )).</p>
+<p>In Figure 3, we report these statistics for universal neurons as a percentile compared to all neurons within the same layer; we choose this normalization to enable comparison across different layers, models, and metrics (a breakdown per metric and layer for GPT2-medium-a is given in Figure 14). Our results show that universal neurons do stand out compared to non-universal neurons. Specifically, universal neurons typically have large weight norm (implying they are important because the model was trained with weight decay) and have a large negative input bias, resulting in a large negative pre-activation mean and hence lower activation frequency. Furthermore, universal neurons have very high pre-activation skew and kurtosis, implying they usually have negative activation, but occasionally have very positive activation, proprieties we would expect of monosemantic neurons (Olah et al., 2020b; Elhage et al., 2022b; Gurnee et al., 2023) which only activate when a specific feature is present in the input. In contrast, non-universal neurons usually have skew approximately 0 and kurtosis approximately 3, identical to a Gaussian distribution. We will discuss the meaning of high <strong>W</strong> <em>U</em> kurtosis in § 5.1 and high cos( <strong>w</strong> in <em>,</em> <strong>w</strong> out) in § 6.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0006-00.jpg" alt="" /></p>
+<p>Figure 3: Properties of activations and weights of universal neurons for three different models, plotted as a percentile compared to neurons in the same layer.</p>
+<h2><strong>4.3 Universal Neuron Families</strong></h2>
+<p>Motivated by the observation that universal neurons have distributional statistics suggestive of monosemanticity, we zoom-in on individual neurons with <em>ϱ&gt;</em> 0 <em>.</em> 5 and attempt to group them into a partial taxonimization of neuron families (Olah et al., 2020a; Cammarata et al., 2021). After manually inspecting many such neurons, we developed several hundred automated tests to classify neurons using algorithmically generated labels derived from elements of the vocabulary (e.g., whether a token <code>is_all_caps</code> or <code>contains_digit</code> ) and from the NLP package spaCy (Honnibal et al., 2020). Specifically, for each neuron with activation vector <strong>v</strong> , and each test explanation which is a binary vector <strong>y</strong> over all tokens in the input, we compute the reduction in variance when conditioned on the explanation:</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0006-04.jpg" alt="" /></p>
+<p>where <em>β</em> is the fraction of positive labels and <em>σ</em><sup>2</sup> ( <em>·</em> ) is the variance of a vector or subset thereof. Below, we qualitatively describe the most common families, and find our results replicate many findings previously documented in the literature.</p>
+<p><strong>Unigram Neurons</strong> The most common type of neuron we found were <em>unigram</em> neurons, which simply activate approximately if and only if the current token is a particular word or part of a word. These neurons often have many near duplicate neurons activating for the same unigram (Figure 15) and appear predominately in the first two layers (Figure 16). One subtletyisthefactthatcommonwordswilloftenhavefourdifferenttokenizationsfromdifferentcombinationsofcapitalization and preceding space (e.g., “_on” “_On” “on” and “On”). Therefore, for neurons responding to alphabetical unigrams, we breakdown activations depending on whether the unigram appears as a word, at the beginning of a word, or in the middle of a word (Figure 4a), and find both positive and negative cases where the duplicate neurons respond to the unigram variations differently (Figures 4a and 15). Such neurons illustrate that the token (un)embeddings may not contain all of the relevant token-level information, and that the model uses neurons to create an “extended” embedding of higher capacity.</p>
+<p><strong>Alphabet Neurons</strong> A particularly fun subclass of unigram neurons are <em>alphabet</em> neurons (Figure 1a), which activate most strongly on tokens corresponding to an individual letter, and secondarily on tokens which begin with the respective letter. For 18 of 26 English letters there exist alphabet neurons with <em>ϱ&gt;</em> 0 <em>.</em> 5 (Figure 17), with some letters also having several near duplicate neurons.</p>
+<p><strong>Previous Token Neurons</strong> After finding an example of one neuron which seemed to activate purely as a function of the <em>previous</em> token (e.g., if it contains a comma; Figure 1b), we decided to rerun our unigram tests with the labels shifted by one—that is, with the label given by the previous token. These tests surfaced many more previous token neurons occurring most often in layers 4-6 (see Figure 18 for an additional 25 universal previous token neurons). Such neurons illustrate the many potentially redundant paths of computations that can occur which complicates ablation based interpretability studies.</p>
+<p><strong>Position Neurons</strong> Inspired by the recent work of (Voita et al., 2023), we also run evaluations for <em>position neurons</em> , neurons which activate as a function of absolute position rather than token or context (Figure 1c). We follow the procedure of (Voita et al., 2023) (who run their experiments on OPT models with ReLU activation (Zhang et al., 2022))</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0007-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0007-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0007-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0007-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) Near duplicate “on” unigram neurons (b) Syntax neuron (c) Place Neurons<br><!-- End of picture text --></p>
+<p>Figure 4: Additional examples of universal neuron families in GPT2-medium.</p>
+<p>by computing the mutual information between activation and context position, and find similar results, with neurons that have a variety of positional patterns concentrated in layers 0-2 (see Figure 19 for 20 more neurons). Similar to the unigram neurons, the presence of these neurons is potentially unexpected given their outputs could be learned directly by the positional embedding at the beginning of the model with less variance in activation.</p>
+<p><strong>Syntax Neurons</strong> Using the NLP package spaCy (Honnibal et al., 2020), we label our input data with part-of-speech, dependency role, and morphological data. We find many individual neurons that selectively activate for basic linguistic features like negation, plurals, and verb forms (Figure 4b) which are not concentrated to any part of the network and resemble past findings on linguistic properties (Dalvi et al., 2019; Durrani et al., 2022). Figure 20 includes 25 more examples.</p>
+<p><strong>Semantic Neurons</strong> Finally, we found a large number of neurons which activate for semantic features corresponding to coherent topics (Lim and Lauw, 2023), concepts (Elhage et al., 2022a), or contexts (Gurnee et al., 2023). Such features are naturally much harder to algorithmically supervise. We use the subdistribution label from the Pile dataset (Gao et al., 2020) and manually labeled topics from an SVD based topic model as a best attempt, but this leaves many interpretable neurons undiscovered and uncategorized. In Figure 4c, we show three regions neurons which activate most strongly on tokens corresponding to places in Canada, Japan, or Latin America respectively. Figure 21 depicts 30 additional context neurons which activate on specific subdistributions, with many neurons which always activate for non-english text.</p>
+<h1><strong>5 Universal Functional Roles of Neurons</strong></h1>
+<p>While the previous discussion was primarily focused on analyzing the <em>activations</em> of neurons, and by extension the features they represent, this section is dedicated to studying the <em>weights</em> of neurons to better understand their downstream effects. The neurons in this section are examples of <em>action</em> mechanisms (Anthropic, 2023)—model components that are better thought of as implementing an action rather than purely extracting or representing a feature, analogous to motor neurons in neuroscience.</p>
+<h2><strong>5.1 Prediction Neurons</strong></h2>
+<p>A simple but effective method to understand weights is through logit attribution techniques (Nostalgebraist, 2020; Geva et al., 2022; Dar et al., 2022). In this case, we can approximate a neuron’s effect on the final prediction logits by simply computing the product between the unembedding matrix and a neuron output weight <strong>W</strong> <em>U</em> <strong>w</strong> out and hence interpret the neuron based on how it promotes concepts in the vocabulary space (Geva et al., 2022).</p>
+<p>When we apply our automated tests from § 4.3 on <strong>W</strong> <em>U</em> <strong>w</strong> out rather than the activations for our universal neurons, we found several general patterns (Figure 5), many individual neurons with extremely clear interpretations (Figure 23), and clusters of neurons which all affect the same tokens (Figure 24). Specifically, we find many examples of <em>prediction</em> neurons that positively increase the predicted probability of a coherent set of tokens while leaving most others approximately unchanged (Fig 5a); <em>suppression</em> neurons that are similar, except decrease the probability of a group of related tokens (Fig 5b); and <em>partition</em> neurons that partition the vocabulary into two groups, increasing the probability of one while decreasing the probability of the other (Fig 5c). The prediction, suppression, and partition motifs can be automatically detected by studying the moments of the distribution of vocabulary effects given by <strong>W</strong> <em>U</em> <strong>w</strong> out. In particular, both prediction and suppression neurons will have high kurtosis (the fourth moment—a measure of how much mass is in the tails of a distribution), but prediction neurons will have positive skew and suppression neurons will have negative</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0008-00.jpg" alt="" /></p>
+<p>Figure 5: Example prediction neurons in GPT2-medium-a. Depicts the distribution of logit effects on the output vocabulary ( <strong>W</strong> <em>U</em> <strong>w</strong> out) split by token property for 3 different neurons. (a) Prediction neuron increasing logits of integer tokens between 1700 and 2050 (i.e. years; high kurtosis), (b) Suppression neuron decreasing logits for tokens containing an open parenthesis (high kurtosis and negative skew), and (c) Partition neuron boosting tokens beginning with a space and suppressing tokens which do not (high variance; note, linear y-scale).</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0008-02.jpg" alt="" /></p>
+<p>Figure 6: Summary statistics of cosine similarity between neuron output weights ( <strong>W</strong> out) and token unembedding ( <strong>W</strong> <em>U</em> ) for GPT2-medium-[a-e]. (a,b) Percentiles of kurtosis and skew by layer averaged over [a-e]. (c) Distribution of skews for neurons with kurtosis greater than 10 in last four layers. Shaded area denotes range across all five models.</p>
+<p>skew. Partition neurons will shift the probability of most tokens and have high variance in overall logit effect. From this, we see almost all universal neurons ( <em>ϱ&gt;</em> 0 <em>.</em> 5) in later layers are one of these prediction neuron variants (Figure 14).</p>
+<p>To better understand the number and location of these prediction neurons, we compute the moment metrics of cos( <strong>W</strong> <em>U ,</em> <strong>w</strong> out) for all neurons in all five GPT2-medium models, and show how these statistics vary over model depth in Figure 6. We find a striking pattern which is remarkably consistent across the different seeds: after about the halfway point in the model, prediction neurons become increasingly prevalent until the very end of the network where there is a sudden shift towards a much larger number of suppression neurons. To ensure this is not just an artifact of the tied embeddings ( <strong>W</strong> <em>E</em> = <strong>W</strong> <em>U</em><sup><em>T</em>) in the GPT2 models, we also run this analysis on five Pythia models ranging from 410M to</sup> 6.9B parameters and find the results are largely the same (Figure 22).</p>
+<p>When studying the activations of suppression neurons, we noticed that they activate far more often when the next token is in fact from the set of tokens they suppress (e.g., a year token like “1970”; Figure 24). We intuit that these suppression neurons fire when it is plausible but not certain that the next token is from the relevant set. Combined with the observation that there exist many suppression and prediction neurons for the same token class (Figure 24), we take this as evidence of an ensemble hypothesis where the model uses multiple neurons with some independent error that combine to form a more robust and calibrated estimate of whether the next token is in fact a year.</p>
+<p>In addition to being a clean example of an action mechanism (Anthropic, 2023), these results are interesting as they refine a conjecture made by (Geva et al., 2022). Specifically, rather than “feed-forward layers build predictions by promoting concepts in the vocabulary space,” we claim <em>late</em> feed-forward (MLP) layers build predictions by both promoting <em>and</em> suppressing concepts in the vocabulary space. Moreover, it suggests there are different stages in the iterative inference pipeline (Belrose et al., 2023; Jastrz˛ebski et al., 2017), where first affirmative predictions are made,</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0009-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0009-01.jpg" alt="" /></p>
+<p>Figure 7: Summary of (anti-)entropy neurons in GPT2-medium-a compared to 20 random neurons from final two layers. Entropy neurons have high weight norm (a) with output weights mostly orthogonal to the unembedding matrix (b). Fixing the activation to larger values causes the final layer norm scale to increase dramatically (c) while leaving the ranking of the true next token prediction mostly unchanged (d). Increased layer norm scale squeezes the logit distribution, causing a large increase in the prediction entropy (e; or decrease for anti-entropy neuron) and an increase or decrease in the loss depending on the model’s baseline level of under- or over-confidence (f). Legend applies to all subplots.</p>
+<p>and then the distribution is sharpened or made more calibrated by suppression neurons at the very end. The existence of suppression neurons also sheds light on recent observations of individual neurons (Bills et al., 2023) and MLP layers (McGrath et al., 2023) suppressing the maximum likelihood token and being a mechanism for self-repair.</p>
+<h2><strong>5.2 Entropy Neurons</strong></h2>
+<p>Because models are trained with weight decay ( <em>ℓ</em> 2 regularization) we hypothesized that neurons with large weight norms would be more interesting or important because they come at a higher cost. While most turned out to be relatively uninteresting (mostly neurons which activate for the beginning of sequence token), the 15<sup>th</sup> largest norm neuron in GP2-medium-a (L23.945) had an especially interesting property: it had the lowest variance logit effect <strong>W</strong> <em>U</em> <strong>w</strong> out of any neuron in the model; i.e., it only has a tiny effect on the logits. To understand why a final layer neuron, which can only affect the final logit distribution, has high weight norm while performing an approximate no-op on the logits, recall the final decoding formula for the probability of the next token given a final residual stream vector <strong>x</strong></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0009-06.jpg" alt="" /></p>
+<p>We hypothesize that the function of this neuron is to modulate the model’s uncertainty over the next token by using the layer norm to squeeze the logit distribution, in a manner quite similar to manually increasing the temperature when performing inference. To support this hypothesis, we perform a causal intervention, fixing the neuron in question to a particular value and studying the effect compared to 20 random neurons from the last two layers that are not in the top decile of norm or in the bottom decile of logit variance (Figure 7). We find that intervening on this <em>entropy</em> neuron indeed causes the layer norm scale to increase dramatically (because of the large weight norm) while largely not affecting the relative ordering of the vocabulary (because of the low composition), having the effect of increasing overall entropy by dampening the post-layer norm component of <strong>x</strong> in the row space of <strong>W</strong> <em>U</em> .</p>
+<p>Additionally, we observed a neuron (L22.2882) with cos( <strong>w</strong> out<sup>23</sup><sup>_.<em>945</sup> <em>,</em> <strong>w</strong> out<sup>22</sup><sup></em>._2882</sup> ) = <em>−</em> 0 <em>.</em> 886 (i.e., a neuron that writes in the opposite direction forming an antipodal pair (Elhage et al., 2022b)) that also has high weight norm. Repeating the intervention experiment, we find this neuron <em>decreases</em> the layer norm scale and decreases the mean next token entropy, forming an anti-entropy neuron. These results suggest there may be one or more global uncertainty directions that the</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0010-00.jpg" alt="" /></p>
+<p>Figure 8: Summary of attention (de-)activation neuron results in GPT2-medium-a. (a) Distribution of heuristic score <em>hn</em> for every pair of neurons and heads compared to random neuron directions <strong>R</strong> . (b;c) path ablations effect of neuron L4.3594 on head L5.H0: ablating positive activation reduces attention to BOS (b) causing the norm to increase (c).</p>
+<p>model maintains to modulate its overall confidence in its prediction. However, our experiments with fixed activation value do not necessarily imply the model uses these neurons to increase the entropy as a general uncertainty mechanism, and we did notice cases in which increasing the activation of the entropy neuron decreased entropy, suggesting the true mechanism may be more complicated.</p>
+<p>We repeat these experiments on GPT2-small-a and find an even more dramatic antipodal pair of (anti-)entropy neurons in Figure 25. To our knowledge, this is the first documented mechanism for uncertainty quantification in language models and perhaps the second example of a mechanism involving layer norm (Brody et al., 2023).</p>
+<h2><strong>5.3 Attention Deactivation Neurons</strong></h2>
+<p>In autoregressive models, attention heads frequently place all of their attention on the beginning of sequence (BOS) token (Xiao et al., 2023). We hypothesise that the model uses the attention to the BOS token as a kind of (de-)activation for the head, where fully attending to BOS implies the head is deactivated and has minimal effect. Moreover, we hypothesize that there are individual neurons which control the extent to which heads attend to BOS.</p>
+<p>Recall the output of an attention head <strong>o</strong> <em>d</em> for a destination token <em>d</em> from source tokens <em>s</em> is given by</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0010-07.jpg" alt="" /></p>
+<p>where <strong>r</strong> <em>s/d</em> is the residual stream at the source / destination token, <em>dh</em> is the bottleneck dimension of the head, and <em>M</em> ( <em>·</em> ) applies the causal attention mask to the attention scores. The calculation of the attention pattern <strong>A</strong> <em>ds</em> via a softmax across the source positions means that the attention given to the source tokens by a given destination token sums to one.</p>
+<p>The vector <strong>W</strong> <em>O</em> <strong>v</strong> <em>BOS</em> is constant for all prompts and contains no semantic information. If it has a low norm, attending to BOS scales down the outputs of attending to other source positions while maintaining their relative attention because the attention scores must sum to one. If the BOS output norm is near zero, the head can effectively turn off by only attending to the BOS token. In practice, the median head in GPT-2-medium-a has a <strong>W</strong> <em>O</em> <strong>v</strong> <em>BOS</em> with norm 19.4 times smaller than the average for other tokens.</p>
+<p>We can identify neurons which may use this mechanism for a given head by a heuristic score <em>hn</em> = <strong>W</strong> <em>out</em><sup><em>T</em></sup><sup><strong>W</strong></sup> <em>Q</em><sup><em>T</em></sup><sup><strong>k</strong></sup><sup><em>BOS</em></sup> for unit normalized <strong>W</strong> <em>out</em> . Positive scores suggests activation of the neuron will increase the attention placed on BOS, decreasing the output norm of the head, and the opposite for negative scores. Figure 8a shows the distribution of the scores for all heads in GPT2-medium-a compared to a unit normalized Gaussian matrix <strong>R</strong> .</p>
+<p>For a given neuron, we can measure the effect of activation on the attention to BOS and output norm of a given head by path ablation (Wang et al., 2022a) of the neuron at a particular destination token. Specifically, we can measure the difference in BOS attention and norm of the output of the head between the original run and a forward pass where the contribution of a neuron is deleted (i.e, zero path ablated) from the input of a particular head at the current token position. We perform this procedure over a random subset of tokens in the second half of the context to avoid spurious effects stemming from short contexts. Figure 8b and 8c depict the results of these path ablations for the highest scoring neuron in layer 4 for head 0 in attention layer 5. This is an example of an attention deactivation neuron—increasing the activation of the neuron increases the attention to BOS reducing the output norm of the head <em>∥</em> <strong>o</strong> <em>d∥</em> . See Figure 26 for 5 additional examples of attention (de-)activating neurons.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0011-00.jpg" alt="" /></p>
+<p>Figure 9: Activation frequency of neuron (fraction of activation values greater than zero) versus cosine similarity of neuron input and output weights for GPT2-small-a (left), GPT2-medium-a (center), and Pythia-160M (right).</p>
+<h1><strong>6 Additional Mysteries</strong></h1>
+<p>We conclude our investigation by commenting on several miscellaneous results that we think are worth reporting but that we do not fully understand.</p>
+<h2><strong>6.1 Cosine and Activation Frequency</strong></h2>
+<p>An unexpectedly strong relationship we observed is the correlation between activation frequency of a neuron and the cosine similarity between its input and output weight vectors cos( <strong>w</strong> in <em>,</em> <strong>w</strong> out) as shown in Figure 9. Almost all neurons with a very high activation frequency have input and output weights in almost opposite directions. These neurons are predominantly in the first quarter of network depth and have small excess correlation, i.e., they are not universal as measured by activation. We also find it noteworthy that there appears to be an approximate ceiling and floor on the cosine similarity of approximately <em>±</em> 0.8.</p>
+<h2><strong>6.2 Duplication and Universality</strong></h2>
+<p>While neuron redundancy has been observed in models before (Casper et al., 2021; Dalvi et al., 2020) and large models can be effectively pruned (Xia et al., 2023), we were surprised by the number of seemingly duplicate universal neurons we observed (e.g., Figure 15 or the 105 BOS neurons we observed). Naively, this is surprising, as it seems wasteful to dedicate multiple neurons to the same feature. Larger models have more capacity and are empirically much more effective so why have redundant neurons when you could instead have one neuron with twice the output weight norm?</p>
+<p>A few potential explanations are (1) these models were trained with weight decay, creating an incentive to spread out the computation. (2) Dropout—however, in these models dropout is applied to the output of the MLP layer, rather than the MLP activations themselves. (3) These neurons are vestigial remnants that were useful earlier in training (Quirke et al., 2023), but are potentially stuck in a local minima and are no longer useful. (4) The duplicated neurons are only activating the same on common features, but are polysemantic with different sets of rarer features. (5) Ensembling, where each neuron computes the same feature but with some independent error, and together form an ensemble with lower average error.</p>
+<p>By measuring redundancy in terms of similarity in weights (Figure 10), we find very few neurons which are literal duplicates, providing more evidence for (4) and (5). Based on the much higher level of similarity for universal neurons, it is possible this effect is relatively small in general.</p>
+<h2><strong>6.3 Scale and Universality</strong></h2>
+<p>As mentioned in § 4, GPT2-medium and Pythia-160M have a consistent number of universal neurons (1.23% and 1.26% respectively), while GPT2-small-a has many more 4.16%. In Figure 11 we show the distribution of max, baseline, and excess correlations for all models, where we see that GPT2-medium and Pythia-160M have almost identical distributions while GPT2-small is an outlier. GPT2-small also has correspondingly greater weight redundancy as shown in Figure 10. One explanation for this is the number of universal neurons decreases in larger models. This is potentially implied by results from</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0012-00.jpg" alt="" /></p>
+<p>Figure 10: Distribution of cosine similarities of most similar neurons measured by input weights (top) and output weights (bottom) for GPT2-small-a (left), GPT2-medium-a (middle), and Pythia-160M (right) colored by universality ( <em>ϱ&gt;</em> 0 <em>.</em> 5).</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0012-02.jpg" alt="" /></p>
+<p>Figure 11: Empirical distribution of max neuron correlation averaged across models (left), max baseline correlation averaged across models (middle), and the difference denoted as the excess correlation (right).</p>
+<p>(Bills et al., 2023) who observe larger models have fewer neurons which admit high quality natural language interpretations. However, without additional experiments on larger models trained from random seeds, this remains an open question.</p>
+<h1><strong>7 Discussion and Conclusion</strong></h1>
+<p><strong>Findings</strong> In this work, we explore the universality of individual neurons in GPT2 language models, and find that only about 1-5% of neurons are universal across models, constituting another piece of evidence that individual neurons are not the appropriate unit of analysis for most network behaviours. Nonetheless, we have shown that leveraging universality is an effective unsupervised approach to identify interpretable model components and important motifs. In particular, those few neurons which are universal are often interpretable, can be grouped into a smaller number of neuron families, and often develop with near duplicate neurons in the same model. Some universal neurons also have clear functional roles, like modulating the next token prediction entropy, controlling the output norm of an attention head, and predicting or suppressing elements of the vocabulary in the prediction. Moreover, these functional neurons often form antipodal pairs, potentially enabling collections of neurons to ensemble to improve robustness and calibration.</p>
+<p><strong>Limitations</strong> Compared to frontier LLMs, we study small models of only hundreds of million parameters and tens of thousands of neurons due to the expense of training multiple large scale language models from different random initializations. We also study a relatively narrow form of universality: neuron universality over random seeds within the</p>
+<p>same model family. Studying universality across different model families is made difficult by tokenization discrepancies, and studying models across larger sizes is difficult due to the expense of computing all pairwise neuron correlations over a sufficiently sized text corpus. Additionally, many of our interpretations rely on manual analysis or algorithmic supervision which restricts the scope and generality of our methods. Moreover, our narrow focus on a subset of individual elements of the neuron basis potentially obscures important details and ignores the vast majority of overall network computation.</p>
+<p><strong>Future Work</strong> Each of these limitations suggest avenues for future work. Instead of studying the neuron basis, our experiments could be replicated on an overcomplete dictionary basis that is more likely to contain the true model features (Cunningham et al., 2023; Bricken et al., 2023). Motivated by the finding that the most correlated neurons occur in similar network depths, our experiments could be rerun on larger models where pairwise correlations are only computed between adjacent layers to improve scalability. Additionally, the interpretation of common units could be further automated using LLMs to provide explanations (Bills et al., 2023). Finally, by uncovering interpretable footholds within the internals of the network, our findings can form the basis of deeper investigations into how these components respond to stimulus or perturbation, develop over training (Quirke et al., 2023), and affect downstream components to further elucidate general motifs and specific circuits within language models.</p>
+<h1><strong>Acknowledgments</strong></h1>
+<p>We would like to thank Yossi Gandelsman, Lovis Heindrich, Lucia Quirke, for useful discussions and comments on our work. We made extensive use of the TransformerLens library (Nanda, 2022) and the MIT Supercloud (Reuther et al., 2018) for our experiments and computational resources. WG was partially supported by an Open Philanthropy early career grant.</p>
+<h1><strong>Author Contribution</strong></h1>
+<p>WG led the project, conducted most of the analysis, and wrote most of the paper. TH led the effort on understanding attention (de-)activation neurons, and performed the corresponding analysis and writing. ZCG assisted with experimental infrastructure. ZCG, TRK, QS, and WH assisted with neuron analysis and writing/editing. NN gave frequent and detailed feedback on experiment design and analysis in addition to editing the paper. DB supported the project and edited the paper.</p>
+<h1><strong>References</strong></h1>
+<p>Anthropic (2023). Circuits updates - july 2023. https://transformer-circuits.pub/2023/july-update/index.html.</p>
+<ul>
+<li>
+<p>Antverg, O. and Belinkov, Y. (2021). On the pitfalls of analyzing individual neurons in language models. <em>arXiv preprint arXiv:2110.07483</em> .</p>
+</li>
+<li>
+<p>Bansal, Y., Nakkiran, P., and Barak, B. (2021). Revisiting Model Stitching to Compare Neural Representations.</p>
+</li>
+<li>
+<p>Barannikov, S., Trofimov, I., Balabin, N., and Burnaev, E. (2022). Representation Topology Divergence: A Method for Comparing Neural Network Representations.</p>
+</li>
+<li>
+<p>Bau, A., Belinkov, Y., Sajjad, H., Durrani, N., Dalvi, F., and Glass, J. (2018). Identifying and controlling important neurons in neural machine translation. <em>arXiv preprint arXiv:1811.01157</em> .</p>
+</li>
+<li>
+<p>Bau, D., Zhu, J.-Y., Strobelt, H., Lapedriza, A., Zhou, B., and Torralba, A. (2020). Understanding the role of individual units in a deep neural network. <em>Proceedings of the National Academy of Sciences</em> .</p>
+</li>
+<li>
+<p>Belrose, N., Furman, Z., Smith, L., Halawi, D., Ostrovsky, I., McKinney, L., Biderman, S., and Steinhardt, J. (2023). Eliciting latent predictions from transformers with the tuned lens. <em>arXiv preprint arXiv:2303.08112</em> .</p>
+</li>
+<li>
+<p>Bender, E. M., Gebru, T., McMillan-Major, A., and Shmitchell, S. (2021). On the dangers of stochastic parrots: Can language models be too big? In <em>Proceedings of the 2021 ACM conference on fairness, accountability, and transparency</em> , pages 610–623.</p>
+</li>
+<li>
+<p>Bengio, Y., Hinton, G., Yao, A., Song, D., Abbeel, P., Harari, Y. N., Zhang, Y.-Q., Xue, L., Shalev-Shwartz, S., Hadfield, G., et al. (2023). Managing ai risks in an era of rapid progress. <em>arXiv preprint arXiv:2310.17688</em> .</p>
+</li>
+<li>
+<p>Biderman, S., Schoelkopf, H., Anthony, Q., Bradley, H., O’Brien, K., Hallahan, E., Khan, M. A., Purohit, S., Prashanth, U. S., Raff, E., Skowron, A., Sutawika, L., and van der Wal, O. (2023). Pythia: A suite for analyzing large language models across training and scaling.</p>
+</li>
+<li>
+<p>Bills, S., Cammarata, N., Mossing, D., Tillman, H., Gao, L., Goh, G., Sutskever, I., Leike, J., Wu, J., and Saunders, W. (2023). Language models can explain neurons in language models. <code>https: //openaipublic.blob.core.windows.net/neuron-explainer/paper/index.html</code> .</p>
+</li>
+<li>
+<p>Boix-Adsera, E., Lawrence, H., Stepaniants, G., and Rigollet, P. (2022). GULP: a prediction-based metric between representations.</p>
+</li>
+<li>
+<p>Bommasani, R., Hudson, D. A., Adeli, E., Altman, R., Arora, S., von Arx, S., Bernstein, M. S., Bohg, J., Bosselut, A., Brunskill, E., et al. (2021). On the opportunities and risks of foundation models. <em>arXiv preprint arXiv:2108.07258</em> .</p>
+</li>
+<li>
+<p>Bricken, T., Templeton, A., Batson, J., Chen, B., Jermyn, A., Conerly, T., Turner, N., Anil, C., Denison, C., Askell, A., Lasenby, R., Wu, Y., Kravec, S., Schiefer, N., Maxwell, T., Joseph, N., Hatfield-Dodds, Z., Tamkin, A., Nguyen, K., McLean, B., Burke, J. E., Hume, T., Carter, S., Henighan, T., and Olah, C. (2023). Towards monosemanticity: Decomposing language models with dictionary learning. <em>Transformer Circuits Thread</em> . https://transformer-circuits.pub/2023/monosemantic-features/index.html.</p>
+</li>
+<li>
+<p>Brody, S., Alon, U., and Yahav, E. (2023). On the expressivity role of layernorm in transformers’ attention. <em>arXiv preprint arXiv:2305.02582</em> .</p>
+</li>
+<li>
+<p>Brown, D., Vyas, N., and Bansal, Y. (2023). On privileged and convergent bases in neural network representations. <em>arXiv preprint arXiv:2307.12941</em> .</p>
+</li>
+<li>
+<p>Bubeck, S., Chandrasekaran, V., Eldan, R., Gehrke, J., Horvitz, E., Kamar, E., Lee, P., Lee, Y. T., Li, Y., Lundberg, S., et al. (2023). Sparks of artificial general intelligence: Early experiments with gpt-4. <em>arXiv preprint arXiv:2303.12712</em> .</p>
+</li>
+<li>
+<p>Burns, C., Ye, H., Klein, D., and Steinhardt, J. (2022). Discovering latent knowledge in language models without supervision. <em>arXiv preprint arXiv:2212.03827</em> .</p>
+</li>
+<li>
+<p>Cammarata, N., Goh, G., Carter, S., Voss, C., Schubert, L., and Olah, C. (2021). Curve circuits. <em>Distill</em> . https://distill.pub/2020/circuits/curve-circuits.</p>
+</li>
+<li>
+<p>Carlsmith, J. (2023). Scheming ais: Will ais fake alignment during training in order to get power? <em>arXiv preprint arXiv:2311.08379</em> .</p>
+</li>
+<li>
+<p>Casper, S., Boix, X., D’Amario, V., Guo, L., Schrimpf, M., Vinken, K., and Kreiman, G. (2021). Frivolous units: Wider networks are not really that wide. In <em>Proceedings of the AAAI Conference on Artificial Intelligence</em> , volume 35, pages 6921–6929.</p>
+</li>
+<li>
+<p>Chughtai, B., Chan, L., and Nanda, N. (2023). A toy model of universality: Reverse engineering how networks learn group operations. In <em>Proceedings of the 40th International Conference on Machine Learning</em> , ICML’23. JMLR.org.</p>
+</li>
+<li>
+<p>Conmy, A., Mavor-Parker, A. N., Lynch, A., Heimersheim, S., and Garriga-Alonso, A. (2023). Towards automated circuit discovery for mechanistic interpretability. <em>arXiv preprint arXiv:2304.14997</em> .</p>
+</li>
+<li>
+<p>Cunningham, H., Ewart, A., Riggs, L., Huben, R., and Sharkey, L. (2023). Sparse autoencoders find highly interpretable features in language models. <em>arXiv preprint arXiv:2309.08600</em> .</p>
+</li>
+<li>
+<p>Dai, D., Dong, L., Hao, Y., Sui, Z., Chang, B., and Wei, F. (2021). Knowledge neurons in pretrained transformers. <em>arXiv preprint arXiv:2104.08696</em> .</p>
+</li>
+<li>
+<p>Dalvi, F., Durrani, N., Sajjad, H., Belinkov, Y., Bau, A., and Glass, J. (2019). What is one grain of sand in the desert? analyzing individual neurons in deep nlp models. In <em>Proceedings of the AAAI Conference on Artificial Intelligence</em> , volume 33, pages 6309–6317.</p>
+</li>
+<li>
+<p>Dalvi, F., Sajjad, H., Durrani, N., and Belinkov, Y. (2020). Analyzing redundancy in pretrained transformer models. <em>arXiv preprint arXiv:2004.04010</em> .</p>
+</li>
+<li>
+<p>Dar, G., Geva, M., Gupta, A., and Berant, J. (2022). Analyzing transformers in embedding space. <em>arXiv preprint arXiv:2209.02535</em> .</p>
+</li>
+<li>
+<p>Ding, F., Denain, J.-S., and Steinhardt, J. (2021). Grounding Representation Similarity with Statistical Testing.</p>
+</li>
+<li>
+<p>Donnelly, J. and Roegiest, A. (2019). On interpretability and feature representations: an analysis of the sentiment neuron. In <em>Advances in Information Retrieval: 41st European Conference on IR Research, ECIR 2019, Cologne, Germany, April 14–18, 2019, Proceedings, Part I 41</em> , pages 795–802. Springer.</p>
+</li>
+<li>
+<p>Doshi-Velez, F. and Kim, B. (2017). Towards a rigorous science of interpretable machine learning. <em>arXiv preprint arXiv:1702.08608</em> .</p>
+</li>
+<li>
+<p>Dravid, A., Gandelsman, Y., Efros, A. A., and Shocher, A. (2023). Rosetta neurons: Mining the common units in a model zoo. In <em>Proceedings of the IEEE/CVF International Conference on Computer Vision</em> , pages 1934–1943.</p>
+</li>
+<li>
+<p>Duong, L. R., Zhou, J., Nassar, J., Berman, J., Olieslagers, J., and Williams, A. H. (2023). Representational dissimilarity metric spaces for stochastic neural networks.</p>
+</li>
+<li>
+<p>Durrani, N., Dalvi, F., and Sajjad, H. (2022). Linguistic correlation analysis: Discovering salient neurons in deepnlp models. <em>arXiv preprint arXiv:2206.13288</em> .</p>
+</li>
+<li>
+<p>Elhage, N., Hume, T., Olsson, C., Nanda, N., Henighan, T., Johnston, S., ElShowk, S., Joseph, N., DasSarma, N., Mann, B., Hernandez, D., Askell, A., Ndousse, K., Drain, D., Chen, A., Bai, Y., Ganguli, D., Lovitt, L., Hatfield-Dodds, Z., Kernion, J., Conerly, T., Kravec, S., Fort, S., Kadavath, S., Jacobson, J., Tran-Johnson, E., Kaplan, J., Clark, J., Brown, T., McCandlish, S., Amodei, D., and Olah, C. (2022a). Softmax linear units. <em>Transformer Circuits Thread</em> . https://transformer-circuits.pub/2022/solu/index.html.</p>
+</li>
+<li>
+<p>Elhage, N., Hume, T., Olsson, C., Schiefer, N., Henighan, T., Kravec, S., Hatfield-Dodds, Z., Lasenby, R., Drain, D., Chen, C., et al. (2022b). Toy models of superposition. <em>arXiv preprint arXiv:2209.10652</em> .</p>
+</li>
+<li>
+<p>Elhage, N., Nanda, N., Olsson, C., Henighan, T., Joseph, N., Mann, B., Askell, A., Bai, Y., Chen, A., Conerly, T., et al. (2021). A mathematical framework for transformer circuits. <em>Transformer Circuits Thread</em> .</p>
+</li>
+<li>
+<p>Feng, J. and Steinhardt, J. (2023). How do language models bind entities in context? <em>arXiv preprint arXiv:2310.17191</em> .</p>
+</li>
+<li>
+<p>Gao, L., Biderman, S., Black, S., Golding, L., Hoppe, T., Foster, C., Phang, J., He, H., Thite, A., Nabeshima, N., et al. (2020). The pile: An 800gb dataset of diverse text for language modeling. <em>arXiv preprint arXiv:2101.00027</em> .</p>
+</li>
+<li>
+<p>Geva, M., Caciularu, A., Wang, K. R., and Goldberg, Y. (2022). Transformer feed-forward layers build predictions by promoting concepts in the vocabulary space. <em>arXiv preprint arXiv:2203.14680</em> .</p>
+</li>
+<li>
+<p>Geva, M., Schuster, R., Berant, J., and Levy, O. (2020). Transformer feed-forward layers are key-value memories. <em>arXiv preprint arXiv:2012.14913</em> .</p>
+</li>
+<li>
+<p>Godfrey, C., Brown, D., Emerson, T., and Kvinge, H. (2023). On the Symmetries of Deep Learning Models and their Internal Representations.</p>
+</li>
+<li>
+<p>Goh, G., Cammarata, N., Voss, C., Carter, S., Petrov, M., Schubert, L., Radford, A., and Olah, C. (2021). Multimodal neurons in artificial neural networks. <em>Distill</em> , 6(3):e30.</p>
+</li>
+<li>
+<p>Gould, R., Ong, E., Ogden, G., and Conmy, A. (2023). Successor heads: Recurring, interpretable attention heads in the wild. <em>arXiv preprint arXiv:2312.09230</em> .</p>
+</li>
+<li>
+<p>Gurnee, W., Nanda, N., Pauly, M., Harvey, K., Troitskii, D., and Bertsimas, D. (2023). Finding neurons in a haystack: Case studies with sparse probing. <em>arXiv preprint arXiv:2305.01610</em> .</p>
+</li>
+<li>
+<p>Gurnee, W. and Tegmark, M. (2023). Language models represent space and time. <em>arXiv preprint arXiv:2310.02207</em> .</p>
+</li>
+<li>
+<p>Gwilliam, M. and Shrivastava, A. (2022). Beyond Supervised vs. Unsupervised: Representative Benchmarking and Analysis of Image Representation Learning.</p>
+</li>
+<li>
+<p>Hamilton, W. L., Leskovec, J., and Jurafsky, D. (2018). Diachronic Word Embeddings Reveal Statistical Laws of Semantic Change.</p>
+</li>
+<li>
+<p>Hamrick, J. and Mohamed, S. (2020). Levels of analysis for machine learning. <em>arXiv preprint arXiv:2004.05107</em> . Hendel, R., Geva, M., and Globerson, A. (2023). In-context learning creates task vectors. <em>arXiv preprint arXiv:2310.15916</em> .</p>
+</li>
+<li>
+<p>Hendrycks, D. and Gimpel, K. (2016). Gaussian error linear units (gelus). <em>arXiv preprint arXiv:1606.08415</em> .</p>
+</li>
+<li>
+<p>Hendrycks, D., Mazeika, M., and Woodside, T. (2023). An overview of catastrophic ai risks. <em>arXiv preprint arXiv:2306.12001</em> .</p>
+</li>
+<li>
+<p>Honnibal, M., Montani, I., Van Landeghem, S., and Boyd, A. (2020). spacy: Industrial-strength natural language processing in python.</p>
+</li>
+<li>
+<p>Hryniowski, A. and Wong, A. (2020). Inter-layer Information Similarity Assessment of Deep Neural Networks Via Topological Similarity and Persistence Analysis of Data Neighbour Dynamics.</p>
+</li>
+<li>
+<p>Huang, J., Geiger, A., D’Oosterlinck, K., Wu, Z., and Potts, C. (2023). Rigorously assessing natural language explanations of neurons. <em>arXiv preprint arXiv:2309.10312</em> .</p>
+</li>
+<li>
+<p>Jastrz˛ebski, S., Arpit, D., Ballas, N., Verma, V., Che, T., and Bengio, Y. (2017). Residual connections encourage iterative inference. <em>arXiv preprint arXiv:1710.04773</em> .</p>
+</li>
+<li>
+<p>Karamcheti, S., Orr, L., Bolton, J., Zhang, T., Goel, K., Narayan, A., Bommasani, R., Narayanan, D., Hashimoto, T., Jurafsky, D., Manning, C. D., Potts, C., Ré, C., and Liang, P. (2021). Mistral - a journey towards reproducible language model training.</p>
+</li>
+<li>
+<p>Khrulkov, V. and Oseledets, I. (2018). Geometry Score: A Method For Comparing Generative Adversarial Networks. Klabunde, M., Schumacher, T., Strohmaier, M., and Lemmerich, F. (2023). Similarity of Neural Network Models: A Survey of Functional and Representational Measures.</p>
+</li>
+<li>
+<p>Kornblith, S., Norouzi, M., Lee, H., and Hinton, G. (2019). Similarity of neural network representations revisited. In <em>International conference on machine learning</em> , pages 3519–3529. PMLR.</p>
+</li>
+<li>
+<p>Lange, R. D., Rolnick, D. S., and Kording, K. P. (2022). Clustering units in neural networks: upstream vs downstream information.</p>
+</li>
+<li>
+<p>Li, Y., Yosinski, J., Clune, J., Lipson, H., and Hopcroft, J. (2015). Convergent learning: Do different neural networks learn the same representations? <em>arXiv preprint arXiv:1511.07543</em> .</p>
+</li>
+<li>
+<p>Li, Y., Yosinski, J., Clune, J., Lipson, H., and Hopcroft, J. (2016). Convergent Learning: Do different neural networks learn the same representations?</p>
+</li>
+<li>
+<p>Liao, I., Liu, Z., and Tegmark, M. (2023). Generating interpretable networks using hypernetworks. <em>arXiv preprint arXiv:2312.03051</em> .</p>
+</li>
+<li>
+<p>Lim, J. and Lauw, H. (2023). Disentangling transformer language models as superposed topic models. In <em>Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</em> , pages 8646–8666.</p>
+</li>
+<li>
+<p>Lin, B. (2022). Geometric and Topological Inference for Deep Representations of Complex Networks. In <em>Companion Proceedings of the Web Conference 2022</em> , pages 334–338.</p>
+</li>
+<li>
+<p>Lu, Y., Yang, W., Zhang, Y., Chen, Z., Chen, J., Xuan, Q., Wang, Z., and Yang, X. (2022). Understanding the Dynamics of DNNs Using Graph Modularity.</p>
+</li>
+<li>
+<p>Marr, D. (2010). <em>Vision: A computational investigation into the human representation and processing of visual information</em> . MIT press.</p>
+</li>
+<li>
+<p>McDougall, C., Conmy, A., Rushing, C., McGrath, T., and Nanda, N. (2023). Copy suppression: Comprehensively understanding an attention head. <em>arXiv preprint arXiv:2310.04625</em> .</p>
+</li>
+<li>
+<p>McGrath, T., Rahtz, M., Kramar, J., Mikulik, V., and Legg, S. (2023). The hydra effect: Emergent self-repair in language model computations. <em>arXiv preprint arXiv:2307.15771</em> .</p>
+</li>
+<li>
+<p>Merullo, J., Eickhoff, C., and Pavlick, E. (2023). Circuit component reuse across tasks in transformer language models. <em>arXiv preprint arXiv:2310.08744</em> .</p>
+</li>
+<li>
+<p>Morcos, A. S., Raghu, M., and Bengio, S. (2018). Insights on representational similarity in neural networks with canonical correlation.</p>
+</li>
+<li>
+<p>Mu, J. and Andreas, J. (2020). Compositional explanations of neurons. <em>Advances in Neural Information Processing Systems</em> , 33:17153–17163.</p>
+</li>
+<li>
+<p>Nanda, N. (2022). Transformerlens.</p>
+</li>
+<li>
+<p>Nanda, N., Chan, L., Liberum, T., Smith, J., and Steinhardt, J. (2023). Progress measures for grokking via mechanistic interpretability. <em>arXiv preprint arXiv:2301.05217</em> .</p>
+</li>
+<li>
+<p>Ngo, R., Chan, L., and Mindermann, S. (2023). The alignment problem from a deep learning perspective.</p>
+</li>
+<li>
+<p>Nguyen, A., Yosinski, J., and Clune, J. (2016). Multifaceted feature visualization: Uncovering the different types of features learned by each neuron in deep neural networks.</p>
+</li>
+</ul>
+<p>Nostalgebraist (2020). Interpreting gpt: The logit lens. <code>https://www.alignmentforum.org/posts/ AcKRB8wDpdaN6v6ru/interpreting-gpt-the-logit-lens</code> .</p>
+<ul>
+<li>
+<p>Olah, C. (2021). Interpretability vs neuroscience. <code>https://colah.github.io/notes/interp-v-neuro/</code> .</p>
+</li>
+<li>
+<p>Olah, C., Cammarata, N., Schubert, L., Goh, G., Petrov, M., and Carter, S. (2020a). An overview of early vision in inceptionv1. <em>Distill</em> . https://distill.pub/2020/circuits/early-vision.</p>
+</li>
+<li>
+<p>Olah, C., Cammarata, N., Schubert, L., Goh, G., Petrov, M., and Carter, S. (2020b). Zoom in: An introduction to circuits. <em>Distill</em> , 5(3):e00024–001.</p>
+</li>
+<li>
+<p>Olsson, C., Elhage, N., Nanda, N., Joseph, N., DasSarma, N., Henighan, T., Mann, B., Askell, A., Bai, Y., Chen, A., Conerly, T., Drain, D., Ganguli, D., Hatfield-Dodds, Z., Hernandez, D., Johnston, S., Jones, A., Kernion, J., Lovitt, L., Ndousse, K., Amodei, D., Brown, T., Clark, J., Kaplan, J., McCandlish, S., and Olah, C. (2022). In-context learning and induction heads. <em>Transformer Circuits Thread</em> . https://transformer-circuits.pub/2022/in-context-learning-andinduction-heads/index.html.</p>
+</li>
+<li>
+<p>Quirke, L., Heindrich, L., Gurnee, W., and Nanda, N. (2023). Training dynamics of contextual n-grams in language models. <em>arXiv preprint arXiv:2311.00863</em> .</p>
+</li>
+<li>
+<p>Radford, A., Jozefowicz, R., and Sutskever, I. (2017). Learning to generate reviews and discovering sentiment. <em>arXiv preprint arXiv:1704.01444</em> .</p>
+</li>
+<li>
+<p>Radford, A., Narasimhan, K., Salimans, T., Sutskever, I., et al. (2018). Improving language understanding by generative pre-training.</p>
+</li>
+<li>
+<p>Radford, A., Wu, J., Child, R., Luan, D., Amodei, D., Sutskever, I., et al. (2019). Language models are unsupervised multitask learners. <em>OpenAI blog</em> , 1(8):9.</p>
+</li>
+<li>
+<p>Raghu, M., Gilmer, J., Yosinski, J., and Sohl-Dickstein, J. (2017). SVCCA: Singular Vector Canonical Correlation Analysis for Deep Learning Dynamics and Interpretability.</p>
+</li>
+<li>
+<p>Reuther, A., Kepner, J., Byun, C., Samsi, S., Arcand, W., Bestor, D., Bergeron, B., Gadepally, V., Houle, M., Hubbell, M., Jones, M., Klein, A., Milechin, L., Mullen, J., Prout, A., Rosa, A., Yee, C., and Michaleas, P. (2018). Interactive supercomputing on 40,000 cores for machine learning and data analysis. In <em>2018 IEEE High Performance extreme Computing Conference (HPEC)</em> , pages 1–6. IEEE.</p>
+</li>
+<li>
+<p>Sajjad, H., Durrani, N., Dalvi, F., Alam, F., Khan, A. R., and Xu, J. (2022). Analyzing encoded concepts in transformer language models. <em>arXiv preprint arXiv:2206.13289</em> .</p>
+</li>
+<li>
+<p>Schubert, L., Voss, C., Cammarata, N., Goh, G., and Olah, C. (2021a). High-low frequency detectors. <em>Distill</em> . https://distill.pub/2020/circuits/frequency-edges.</p>
+</li>
+<li>
+<p>Schubert, L., Voss, C., Cammarata, N., Goh, G., and Olah, C. (2021b). High-low frequency detectors. <em>Distill</em> , 6(1):e00024–005.</p>
+</li>
+<li>
+<p>Shahbazi, M., Shirali, A., Aghajan, H., and Nili, H. (2021). Using distance on the Riemannian manifold to compare representations in brain and in models. <em>NeuroImage</em> , 239:118271.</p>
+</li>
+<li>
+<p>Tang, S., Maddox, W. J., Dickens, C., Diethe, T., and Damianou, A. (2020). Similarity of Neural Networks with Gradients.</p>
+</li>
+<li>
+<p>Todd, E., Li, M. L., Sharma, A. S., Mueller, A., Wallace, B. C., and Bau, D. (2023). Function vectors in large language models. <em>arXiv preprint arXiv:2310.15213</em> .</p>
+</li>
+<li>
+<p>Variengien, A. and Winsor, E. (2023). Look before you leap: A universal emergent decomposition of retrieval tasks in language models.</p>
+</li>
+<li>
+<p>Voita, E., Ferrando, J., and Nalmpantis, C. (2023). Neurons in large language models: Dead, n-gram, positional. <em>arXiv preprint arXiv:2309.04827</em> .</p>
+</li>
+<li>
+<p>Wang, K., Variengien, A., Conmy, A., Shlegeris, B., and Steinhardt, J. (2022a). Interpretability in the wild: a circuit for indirect object identification in gpt-2 small. <em>arXiv preprint arXiv:2211.00593</em> .</p>
+</li>
+<li>
+<p>Wang, L., Hu, L., Gu, J., Wu, Y., Hu, Z., He, K., and Hopcroft, J. (2018). Towards Understanding Learning Representations: To What Extent Do Different Neural Networks Learn the Same Representation.</p>
+</li>
+<li>
+<p>Wang, T. and Isola, P. (2022). Understanding Contrastive Representation Learning through Alignment and Uniformity on the Hypersphere.</p>
+</li>
+<li>
+<p>Wang, X., Wen, K., Zhang, Z., Hou, L., Liu, Z., and Li, J. (2022b). Finding skill neurons in pre-trained transformer-based language models. <em>arXiv preprint arXiv:2211.07349</em> .</p>
+</li>
+<li>
+<p>Weidinger, L., Uesato, J., Rauh, M., Griffin, C., Huang, P.-S., Mellor, J., Glaese, A., Cheng, M., Balle, B., Kasirzadeh, A., et al. (2022). Taxonomy of risks posed by language models. In <em>Proceedings of the 2022 ACM Conference on Fairness, Accountability, and Transparency</em> , pages 214–229.</p>
+</li>
+<li>
+<p>Williams, A. H., Kunz, E., Kornblith, S., and Linderman, S. W. (2022). Generalized Shape Metrics on Neural Representations.</p>
+</li>
+<li>
+<p>Xia, M., Gao, T., Zeng, Z., and Chen, D. (2023). Sheared llama: Accelerating language model pre-training via structured pruning. <em>arXiv preprint arXiv:2310.06694</em> .</p>
+</li>
+<li>
+<p>Xiao, G., Tian, Y., Chen, B., Han, S., and Lewis, M. (2023). Efficient streaming language models with attention sinks. <em>arXiv preprint arXiv:2309.17453</em> .</p>
+</li>
+<li>
+<p>Xin, J., Lin, J., and Yu, Y. (2019). What part of the neural network does this? understanding lstms by measuring and dissecting neurons. In <em>Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP)</em> , pages 5823–5830.</p>
+</li>
+<li>
+<p>Zhang, S., Roller, S., Goyal, N., Artetxe, M., Chen, M., Chen, S., Dewan, C., Diab, M., Li, X., Lin, X. V., et al. (2022). Opt: Open pre-trained transformer language models. <em>arXiv preprint arXiv:2205.01068</em> .</p>
+</li>
+<li>
+<p>Zhong, Z., Liu, Z., Tegmark, M., and Andreas, J. (2023). The clock and the pizza: Two stories in mechanistic explanation of neural networks. <em>arXiv preprint arXiv:2306.17844</em> .</p>
+</li>
+<li>
+<p>Zou, A., Phan, L., Chen, S., Campbell, J., Guo, P., Ren, R., Pan, A., Yin, X., Mazeika, M., Dombrowski, A.-K., et al. (2023). Representation engineering: A top-down approach to ai transparency. <em>arXiv preprint arXiv:2310.01405</em> .</p>
+</li>
+</ul>
+<h1><strong>A Additional Empirical Details</strong></h1>
+<p>All of our code and data is available at <code>https://github.com/wesg52/universal-neurons</code> .</p>
+<p>Most of our plots in the main text (and therefore neuron indices) correspond to the HuggingFace model <code>stanford-crfm/arwen-gpt2-medium-x21</code> with our additional correlation experiments being conducted on <code>stanford-crfm/alias-gpt2-small-x21</code> and <code>EleutherAI/pythia-160m</code> .</p>
+<h2><strong>A.1 Weight Preprocessing</strong></h2>
+<p>We employ several standard weight preprocessing techniques to simplify calculations (Nanda, 2022).</p>
+<p><strong>Folding in Layer Norm</strong> Most layer norm implementations also include trainable parameters <strong><em>γ</em></strong> <em>∈</em> R<sup><em>n</em></sup> and <strong>b</strong> <em>∈</em> R<sup><em>n</em></sup></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0018-06.jpg" alt="" /></p>
+<p>To account for these, we can “fold” the layer norm parameters in to <em>W</em> in by observing that the layer norm parameters are equivalent to a linear layer, and then combine the adjacent linear layers. In particular, we can create effective weights</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0018-08.jpg" alt="" /></p>
+<p>Finally, we can center the reading weights because the preceding layer norm projects out the all ones vector. Thus we can center the weights <strong>W</strong> eff becomes</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0018-10.jpg" alt="" /></p>
+<p><strong>Writing Weight Centering</strong> Every time the model interacts with the residual stream it applies a LayerNorm first. Thus the components of <strong>W</strong> out and <strong>b</strong> out that lie along the all-ones direction of the residual stream have no effect on the model’s calculation. So, we again mean-center <strong>W</strong> out and <strong>b</strong> out by subtracting the means of the columns of <strong>W</strong> out</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0018-12.jpg" alt="" /></p>
+<p><strong>Unembed Centering</strong> Additionally, since softmax is translation invariant, we modify <strong>W</strong> <em>U</em> into</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0018-14.jpg" alt="" /></p>
+<p>For both of theses, see the transformer lens documentation for more details.</p>
+<p>The purpose of all of these translations is to remove irrelevant components and other parameterization degrees of freedom so that cosine similarities and other weight computations have mean 0.</p>
+<h2><strong>A.2 Correlation Computations</strong></h2>
+<p>We compute our correlations over a 100 million token subset of the Pile test set (Gao et al., 2020), tokenized to a context length of 512 tokens. We compute correlations over all tokens that are not padding, beginning-of-sequence, or new-line tokens.</p>
+<p><strong>Efficient Computation</strong> Because storing neuron activations for two models over 100M tokens would be 36 petabytes of data, we require a streaming algorithm. To do so, observe that given a pair of neuron activations <em>{</em> ( <em>x</em> 1 <em>,y</em> 1) <em>,...,</em> ( <em>xn,yn</em> ) <em>}</em> consisting of <em>n</em> pairs, the correlation can be computed as</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0018-20.jpg" alt="" /></p>
+<p>where ¯ <em>x,y</em> ¯ are the sample mean. Therefore, instead of saving all neuron activations, we can maintain four <code>n_neuron</code> dimensional vectors and one <code>n_neuron</code> <em>×</em> <code>n_neuron</code> matrix corresponding to the running neuron activation means in model A and model B, a running sum of each neurons squared activation, and a running sum of pairwise products. At the end of the dataset, we perform the appropriate arithmetic to combine the results into pairwise correlations for all models.</p>
+<h2><strong>A.3 Model Hyperparameters</strong></h2>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>GPT-2 Small</th>
+<th>GPT-2 Medium</th>
+<th>Pythia 160M</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>layers</td>
+<td>12</td>
+<td>24</td>
+<td>12</td>
+</tr>
+<tr>
+<td>heads</td>
+<td>12</td>
+<td>16</td>
+<td>12</td>
+</tr>
+<tr>
+<td>_d_model</td>
+<td>768</td>
+<td>1024</td>
+<td>768</td>
+</tr>
+<tr>
+<td>_d_vocab</td>
+<td>50257</td>
+<td>50257</td>
+<td>50304</td>
+</tr>
+<tr>
+<td>_d_MLP</td>
+<td>3072</td>
+<td>4096</td>
+<td>3072</td>
+</tr>
+<tr>
+<td>parameters</td>
+<td>160M</td>
+<td>410M</td>
+<td>160M</td>
+</tr>
+<tr>
+<td>context</td>
+<td>1024</td>
+<td>1024</td>
+<td>2048</td>
+</tr>
+<tr>
+<td>activation function</td>
+<td>gelu_new</td>
+<td>gelu_new</td>
+<td>gelu</td>
+</tr>
+<tr>
+<td>pos embeddings</td>
+<td>absolute</td>
+<td>absolute</td>
+<td>RoPE</td>
+</tr>
+<tr>
+<td>rotary percentage</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>25</td>
+</tr>
+<tr>
+<td>precision</td>
+<td>Float-32</td>
+<td>Float-32</td>
+<td>Float-16</td>
+</tr>
+<tr>
+<td>dataset</td>
+<td>OpenwebText</td>
+<td>OpenwebText</td>
+<td>Pile</td>
+</tr>
+<tr>
+<td>_p_dropout</td>
+<td>0.1</td>
+<td>0.1</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>Table 1: Hyperparameters of models</p>
+<h1><strong>B Additional Results</strong></h1>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0019-03.jpg" alt="" /></p>
+<p>Figure 12: Summary of neuron correlation experiments in GPT2-small-a. (a) Distribution of the mean (over models b-e) max (over neurons) correlation, the mean baseline correlation, and the difference (excess). (b) The max (over models) max (over neurons) correlation compared to the min (over models) max (over neuron) correlation for each neuron. (c) Percentage of layer pairs with most similar neuron pairs.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0020-00.jpg" alt="" /></p>
+<p>Figure 13: Summary of neuron correlation experiments in Pythia-160m. (a) Distribution of the mean (over models b-e) max (over neurons) correlation, the mean baseline correlation, and the difference (excess). (b) The max (over models) max (over neurons) correlation compared to the min (over models) max (over neuron) correlation for each neuron. (c) Percentage of layer pairs with most similar neuron pairs.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0021-00.jpg" alt="" /></p>
+<p>Figure 14: Distribution of neuron metrics for universal and non-universal neurons in GPT2-medium-a by layer. From top to bottom: the kurtosis of cos( <strong>W</strong> <em>U ,</em> <strong>w</strong> <em>out</em> ), the skew of cos( <strong>W</strong> <em>U ,</em> <strong>w</strong> <em>out</em> ), cosine similarity between input and output weight cos( <strong>w</strong> <em>in,</em> <strong>w</strong> <em>out</em> ), weight decay penalty <em>∥</em> <strong>w</strong> <em>in∥</em><sup>2</sup> 2<sup>+</sup><sup><em>∥</em></sup><sup><strong>w</strong></sup><sup><em>out∥</em></sup> 2<sup>2, activation frequency (percentage of activations greater</sup> than 0), the pre-activation skew, and the pre-activation kurtosis.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0022-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0022-01.jpg" alt="" /></p>
+<p>Figure 15: Duplicate unigram neurons in GPT2-medium-a. Each subplot depicts several neurons which activate on a particular token, broken down by whether this token exists as a standalone word, is the first token in a multi-token word, or is a non-first token in a multi-token word, versus all other tokens (e.g., “an,” “an|agram,” “Gig|an|tism”).</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0023-00.jpg" alt="" /></p>
+<p>Figure 16: Universal unigram neurons in GPT2-medium-a.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0024-00.jpg" alt="" /></p>
+<p>Figure 17: Universal alphabet neurons in GPT2-medium-a.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0025-00.jpg" alt="" /></p>
+<p>Figure 18: Universal previous token neurons in GPT2-medium-a.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0026-00.jpg" alt="" /></p>
+<p>Figure 19: Universal position neurons in GPT2-small-a.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0027-00.jpg" alt="" /></p>
+<p>Figure 20: Universal syntax neurons in GPT2-medium-a.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0028-00.jpg" alt="" /></p>
+<p>Figure 21: Universal context neurons in GPT2-medium-a.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0029-00.jpg" alt="" /></p>
+<p>Figure 22: Distribution of vocabulary composition statistics for five different Pythia models measured over layers. Left shows percentiles of cos( <strong>W</strong> <em>U ,</em> <strong>W</strong> <em>out</em> ) kurtosis. Right shows percentiles of cos( <strong>W</strong> <em>U ,</em> <strong>W</strong> <em>out</em> ) skew broken down by whether neuron has cos( <strong>W</strong> <em>U ,</em> <strong>W</strong> <em>out</em> ) kurtosis greater than or less than 10.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0030-00.jpg" alt="" /></p>
+<p>Figure 23: Universal prediction neurons in GPT2-medium-a.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0031-00.jpg" alt="" /></p>
+<p>Figure 24: Prediction neurons for the same feature in GPT2-medium-a. Left column depicts logit effect broken down by vocabulary item per neuron and right column shows activation value broken down by true next token per neuron.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0032-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0032-01.jpg" alt="" /></p>
+<p>Figure 25: Summary of (anti-)entropy neurons in GPT2-small-a compared to 20 random neurons from final two layers. Entropy neurons have high weight norm (a) with output weights mostly orthogonal to the unembedding matrix (b). When activated, this causes the final layer norm scale to increase dramatically (c) while leaving the relative ordering over the next token prediction mostly unchanged (d). Increased layer norm scale squeezes the logit distribution, causing a large increase in the prediction entropy (e; or decrease for anti-entropy neuron) and an increase or decrease in the loss depending on the model’s baseline level of under- or over-confidence (f). Legend applies to all subplots.</p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0033-00.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0033-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0033-02.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0033-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/universal_neurons/38_universal_neurons.pdf-0033-04.jpg" alt="" /></p>
+<p>Figure 26: Further examples of attention activation and deactivation neurons. Row 1: A15H8 with L14N411, Row 2: A15H8 with L14N2335, Row 3: A15H8 with L14N1625, Row 4: A20H4 with L19N2509, Row 5: A22H7 with L20N2114</p>
+
+</article>
+<nav class="pager"><a class="prev" href="37_neurons_in_haystack.html"><small>Previous · 37</small>Finding Neurons in a Haystack</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="39_explaining_neurons.html"><small>Next · 39</small>Language Models Can Explain Neurons</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

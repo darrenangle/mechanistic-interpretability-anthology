@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>84 · Sanity Checks for Saliency Maps — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 84 / 91 &nbsp;·&nbsp; Section I</span></div>
+<header class="cover">
+<div class="numeral">84</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>Sanity Checks for Saliency Maps</h1>
+<p class="cite">Adebayo et al. — 2018</p>
+<p class="authors">Julius Adebayo, Justin Gilmer, Michael Muelly, Ian Goodfellow, Moritz Hardt, Been Kim</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Introduces randomisation tests for explanation methods and finds that some popular saliency maps barely change when the model's weights or training labels are randomised, behaving more like edge detectors.</p></div><div class="note"><div class="label">Reading focus</div><p>The cascading and independent model-parameter randomisation tests, the data randomisation test, which methods pass (gradients, GradCAM) and fail (Guided BackProp, Guided GradCAM), and the linear-model and edge-detector analyses.</p></div><div class="note"><div class="label">In context</div><p>The template for the field's sanity checks: compare an explanation of the trained model with the same method on a randomised one. <a href="58_sae_random_transformers.html">58</a> and <a href="59_sae_sanity_checks.html">59</a> apply that logic to sparse autoencoders, <a href="05_feature_visualization.html">05</a>–<a href="06_network_dissection.html">06</a> belong to the same vision-era toolkit, and both <a href="87_against_theories_of_impact.html">87</a> and <a href="88_misguided_quest.html">88</a> cite the result as a warning against judging explanations by eye.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>I — Is this worth doing?</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/1810.03292v3">https://arxiv.org/abs/1810.03292v3</a> &nbsp;·&nbsp; arXiv:1810.03292v3</dd>
+<dt>Licence</dt><dd>arXiv non-exclusive distribution licence</dd>
+<dt>In print</dt><dd>PDF pages 3565–3595 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="83_mythos_interpretability.html"><small>Previous · 83</small>The Mythos of Model Interpretability</a><a class="mid" href="index.html#section-I">Contents</a><a class="next" href="85_neuroscientist_microprocessor.html"><small>Next · 85</small>Could a Neuroscientist Understand a Microprocessor?</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1><strong>Sanity Checks for Saliency Maps</strong></h1>
+<p><strong>Julius Adebayo</strong><sup><em>∗</em></sup> <strong>, Justin Gilmer</strong><sup><em>♯</em></sup> <strong>, Michael Muelly</strong><sup><em>♯</em></sup> <strong>, Ian Goodfellow</strong><sup><em>♯</em></sup> <strong>, Moritz Hardt</strong><sup><em>♯†</em></sup> <strong>, Been Kim</strong><sup><em>♯</em></sup> <code>juliusad@mit.edu</code> , <code>{gilmer,muelly,goodfellow,mrtz,beenkim}@google.com</code></p>
+<blockquote>
+<p><em>♯</em> Google Brain</p>
+</blockquote>
+<blockquote>
+<p><em>†</em> University of California Berkeley</p>
+</blockquote>
+<h3><strong>Abstract</strong></h3>
+<p>Saliency methods have emerged as a popular tool to highlight features in an input deemed relevant for the prediction of a learned model. Several saliency methods have been proposed, often guided by visual appeal on image data. In this work, we propose an actionable methodology to evaluate what kinds of explanations a given method can and cannot provide. We find that reliance, solely, on visual assessment can be misleading. Through extensive experiments we show that some existing saliency methods are independent both of the model and of the data generating process. Consequently, methods that fail the proposed tests are inadequate for tasks that are sensitive to either data or model, such as, finding outliers in the data, explaining the relationship between inputs and outputs that the model learned, and debugging the model. We interpret our findings through an analogy with edge detection in images, a technique that requires neither training data nor model. Theory in the case of a linear model and a single-layer convolutional neural network supports our experimental findings<sup>2</sup> .</p>
+<h3><strong>1 Introduction</strong></h3>
+<p>As machine learning grows in complexity and impact, much hope rests on explanation methods as tools to elucidate important aspects of learned models [1, 2]. Explanations could potentially help satisfy regulatory requirements [3], help practitioners debug their model [4, 5], and perhaps, reveal bias or other unintended effects learned by a model [6, 7]. <em>Saliency methods</em><sup>3</sup> are an increasingly popular class of tools designed to highlight relevant features in an input, typically, an image. Despite much excitement, and significant recent contribution [8–21], the valuable effort of explaining machine learning models faces a methodological challenge: <em>the difficulty of assessing the scope and quality of model explanations.</em> A paucity of principled guidelines confound the practitioner when deciding between an abundance of competing methods.</p>
+<p>We propose an actionable methodology based on randomization tests to evaluate the adequacy of explanation approaches. We instantiate our analysis on several saliency methods for image classification with neural networks; however, our methodology applies in generality to any explanation approach. Critically, our proposed randomization tests are easy to implement, and can help assess the suitability of an explanation method for a given task at hand.</p>
+<p>In a broad experimental sweep, we apply our methodology to numerous existing saliency methods, model architectures, and data sets. To our surprise, <em>some widely deployed saliency methods are independent of both the data the model was trained on, and the model parameters.</em> Consequently,</p>
+<ul>
+<li><em>∗</em> Work done during the Google AI Residency Program.</li>
+</ul>
+<blockquote>
+<p>2All code to replicate our findings will be available here: https://goo.gl/hBmhDt</p>
+</blockquote>
+<ul>
+<li>
+<p>3We refer here to the broad category of visualization and attribution methods aimed at interpreting trained</p>
+</li>
+<li>
+<p>models. These methods are often used for interpreting deep neural networks particularly on image data.</p>
+</li>
+</ul>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0002-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Integrated  Gradient<br>Original  Guided  Guided  Integrated  Gradients  Edge<br>Image Gradient SmoothGrad BackProp GradCAM Gradients SmoothGrad Input  Detector<br>Junco<br>Bird<br>Corn<br>Wheaten<br>Terrier<br><!-- End of picture text --></p>
+<p>Figure 1: <strong>Saliency maps for some common methods compared to an edge detector.</strong> Saliency masks for 3 different inputs for an Inception v3 model trained on ImageNet. We see that an edge detector produces outputs that are strikingly similar to the outputs of some saliency methods. In fact, edge detectors can also produce masks that highlight features which coincide with what appears to be relevant to a model’s class prediction. Interestingly, we find that the methods that are most similar to an edge detector, i.e., Guided Backprop and its variants, show minimal sensitivity to our randomization tests.</p>
+<p>these methods are incapable of assisting with tasks that depend on the model, such as debugging the model, or tasks that depend on the relationships between inputs and outputs present in the data.</p>
+<p>To illustrate the point, Figure 1 compares the output of standard saliency methods with those of an edge detector. The edge detector does not depend on model or training data, and yet produces results that bear visual similarity with saliency maps. This goes to show that visual inspection is a poor guide in judging whether an explanation is sensitive to the underlying model and data.</p>
+<p>Our methodology derives from the idea of a statistical randomization test, comparing the natural experiment with an artificially randomized experiment. We focus on two instantiations of our general framework: a <em>model parameter randomization test</em> , and a <em>data randomization test</em> .</p>
+<p><strong>The model parameter randomization test</strong> compares the output of a saliency method on a trained model with the output of the saliency method on a randomly initialized untrained network of the same architecture. If the saliency method depends on the learned parameters of the model, we should expect its output to differ substantially between the two cases. Should the outputs be similar, however, we can infer that the saliency map is insensitive to properties of the model, in this case, the model parameters. In particular, the output of the saliency map would not be helpful for tasks such as <em>model debugging</em> that inevitably depend on the model.</p>
+<p><strong>The data randomization test</strong> compares a given saliency method applied to a model trained on a labeled data set with the method applied to the same model architecture but trained on a copy of the data set in which we randomly permuted all labels. If a saliency method depends on the labeling of the data, we should again expect its outputs to differ significantly in the two cases. An insensitivity to the permuted labels, however, reveals that the method does not depend on the relationship between instances (e.g. images) and labels that exists in the original data.</p>
+<p>Speaking more broadly, any explanation method admits a set of <em>invariances</em> , i.e., transformations of data and model that do not change the output of the method. If we discover an invariance that is incompatible with the requirements of the task at hand, we can safely reject the method. As such, our tests can be thought of as <em>sanity checks</em> to perform before deploying a method in practice.</p>
+<h4><strong>Our contributions</strong></h4>
+<ol>
+<li>
+<p>We propose two concrete, easy to implement tests for assessing the scope and quality of explanation methods: the model parameter randomization test, and the data randomization test. Both tests applies broadly to explanation methods.</p>
+</li>
+<li>
+<p>We conduct extensive experiments with several explanation methods across data sets and model architectures, and find, consistently, that some of the methods tested are independent of both the model parameters and the labeling of the data that the model was trained on.</p>
+</li>
+<li>
+<p>Of the methods tested, Gradients &amp; GradCAM pass the sanity checks, while Guided BackProp &amp; Guided GradCAM are invariant to higher layer parameters; hence, fail.</p>
+</li>
+<li>
+<p>Consequently, our findings imply that the saliency methods that fail our proposed tests are incapable of supporting tasks that require explanations that are faithful to the model or the data generating process.</p>
+</li>
+<li>
+<p>We interpret our findings through a series of analyses of linear models and a simple 1-layer convolutional sum-pooling architecture, as well as a comparison with edge detectors.</p>
+</li>
+</ol>
+<h3><strong>2 Methods and Related Work</strong></h3>
+<p>In our formal setup, an <em>input</em> is a vector <em>x ∈</em> R<sup><em>d</em></sup> . A <em>model</em> describes a function <em>S</em> : R<sup><em>d</em></sup> <em>→</em> R<sup><em>C</em></sup> , where <em>C</em> is the number of <em>classes</em> in the classification problem. An explanation method provides an <em>explanation map E</em> : R<sup><em>d</em></sup> <em>→</em> R<sup><em>d</em></sup> that maps inputs to objects of the same shape.</p>
+<p>We now briefly describe some of the explanation methods we examine. The supplementary materials contain an in-depth overview of these methods. Our goal is not to exhaustively evaluate all prior explanation methods, but rather to highlight how our methods apply to several cases of interest.</p>
+<p>The <strong>gradient explanation</strong> for an input <em>x</em> is <em>E</em> grad( <em>x</em> ) =<sup><em><u>∂S</u></em></sup> <em>∂x</em><sup>[22, 23, 8].The gradient quantifies how</sup> much a change in each input dimension would a change the predictions <em>S</em> ( <em>x</em> ) in a small neighborhood around the input.</p>
+<p><strong>Gradient</strong> <em>⊙</em> <strong>Input.</strong> Another form of explanation is the element-wise product of the input and the gradient, denoted <em>x ⊙</em><sup><em><u>∂S</u></em></sup> <em>∂x</em><sup>, which can address “gradient saturation”, and reduce visual diffusion [13].</sup></p>
+<p><strong>Integrated Gradients (IG)</strong> also addresses gradient saturation by summing over scaled versions of <em>∂S</em> <u>(</u> <em>x</em> ¯+ <em>α</em> <u>(</u> <em>x−x</em> ¯)) the input [14]. IG for an input <em>x</em> is defined as <em>E</em> IG( <em>x</em> ) = ( <em>x − x</em> ¯) <em>×</em> �01 <em>∂x dα,</em> where <em>x</em> ¯ is a “baseline input” that represents the absence of a feature in the original input <em>x</em> .</p>
+<p><strong>Guided Backpropagation (GBP)</strong> [9] builds on the “DeConvNet” explanation method [10] and corresponds to the gradient explanation where negative gradient entries are set to zero while backpropagating through a ReLU unit.</p>
+<p><strong>Guided GradCAM.</strong> Introduced by Selvaraju et al. [19], GradCAM explanations correspond to the gradient of the class score (logit) with respect to the feature map of the last convolutional unit of a DNN. For pixel level granularity GradCAM, can be combined with Guided Backpropagation through an element-wise product.</p>
+<p><strong>SmoothGrad (SG)</strong> [16] seeks to alleviate noise and visual diffusion [14, 13] for saliency maps by averaging over explanations of noisy copies of an input. For a given explanation map <em>E,</em> SmoothGrad is defined as <em>E</em> sg( <em>x</em> ) = <em>N</em><sup><u>1</u></sup> � <em>Ni</em> =1<sup><em>E</em>(</sup><sup><em>x</em>+</sup><sup><em>gi</em>)</sup><sup>_,<em>where noise vectors</sup><sup><em>gi∼N</em>(0</sup><sup></em>, σ_2) are drawn i.i.d. from</sup> a normal distribution.</p>
+<h4><strong>2.1 Related Work</strong></h4>
+<p><strong>Other Methods &amp; Similarities.</strong> Aside gradient-based approaches, other methods ‘learn’ an explanation per sample for a model [20, 17, 12, 15, 11, 21]. More recently, Ancona et al. [24] showed that for ReLU networks (with zero baseline and no biases) the <em>ϵ</em> -LRP and DeepLift (Rescale) explanation methods are equivalent to the input <em>⊙</em> gradient. Similarly, Lundberg and Lee [18] proposed SHAP explanations which approximate the shapley value and unify several existing methods.</p>
+<p><strong>Fragility.</strong> Ghorbani et al. [25] and Kindermans et al. [26] both present attacks against saliency methods; showing that it is possible to manipulate derived explanations in unintended ways. Nie et al. [27] theoretically assessed backpropagation based methods and found that Guided BackProp and DeconvNet, under certain conditions, are invariant to network reparamaterizations, particularly random Gaussian initialization. Specifically, they show that Guided BackProp and DeconvNet both seem to be performing partial input recovery. Our findings are similar for Guided BackProp and its variants. Further, our work differs in that we propose actionable sanity checks for assessing explanation approaches. Along similar lines, Mahendran and Vedaldi [28] also showed that some backpropagation-based saliency methods can often lack neuron discriminativity.</p>
+<p><strong>Current assessment methods.</strong> Both Samek et al. [29] and Montavon et al. [30] proposed an input perturbation procedure for assessing the quality of saliency methods. Dabkowski and Gal [17] proposed an entropy based metric to quantify the amount of relevant information an explanation mask captures. Performance of a saliency map on an object localization task has also been used for assessing saliency methods. Montavon et al. [30] discuss explanation continuity and selectivity as measures of assessment.</p>
+<p><strong>Randomization.</strong> Our label randomization test was inspired by the work of Zhang et al. [31], although we use the test for an entirely different purpose.</p>
+<h4><strong>2.2 Visualization &amp; Similarity Metrics</strong></h4>
+<p>We discuss our visualization approach and overview the set of metrics used in assessing similarity between two explanations.</p>
+<p><strong>Visualization.</strong> We visualize saliency maps in two ways. In the first case, <em>absolute-value</em> (ABS), we take absolute values of a normalized map. For the second case, <em>diverging</em> visualization, we leave the map as is, and use different colors to show positive and negative importance.</p>
+<p><strong>Similarity Metrics.</strong> For quantitative comparison, we rely on the following metrics: Spearman rank correlation with absolute value (absolute value), Spearman rank correlation without absolute value (diverging), the structural similarity index (SSIM), and the Pearson correlation of the histogram of gradients (HOGs) derived from two maps. We compute the SSIM and HOGs similarity metric on ImageNet examples without absolute values<sup>4</sup> . SSIM and Pearson correlation of HOGs have been used in literature to remove duplicate images and quantify image similarity. Ultimately, quantifying human visual perception is still an active area of research.</p>
+<h3><strong>3 Model Parameter Randomization Test</strong></h3>
+<p>The parameter settings of a model encode what the model has learned from the data during training. In particular, model parameters have a strong effect on test performance of the model. Consequently, for a saliency method to be useful for debugging a model, it ought to be sensitive to model parameters.</p>
+<p>As an illustrative example, consider a linear function of the form <em>f</em> ( <em>x</em> ) = <em>w</em> 1 <em>x</em> 1 + <em>w</em> 2 <em>x</em> 2 with input <em>x ∈</em> R<sup>2</sup> . A gradient-based explanation for the model’s behavior for input <em>x</em> is given by the parameter values ( <em>w</em> 1 <em>, w</em> 2), which correspond to the sensitivity of the function to each of the coordinates. Changes in the model parameters therefore change the explanation.</p>
+<p>Our proposed model parameter randomization test assesses an explanation method’s sensitivity to model parameters. We conduct two kinds of randomization. First we randomly re-initialize all weights of the model both completely and in a cascading fashion. Second, we independently randomize a single layer at a time while keeping all others fixed. In both cases, we compare the resulting explanation from a network with random weights to the one obtained with the model’s original weights.</p>
+<h4><strong>3.1 Cascading Randomization</strong></h4>
+<p><strong>Overview.</strong> In the cascading randomization, we randomize the weights of a model starting from the top layer, successively, all the way to the bottom layer. This procedure destroys the learned weights from the top layers to the bottom ones. Figure 2 shows masks, for several saliency methods, for an example input for the cascading randomization on an Inception v3 model trained on ImageNet. In Figure 4, we show the two Spearman (absolute value and no-absolute value) metrics across different data sets and architectures. Finally, in Figure 5, we show the SSIM and HOGs similarity metrics.</p>
+<p><strong>The gradient shows sensitivity while Guided Backprop is invariant to higher layer weights.</strong> We find that the gradient map is, indeed, sensitive to model parameter randomization. Similarly, GradCAM is sensitive to model weights if the randomization is downstream of the last convolutional layer. However, Guided Backprop (along with Guided GradCAM) is invariant to higher layer weights.</p>
+<blockquote>
+<p>4We refer readers to the appendix for a discussion on calibration of these metrics.</p>
+</blockquote>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0005-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Cascading randomization<br>Original Image from top to bottom layers<br>Gradient<br>SmoothGrad<br>Gradient   Input<br>Guided<br>Back-propagation<br>GradCAM<br>Guided Grad CA M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Original Explanation logits mixe d _7c mixe d _7b mixe d _7a mixe d _6e mixe d _6d mixe d _6c mix ed _6b mixe d _6a mixe d _5d mixe d _5c mixe d _5b 2 d_4a_3x3conv 2 d_3b_1x1conv 2 d_2b_3x3conv 2 d_2a_3x3conv 2 d_1a_3x3conv<br><!-- End of picture text --></p>
+<p>Figure 2: <strong>Cascading randomization on Inception v3 (ImageNet).</strong> Figure shows the original explanations (first column) for the Junco bird as well as the label for each explanation type. Progression from left to right indicates complete randomization of network weights (and other trainable variables) up to that ‘block’ inclusive. We show images for 17 blocks of randomization. Coordinate (Gradient, mixed_7b) shows the gradient explanation for the network in which the top layers starting from Logits up to mixed_7b have been reinitialized. The last column corresponds to a network with completely reinitialized weights. See Appendix for more examples.</p>
+<p>Masks derived from Guided Backprop remain visually and quantitatively similar to masks of a trained model until lower layer weights (those closest to the input) are randomized.<sup>5</sup></p>
+<p><strong>The danger of the visual assessment.</strong> On visual inspection, we find that gradient <em>⊙</em> input and integrated gradients show visual similarity to the original mask. In fact, from Figure 2, it is still possible to make out the structure of the bird even after multiple blocks of randomization. This visual similarity is reflected in the SSIM comparison (Figure 5), and the rank correlation with absolute value (Figure 4-Top). However, re-initialization disrupts the sign of the map, so that the spearman rank correlation without absolute values goes to zero (Figure 4-Bottom) almost as soon as the top layers are randomized. The observed visual perception versus ranking dichotomy indicates that naive visual inspection of the masks, in this setting, does not distinguish networks of similar structure but widely differing parameters. We explain the source of this phenomenon in our discussion section.</p>
+<h4><strong>3.2 Independent Randomization</strong></h4>
+<p><strong>Overview.</strong> As a different form of the model parameter randomization test, we now conduct an independent layer-by-layer randomization with the goal of isolating the dependence of the explanations by layer. This approach allows us to exhaustively assess the dependence of saliency masks on lower versus higher layer weights. More concretely, for each layer, we fix the weights of other layers to their original values, and randomize one layer at a time.</p>
+<p><strong>Results.</strong> Figure 3 shows the evolution of different masks as each layer of Inception v3 is independently randomized. We observe a correspondence between the results from the cascading and independent layer randomization experiments: Guided Backprop (along with Guided GradCAM) show invariance to higher layer weights. However, once the lower layer convolutional weights are randomized, the Guided Backprop masks changes, although the resulting mask is still dominated by the input structure.</p>
+<blockquote>
+<p>5A previous version of this work noted that Guided Backprop was entirely invariant; however, this is not this case.</p>
+</blockquote>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0006-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Independent ‘layer’ randomization<br>Original Image<br>Gradient<br>SmoothGrad<br>Gradient   I n put<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradC A M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Original Explanation logits mixe d_ 7c mixe d_ 7b mixe d_ 7a mixe d <em>6e mixe d</em> 6d mixe d_ 6c mix ed _6b mixe d _6a mixe d _5d mixe d <em>5c mixe d</em> 5b 2d _4a_3x3conv 2d _3b_1x1conv 2d _2b_3x3conv 2d _2a_3x3conv 2d _1a_3x3conv<br><!-- End of picture text --></p>
+<p>Figure 3: <strong>Independent randomization on Inception v3 (ImageNet).</strong> Similar to Figure 2, however each ‘layer’/‘block’ is randomized independently, i.e., the rest of the weights are kept at the pre-trained values, while only each <em>layer/block</em> is randomized. Masks derived from these partially randomized networks are shown here. We observe, again, that Guided Backprop is sensitive to only the lower layer weights.</p>
+<h3><strong>4 Data Randomization Test</strong></h3>
+<p>The feasibility of accurate prediction hinges on the relationship between instances (e.g., images) and labels encoded by the data. If we artificially break this relationship by randomizing the labels, no predictive model can do better than random guessing. Our data randomization test evaluates the sensitivity of an explanation method to the relationship between instances and labels. An explanation method insensitive to randomizing labels cannot possibly explain mechanisms that depend on the relationship between instances and labels present in the data generating process. For example, if an explanation did not change after we randomly assigned diagnoses to CT scans, then evidently it did <em>not</em> explain anything about the relationship between a CT scan and the correct diagnosis in the first place (see [32] for an application of Guided BackProp as part of a pipepline for shadow detection in 2D Ultrasound).</p>
+<p>In our data randomization test, we permute the training labels and train a model on the <em>randomized</em> training data. A model achieving high training accuracy on the randomized training data is forced to <em>memorize</em> the randomized labels without being able to exploit the original structure in the data. As it turns out, state-of-the art deep neural networks can easily fit random labels as was shown in Zhang et al. [31].</p>
+<p>In our experiments, we permute the training labels for each model and data set pair, and train the model to greater than 95% training set accuracy. Note that the test accuracy is never better than randomly guessing a label (up to sampling error). For each resulting model, we then compute explanations on the same test bed of inputs for a model trained with true labels and the corresponding model trained on randomly permuted labels.</p>
+<p><strong>Gradient is sensitive.</strong> We find, again, that gradients, and its smoothgrad variant, undergo substantial changes. We also observe that GradCAM masks undergo changes that result in masks with disconnected patches.</p>
+<p><strong>Sole reliance on the visual inspection can be misleading.</strong> For Guided BackProp, we observe a visual change; however, we find that the masks still highlight portions of the input that would seem plausible, given correspondence with the input, on naive visual inspection. For example, from the diverging masks (Figure 6-Right), we see that the Guided BackProp mask still assigns positive relevance across most of the digit for the network trained on random labels.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0007-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Inception v3 - Imagenet CNN - Fashion MNIST MLP - MNIST<br>Rank<br>Correlation<br>ABS<br>Rank<br>Correlation<br>No ABS<br><!-- End of picture text --></p>
+<p>Figure 4: <strong>Cascading Randomization.</strong> Successive re-initialization of weights starting from top layers for Inception v3 on ImageNet, CNN on Fashion MNIST, and MLP on MNIST. In all plots, y axis is the rank correlation between original explanation and the randomized explanation derived for randomization up to that layer/block, while the x axis corresponds to the layers/blocks of the DNN starting from the output layer. The black dashed line indicates where successive randomization of the network begins, which is at the top layer. <strong>Top</strong> : Spearman Rank correlation with absolute values, <strong>Bottom</strong> : Spearman Rank correlation without absolute values.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0007-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>SSIM: Inception v3 - ImageNet HOGs Similarity: Inception v3 - ImageNet<br><!-- End of picture text --></p>
+<p>Figure 5: <strong>Cascading Randomization.</strong> Figure showing SSIM and HOGs similarity between original input masks and the masks generated as the Inception v3 is randomized in a cascading manner.</p>
+<p>For gradient <em>⊙</em> input and integrated gradients, we also observe visual changes in the masks obtained, particularly, in the sign of the attributions. Despite this, the input structure is still clearly prevalent in the masks. The effect observed is particularly prominent for sparse inputs like MNIST where most of the input is zero; however, we observe similar effects for Fashion MNIST (see Appendix), which is less sparse. With visual inspection alone, it is not inconceivable that an analyst could confuse the integrated gradient and gradient <em>⊙</em> input masks derived from a network trained on random labels as legitimate. We clarify these findings and address implications in the discussion section.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0008-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>CNN - MNIST<br>Absolute-Value Visualization Diverging Visualization<br>True   True<br>Labels Labels<br>Random   Random<br>Labels Labels<br>Rank Correlation - Abs Rank Correlation - No Abs<br>Gradient SmoothGrad Guided  BackProp GradCAM Guided   GradCAM Integrated   Gradients Integrated   Gradients-SG Gradient   Input Gradient SmoothGrad Guided  BackProp GradCAM Guided   GradCAM Integrated   Gradients Integrated   Gradients-SG Gradient   Input<br><!-- End of picture text --></p>
+<p>Figure 6: <strong>Explanation for a true model vs. model trained on random labels. Top Left</strong> : Absolutevalue visualization of masks for digit 0 from the MNIST test set for a CNN. <strong>Top Right</strong> : Saliency masks for digit 0 from the MNIST test set for a CNN shown in diverging color. <strong>Bottom Left</strong> : Spearman rank correlation (with absolute values) bar graph for saliency methods. We compare the similarity of explanations derived from a model trained on random labels, and one trained on real labels. <strong>Bottom Right</strong> : Spearman rank correlation (without absolute values) bar graph for saliency methods for MLP. See appendix for corresponding figures for CNN, and MLP on Fashion MNIST.</p>
+<h3><strong>5 Discussion</strong></h3>
+<p>We now take a step back to interpret our findings. First, we discuss the influence of the model architecture on explanations derived from NNs. Second, we consider methods that approximate an element-wise producet of the input and the gradient, as several local explanations do [33, 18]. We show, empirically, that the input “structure” dominates the gradient, especially for sparse inputs. Third, we explain the observed behavior of the gradient explanation with an appeal to linear models. We then consider a single 1-layer convolution with sum-pooling architecture, and show that saliency explanations for this model mostly capture edges. Finally, we return to the edge detector and make comparisons between methods that fail our sanity checks and an edge detector.</p>
+<h4><strong>5.1 The role of model architecture as a prior</strong></h4>
+<p>The architecture of a deep neural network has an important effect on the representation derived from the network. A number of results speak to the strength of randomly initialized models as classification priors [34, 35]. Moreover, randomly initialized networks trained on a single input can perform tasks like denoising, super-resolution, and in-painting [36] without additional training data. These prior works speak to the fact that randomly initialized networks correspond to non-trivial representations. Explanations that do not depend on model parameters or training data might still depend on the model architecture and thus provide some useful information about the prior incorporated in the model architecture. However, in this case, the explanation method should only be used for tasks where we believe that knowledge of the model architecture on its own is sufficient for giving useful explanations.</p>
+<h4><strong>5.2 Element-wise input-gradient products</strong></h4>
+<p>A number of methods, e.g., <em>ϵ</em> -LRP, DeepLift, and integrated gradients, approximate the element-wise product of the input and the gradient (on a piecewise linear function like ReLU). To gain further insight into our findings, we can look at what happens to the input-gradient product <em>E</em> ( <em>x</em> ) = <em>x⊙</em><sup><em><u>∂S</u></em></sup> <em>∂x</em><sup>_,_if</sup> the input is kept fixed, but the gradient is randomized. To do so, we conduct the following experiment. For an input <em>x</em> , sample two normal random vectors <em>u, v</em> (we consider both the truncated normal and uniform distributions) and consider the element-wise product of <em>x</em> with <em>u</em> and <em>v,</em> respectively, i.e., <em>x ⊙ u</em> , and <em>x ⊙ v</em> . We then look at the similarity, for all the metrics considered, between <em>x ⊙ u</em> and</p>
+<p><em>x ⊙ v</em> as noise increases. We conduct this experiment on Fashion MNIST and ImageNet samples. We observe that the input does indeed dominate the product (see Figure 19 in Appendix). We also observe that the input dominance persists even as the noisy gradient vectors change drastically. This experiment indicates that methods that approximate the “input-times-gradient” mostly return the input, in cases where the gradients look visually noisy as they tend to do.</p>
+<h4><strong>5.3 Analysis for simple models</strong></h4>
+<p>To better understand our findings, we analyze the output of the saliency methods tested on two simple models: a linear model and a 1-layer sum pooling convolutional network. We find that the output of the saliency methods, on a linear model, returns a coefficient that intuitively measures the sensitivity of the model with respect to that variable. However, these methods applied to a random convolution seem to result in visual artifacts that are akin to an edge detector.</p>
+<p><strong>Linear Model.</strong> Consider a linear model <em>f</em> : R<sup><em>d</em></sup> <em>→</em> R defined as <em>f</em> ( <em>x</em> ) = <em>w · x</em> where <em>w ∈</em> R<sup><em>d</em></sup> are the model weights. For gradients we have <em>E</em> grad( <em>x</em> ) =<sup><em>∂</em></sup><sup><u>(</u></sup> <em>∂x</em><sup><em>w·x</em></sup><sup><u>)</u></sup> = <em>w.</em> Similarly for SmoothGrad we have <em>E</em> sg( <em>x</em> ) = <em>w</em> (the gradient is independent of the input, so averaging gradients over noisy inputs yields the same model weight). Integrated Gradients reduces to “gradient <em>⊙</em> input” for this case:</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0009-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Gradient<br>Gradient SmoothGrad IG GBP<br>RGB<br>Gray Scale<br><!-- End of picture text --></p>
+<p>Figure 7: Explanations derived for the 1-layer Sum-Pooling Convolution architecture. We show gradient, SmoothGrad, Integrated Gradients and Guided BackProp explanations.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0009-06.jpg" alt="" /></p>
+<p>Consequently, we see that the application of the basic gradient method to a linear model will pass our sanity check. Gradients on a random model will return an image of white noise, while integrated gradients will return a noisy version of the input image. We did not consider Guided Backprop and GradCAM here because both methods are not defined for the linear model considered above.</p>
+<p><strong>1 Layer Sum-Pool Conv Model.</strong> We now show that the application of these same methods to a 1-layer convolutional network may result in visual artifacts that can be misleading unless further analysis is done. Consider a single-layer convolutional network applied to a grey-scale image <em>x ∈</em> R<sup><em>n×n</em></sup> . Let <em>w ∈</em> R<sup>3</sup><sup>_×_3</sup> denote the 3 <em>×</em> 3 convolutional filter, indexed as <em>wij</em> for <em>i, j ∈{−</em> 1 <em>,</em> 0 <em>,</em> 1 <em>}</em> . We denote by <em>w ∗ x ∈</em> R<sup><em>n×n</em></sup> the output of the convolution operation on the image <em>x</em> . Then the output of this network can be written as <em>l</em> ( <em>x</em> ) = � <em>n</em> � <em>n σ</em> ( <em>w ∗ x</em> ) <em>ij ,</em> where <em>σ</em> is the ReLU non-linearity <em>i</em> =1 <em>j</em> =1</p>
+<p>applied point-wise. In particular, this network applies a single 3x3 convolutional filter to the input image, then applies a ReLU non-linearity and finally sum-pools over the entire convolutional layer for the output. This is a similar architecture to the one considered in [34]. As shown in Figure 7, we see that different saliency methods do act like edge detectors. This suggests that the convolutional structure of the network is responsible for the edge detecting behavior of some of these saliency methods.</p>
+<p>To understand why saliency methods applied to this simple architecture visually appear to be edge detectors, we consider the closed form of the gradient <em>∂x∂ij</em><sup><em>l</em>(</sup><sup><em>x</em>).Let</sup><sup><em>aij</em>=</sup><sup><strong>1</strong></sup><sup><em>{</em>(</sup><sup><em>w ∗x</em>)</sup><sup>_ij≥<em>0</sup><sup></em>}_indicate</sup> the activation pattern of the ReLU units in the convolutional layer. Then for <em>i, j ∈</em> [2 <em>, n −</em> 1] we have</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0009-11.jpg" alt="" /></p>
+<p>(Recall that <em>σ</em><sup><em>′</em></sup> ( <em>x</em> ) = 0 if <em>x &lt;</em> 0 and 1 otherwise). This implies that the 3 <em>×</em> 3 activation pattern local to pixel <em>xij</em> uniquely determines <em>∂x∂ij</em><sup>.Itisnowclearwhyedgeswillbevisibleintheproduced</sup></p>
+<p>saliency mask — regions in the image corresponding to an “edge” will have a distinct activation pattern from surrounding pixels. In contrast, pixel regions of the image which are more uniform will all have the same activation pattern, and thus the same value of <em>∂x∂ij</em><sup><em>l</em>(</sup><sup><em>x</em>).Perhaps a similar principle</sup> applies for stacked convolutional layers.</p>
+<h4><strong>5.4 The case of edge detectors.</strong></h4>
+<p>An <em>edge detector</em> , roughly speaking, is a classical tool to highlight sharp transitions in an image. Notably, edge detectors are typically untrained and do not depend on any predictive model. They are solely a function of the given input image. As some of the saliency methods we saw, edge detection is invariant under model and data transformations.</p>
+<p>In Figure 1 we saw that edge detectors produce images that are strikingly similar to the outputs of some saliency methods. In fact, edge detectors can also produce pictures that highlight features which coincide with what appears to be relevant to a model’s class prediction. However, here the human observer is at risk of confirmation bias when interpreting the highlighted edges as an explanation of the class prediction. In Figure 37 (Appendix), we show a qualitative comparison of saliency maps of an input image with the same input image multiplied element-wise by the output of an edge detector. The result indeed looks strikingly similar, illustrating that saliency methods mostly use the edges of the image.</p>
+<p>While edge detection is a fundamental and useful image processing technique, it is typically not thought of as an explanation method, simply because it involves no model or training data. In light of our findings, it is not unreasonable to interpret some saliency methods as implicitly implementing unsupervised image processing techniques, akin to edge detection, segmentation, or denoising. To differentiate such methods from model-sensitive explanations, visual inspection is insufficient.</p>
+<h3><strong>6 Conclusion and future work</strong></h3>
+<p>The goal of our experimental method is to give researchers guidance in assessing the scope of model explanation methods. We envision these methods to serve as sanity checks in the design of new model explanations. Our results show that visual inspection of explanations alone can favor methods that may provide compelling pictures, but lack sensitivity to the model and the data generating process.</p>
+<p>Invariances in explanation methods give a concrete way to rule out the adequacy of the method for certain tasks. We primarily focused on invariance under model randomization, and label randomization. Many other transformations are worth investigating and can shed light on various methods we did and did not evaluate. Along these lines, we hope that our paper is a stepping stone towards a more rigorous evaluation of new explanation methods, rather than a verdict on existing methods.</p>
+<h4><strong>Acknowledgments</strong></h4>
+<p>We thank the Google PAIR team for open source implementation of the methods used in this work. We thank Martin Wattenberg and other members of the Google Brain team for critical feedback and helpful discussions that helped improved the work. Lastly, we thank anonymous reviewers for feedback that helped improve the manuscript. We are also grateful to Leon Sixt for pointing out a bug in our Guided Backprop experiments in an earlier version of this work.</p>
+<h3><strong>References</strong></h3>
+<ul>
+<li>
+<p>[1] Alfredo Vellido, José David Martín-Guerrero, and Paulo JG Lisboa. Making machine learning models interpretable. In <em>ESANN</em> , volume 12, pages 163–172. Citeseer, 2012.</p>
+</li>
+<li>
+<p>[2] Finale Doshi-Velez, Mason Kortz, Ryan Budish, Chris Bavitz, Sam Gershman, David O’Brien, Stuart Schieber, James Waldo, David Weinberger, and Alexandra Wood. Accountability of ai under the law: The role of explanation. <em>arXiv preprint arXiv:1711.01134</em> , 2017.</p>
+</li>
+<li>
+<p>[3] Bryce Goodman and Seth Flaxman. European union regulations on algorithmic decision-making and a&quot; right to explanation&quot;. <em>arXiv preprint arXiv:1606.08813</em> , 2016.</p>
+</li>
+<li>
+<p>[4] Jorge Casillas, Oscar Cordón, Francisco Herrera Triguero, and Luis Magdalena. <em>Interpretability issues in fuzzy modeling</em> , volume 128. Springer, 2013.</p>
+</li>
+<li>
+<p>[5] Gabriel Cadamuro, Ran Gilad-Bachrach, and Xiaojin Zhu. Debugging machine learning models. In <em>ICML Workshop on Reliable Machine Learning in the Wild</em> , 2016.</p>
+</li>
+<li>
+<p>[6] Himabindu Lakkaraju, Ece Kamar, Rich Caruana, and Jure Leskovec. Interpretable &amp; explorable approximations of black box models. <em>arXiv preprint arXiv:1707.01154</em> , 2017.</p>
+</li>
+<li>
+<p>[7] Fulton Wang and Cynthia Rudin. Causal falling rule lists. <em>arXiv preprint arXiv:1510.05189</em> , 2015.</p>
+</li>
+<li>
+<p>[8] Karen Simonyan, Andrea Vedaldi, and Andrew Zisserman. Deep inside convolutional networks: Visualising image classification models and saliency maps. <em>arXiv preprint arXiv:1312.6034</em> , 2013.</p>
+</li>
+<li>
+<p>[9] Jost Tobias Springenberg, Alexey Dosovitskiy, Thomas Brox, and Martin Riedmiller. Striving for simplicity: The all convolutional net. <em>arXiv preprint arXiv:1412.6806</em> , 2014.</p>
+</li>
+<li>
+<p>[10] Matthew D Zeiler and Rob Fergus. Visualizing and understanding convolutional networks. In <em>European conference on computer vision</em> , pages 818–833. Springer, 2014.</p>
+</li>
+<li>
+<p>[11] Maximilian Alber Klaus-Robert Müller Dumitru Erhan Been Kim Sven Dähne Pieter-Jan Kindermans, Kristof T. Schütt. Learning how to explain neural networks: Patternnet and patternattribution. <em>International Conference on Learning Representations</em> , 2018. URL <code>https://openreview.net/forum?id= Hkn7CBaTW</code> .</p>
+</li>
+<li>
+<p>[12] Luisa M Zintgraf, Taco S Cohen, Tameem Adel, and Max Welling. Visualizing deep neural network decisions: Prediction difference analysis. <em>arXiv preprint arXiv:1702.04595</em> , 2017.</p>
+</li>
+<li>
+<p>[13] Avanti Shrikumar, Peyton Greenside, Anna Shcherbina, and Anshul Kundaje. Not just a black box: Learning important features through propagating activation differences. <em>arXiv preprint arXiv:1605.01713</em> , 2016.</p>
+</li>
+<li>
+<p>[14] Mukund Sundararajan, Ankur Taly, and Qiqi Yan. Axiomatic attribution for deep networks. <em>arXiv preprint arXiv:1703.01365</em> , 2017.</p>
+</li>
+<li>
+<p>[15] Marco Tulio Ribeiro, Sameer Singh, and Carlos Guestrin. Why should i trust you?: Explaining the predictions of any classifier. In <em>Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</em> , pages 1135–1144. ACM, 2016.</p>
+</li>
+<li>
+<p>[16] Daniel Smilkov, Nikhil Thorat, Been Kim, Fernanda Viégas, and Martin Wattenberg. Smoothgrad: removing noise by adding noise. <em>arXiv preprint arXiv:1706.03825</em> , 2017.</p>
+</li>
+<li>
+<p>[17] Piotr Dabkowski and Yarin Gal. Real time image saliency for black box classifiers. In <em>Advances in Neural Information Processing Systems</em> , pages 6970–6979, 2017.</p>
+</li>
+<li>
+<p>[18] Scott M Lundberg and Su-In Lee. A unified approach to interpreting model predictions. In <em>Advances in Neural Information Processing Systems</em> , pages 4768–4777, 2017.</p>
+</li>
+<li>
+<p>[19] Ramprasaath R Selvaraju, Abhishek Das, Ramakrishna Vedantam, Michael Cogswell, Devi Parikh, and Dhruv Batra. Grad-cam: Why did you say that? <em>arXiv preprint arXiv:1611.07450</em> , 2016.</p>
+</li>
+<li>
+<p>[20] Ruth C Fong and Andrea Vedaldi. Interpretable explanations of black boxes by meaningful perturbation. <em>arXiv preprint arXiv:1704.03296</em> , 2017.</p>
+</li>
+<li>
+<p>[21] Jianbo Chen, Le Song, Martin Wainwright, and Michael Jordan. Learning to explain: An informationtheoretic perspective on model interpretation. In Jennifer Dy and Andreas Krause, editors, <em>Proceedings of the 35th International Conference on Machine Learning</em> , volume 80 of <em>Proceedings of Machine Learning Research</em> , pages 883–892, Stockholmsmässan, Stockholm Sweden, 10–15 Jul 2018. PMLR. URL <code>http://proceedings.mlr.press/v80/chen18j.html</code> .</p>
+</li>
+<li>
+<p>[22] David Baehrens, Timon Schroeter, Stefan Harmeling, Motoaki Kawanabe, Katja Hansen, and Klaus-Robert MÃžller. How to explain individual classification decisions. <em>Journal of Machine Learning Research</em> , 11 (Jun):1803–1831, 2010.</p>
+</li>
+<li>
+<p>[23] Dumitru Erhan, Yoshua Bengio, Aaron Courville, and Pascal Vincent. Visualizing higher-layer features of a deep network. <em>University of Montreal</em> , 1341(3):1, 2009.</p>
+</li>
+<li>
+<p>[24] Marco Ancona, Enea Ceolini, Cengiz Öztireli, and Markus Gross. A unified view of gradient-based attribution methods for deep neural networks. <em>arXiv preprint arXiv:1711.06104</em> , 2017.</p>
+</li>
+<li>
+<p>[25] Amirata Ghorbani, Abubakar Abid, and James Zou. Interpretation of neural networks is fragile. <em>arXiv preprint arXiv:1710.10547</em> , 2017.</p>
+</li>
+<li>
+<p>[26] Pieter-Jan Kindermans, Sara Hooker, Julius Adebayo, Maximilian Alber, Kristof T Schütt, Sven Dähne, Dumitru Erhan, and Been Kim. The (un) reliability of saliency methods. <em>arXiv preprint arXiv:1711.00867</em> , 2017.</p>
+</li>
+<li>
+<p>[27] Weili Nie, Yang Zhang, and Ankit Patel. A theoretical explanation for perplexing behaviors of backpropagation-based visualizations. In <em>ICML</em> , 2018.</p>
+</li>
+<li>
+<p>[28] Aravindh Mahendran and Andrea Vedaldi. Salient deconvolutional networks. In <em>European Conference on Computer Vision</em> , pages 120–135. Springer, 2016.</p>
+</li>
+<li>
+<p>[29] Wojciech Samek, Alexander Binder, Grégoire Montavon, Sebastian Lapuschkin, and Klaus-Robert Müller. Evaluating the visualization of what a deep neural network has learned. <em>IEEE transactions on neural networks and learning systems</em> , 28(11):2660–2673, 2017.</p>
+</li>
+<li>
+<p>[30] Grégoire Montavon, Wojciech Samek, and Klaus-Robert Müller. Methods for interpreting and understanding deep neural networks. <em>Digital Signal Processing</em> , 2017.</p>
+</li>
+<li>
+<p>[31] Chiyuan Zhang, Samy Bengio, Moritz Hardt, Benjamin Recht, and Oriol Vinyals. Understanding deep learning requires rethinking generalization. In <em>In Proc.</em> 5 <em>th ICLR</em> , 2017.</p>
+</li>
+<li>
+<p>[32] Qingjie Meng, Christian Baumgartner, Matthew Sinclair, James Housden, Martin Rajchl, Alberto Gomez, Benjamin Hou, Nicolas Toussaint, Jeremy Tan, Jacqueline Matthew, et al. Automatic shadow detection in 2d ultrasound. 2018.</p>
+</li>
+<li>
+<p>[33] Marco Ancona, Enea Ceolini, Cengiz Öztireli, and Markus Gross. Towards better understanding of gradient-based attribution methods for deep neural networks. In <em>In Proc.</em> 6 <em>th ICLR</em> , 2018.</p>
+</li>
+<li>
+<p>[34] Andrew M Saxe, Pang Wei Koh, Zhenghao Chen, Maneesh Bhand, Bipin Suresh, and Andrew Y Ng. On random weights and unsupervised feature learning. In <em>ICML</em> , pages 1089–1096, 2011.</p>
+</li>
+<li>
+<p>[35] Guillaume Alain and Yoshua Bengio. Understanding intermediate layers using linear classifier probes. <em>arXiv preprint arXiv:1610.01644</em> , 2016.</p>
+</li>
+<li>
+<p>[36] Dmitry Ulyanov, Andrea Vedaldi, and Victor Lempitsky. Deep image prior. <em>arXiv preprint arXiv:1711.10925</em> , 2017.</p>
+</li>
+<li>
+<p>[37] Julius Adebayo, Justin Gilmer, Ian Goodfellow, and Been Kim. Local explanation methods for deep neural networks lack sensitivity to parameter values. 2018.</p>
+</li>
+<li>
+<p>[38] Junghoon Seo, Jeongyeol Choe, Jamyoung Koo, Seunghyeon Jeon, Beomsu Kim, and Taegyun Jeon. Noise-adding methods of saliency map as series of higher order partial derivative. <em>arXiv preprint arXiv:1806.03000</em> , 2018.</p>
+</li>
+<li>
+<p>[39] Christian Szegedy, Vincent Vanhoucke, Sergey Ioffe, Jon Shlens, and Zbigniew Wojna. Rethinking the inception architecture for computer vision. In <em>Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition</em> , pages 2818–2826, 2016.</p>
+</li>
+<li>
+<p>[40] Olga Russakovsky, Jia Deng, Hao Su, Jonathan Krause, Sanjeev Satheesh, Sean Ma, Zhiheng Huang, Andrej Karpathy, Aditya Khosla, Michael Bernstein, et al. Imagenet large scale visual recognition challenge. <em>International Journal of Computer Vision</em> , 115(3):211–252, 2015.</p>
+</li>
+<li>
+<p>[41] Yann LeCun. The mnist database of handwritten digits. <em>http://yann. lecun. com/exdb/mnist/</em> , 1998.</p>
+</li>
+<li>
+<p>[42] Han Xiao, Kashif Rasul, and Roland Vollgraf. Fashion-mnist: a novel image dataset for benchmarking machine learning algorithms. <em>arXiv preprint arXiv:1708.07747</em> , 2017.</p>
+</li>
+<li>
+<p>[43] Christian Szegedy, Sergey Ioffe, Vincent Vanhoucke, and Alexander A Alemi. Inception-v4, inceptionresnet and the impact of residual connections on learning. In <em>AAAI</em> , volume 4, page 12, 2017.</p>
+</li>
+</ul>
+<h2><strong>Appendix</strong></h2>
+<h3><strong>A Explanation Methods</strong></h3>
+<p>We now provide additional overview of the different saliency methods that we assess in this work. As described in the main text, an <em>input</em> is a vector <em>x ∈</em> R<sup><em>d</em></sup> . A <em>model</em> describes a function <em>S</em> : R<sup><em>d</em></sup> <em>→</em> R<sup><em>C</em></sup> , where <em>C</em> is the number of <em>classes</em> in the classification problem. An explanation method provides an <em>explanation map E</em> : R<sup><em>d</em></sup> <em>→</em> R<sup><em>d</em></sup> that maps inputs to objects of the same shape. Each dimension then correspond to the ‘relevance’ or ‘importance’ of that dimension to the final output, which is often a class-specific score as specified above.</p>
+<h4><strong>A.1 Gradient with respect to input</strong></h4>
+<p>This corresponds to the gradient of the scalar logit for a particular class wrt to the input.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0013-05.jpg" alt="" /></p>
+<h4><strong>A.2 Gradient</strong> <em>⊙</em> <strong>Input</strong></h4>
+<p>Gradient element-wise product with the input. Ancona et. al. show that this input gradient product is equivalent to DeepLift, and <em>ϵ</em> -LRP (other explanations methods), for a network with with only Relu(s) and no additive biases.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0013-08.jpg" alt="" /></p>
+<h4><strong>A.3 Guided Backpropagation (GBP)</strong></h4>
+<p>GBP specifies a change in how to back-propagate gradienst for ReLus. Let <em>{f</em><sup><em>l</em></sup> <em>, f</em><sup>_l−_1</sup> <em>, ..., f</em><sup>0</sup> <em>}</em> be the feature maps derived during the forward pass through a DNN, and <em>{R</em><sup><em>l</em></sup> <em>, R</em><sup>_l−_1</sup> <em>, ..., R</em><sup>0</sup> <em>}</em> be ‘intermediate representations’ obtained during the backward pass. Concretely, <em>f</em><sup><em>l</em></sup> = <em>relu</em> ( <em>f</em><sup>_l−_1</sup> ) = <em>max</em> ( <em>f</em><sup><em>l−<em>1</sup> <em>,</em> 0) <em>,</em> and <em>R</em><sup><em>l</em>+1</sup> = <em>∂f</em><sup></em>∂flout</em>+1(for</sup> regular back-propagation). GBP aims to zero out negative gradients during computation of <em>R.</em> The mask is computed as:</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0013-11.jpg" alt="" /></p>
+<p>1 <em>Rl</em> +1 <em>&gt;</em> 0 means keep only the positive gradients, and 1 <em>f l&gt;</em> 0 means keep only the positive activations.</p>
+<h4><strong>A.4 GradCAM and Guided GradCAM</strong></h4>
+<p>Introduced by Selvaraju et al. [19], GradCAM explanations correspond to the gradient of the class score (logit) with respect to the feature map of the last convolutional unit of a DNN. For pixel level granularity GradCAM, can be combined with Guided Backpropagation through an element-wise product.</p>
+<p>Following the exact notation by Selvaraju et al. [19], let <em>A</em><sup><em>k</em></sup> be the feature maps derived from the last convolutional layer of a DNN. Consequently, GradCAM is defined as follows: first, neuron importance weights are calculated, <em>αc</em><sup><em>k</em>=</sup> <em>Z</em> <u>1</u> � <em>i</em> � <em>j ∂A∂S</em><sup><em>k</em></sup> <em>k</em><sup><em>α</em></sup> <em>c</em><sup><em>kAk</em>).This</sup> <em>ij</em><sup>,thentheGradCAMmaskcorrespondsto:</sup><sup><em>ReLU</em>(�</sup> corresponds to a global average pooling of the gradients followed by weighted linear combination to which a ReLU is applied. Now, the Guided GradCAM mask is then defined as:</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0013-16.jpg" alt="" /></p>
+<h4><strong>A.5 Integrated Gradients (IG)</strong></h4>
+<p>IG is defined as:</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0013-19.jpg" alt="" /></p>
+<p>where <em>x</em> ¯ is the baseline input that represents the absence of a feature in the original sample <em>xt</em> . <em>x</em> ¯ is typically set to zero.</p>
+<h4><strong>A.6 SmoothGrad</strong></h4>
+<p>Given an explanation, <em>E</em> , from one of the methods previously discussed, a sample <em>x</em> , the SmoothGrad explanation, <em>E</em> sg, is defined as follows:</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0014-02.jpg" alt="" /></p>
+<p>where noise vectors <em>gi ∼N</em> (0 <em>, σ</em><sup>2</sup> )) are drawn i.i.d. from a normal distribution.</p>
+<h4><strong>A.7 VarGrad</strong></h4>
+<p>Similar to SmoothGrad, and as referenced in [37] a variance analog of SmoothGrad can be defined as follows:</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0014-06.jpg" alt="" /></p>
+<p>where noise vectors <em>gi ∼N</em> (0 <em>, σ</em><sup>2</sup> )) are drawn i.i.d. from a normal distribution, and <em>V</em> corresponds to the variance. In the visualizations presented here, explanations with VG correspond to the VarGrad equivalent of such masks. Seo et al. [38] theoretically analyze VarGrad showing that it is independent of the gradient, and captures higher order partial derivatives.</p>
+<h3><strong>B DNN Architecture, Training, Randomization &amp; Metrics</strong></h3>
+<p><strong>Experimental Details Data sets &amp; Models.</strong> We perform our randomization tests on a variety of datasets and models as follows: an Inception v3 model [39] trained on the ImageNet classification dataset [40] for object recognition, a Convolutional Neural Network (CNN) trained on MNIST [41] and Fashion MNIST [42], and a multi-layer perceptron (MLP), also trained on MNIST and Fashion MNIST.</p>
+<p><strong>Randomization Tests</strong> We perform 2 types of randomizations. For the model parameter randomization tests, we re-initialized the parameters of each of the models with a truncated normal distribution. We replicated these randomization for a uniform distribution and obtain identical results. For the random labels test, we randomize, completely, the training labels for a each-model dataset pair (MNIST and Fashion MNIST) and then train the model to greater than 95 percent training set accuracy. As expected the performance of these models on the tests set is random.</p>
+<p><strong>Inception v3 trained on ImageNet.</strong> For Inception v3, we used a pre-trained network that is widely distributed with the tensorflow package available at: <code>https://github.com/tensorflow/models/tree/ master/research/slim#Pretrained</code> . This model has a 93 <em>.</em> 9 top-5 accuracy on the ImageNet test set. For the randomization tests, we re-initialized on a per-block basis. As noted in [43], each inception block consists of multiple filters of different sizes. In this case, we randomize all the the filter weights, biases, and batch-norm variables for each inception block. In total, this randomization occurs in 17 phases.</p>
+<p><strong>CNN on MNIST and Fashion MNIST.</strong> The CNN architecture is as follows: input - <em>&gt;</em> conv (5x5, 32) - <em>&gt;</em> pooling (2x2)- <em>&gt;</em> conv (5x5, 64) - <em>&gt;</em> pooling (2x2) - <em>&gt;</em> fully connected (1024 units) - <em>&gt;</em> softmax (10 units). We train the model with the ADAM optimizer for 20 thousand iterations. All non-linearities used are ReLU. We also apply weight decay (penalty 0 <em>.</em> 001) to the weights of the network. The final test set accuracy of this model is 99.2 percent. For model parameter randomization test, we reinitialize each layer successively or independently depending on the randomization experiment. The weight initialiazation scheme followed was a truncated normal distribution (mean: 0, std: 0.01). We also tried a uniform distribution as well, and found that our results still hold.</p>
+<p><strong>MLP trained on MNIST.</strong> The MLP architecture is as follows: input - <em>&gt;</em> fully connected (2500 units) - <em>&gt;</em> fully connected (1500 units) - <em>&gt;</em> fully connected (500 units) - <em>&gt;</em> fully connected (10 units). We also train this model with the ADAM optimizer for 20 thousand iterations. All non-linearities used are Relu. The final test set accuracy of this model is 98.7 percent. For randomization tests, we reinitialize each layer successively or independently depending on the randomization experiment.</p>
+<p><strong>Inception v4 trained on Skeletal Radiograms.</strong> We also analyzed an inception v4 model trained on skeletal radiograms obtained as part of the pediatric bone age challenge conducted by the radiological society of north America. This inception v4 model was trained retained the standard original parameters except it was trained with a mixed L1 and L2 loss. In our randomization test as indicated in figure 1, we reinitialize all weights, biases, and variables of the model.</p>
+<p><strong>Calibration for Similarity Metrics.</strong> As noted in the methods section, we measure the similarity of the saliency masks obtained using the following metrics: Spearman rank correlation with absolute value (absolute value), Spearman rank correlation without absolute value (diverging), the structural similarity index (SSIM), and the Pearson correlation of the histogram of gradients (HOGs) derived from two maps. The SSIM and HOGs metrics</p>
+<p>are computed for ImageNet explanation masks. We do this because these metrics are suited to natural images, and to avoid the somewhat artificial structure of Fashion MNIST and MNIST images. We conduct two kinds of calibration exercises. First we measure, for each metric, the similarity between an explanation mask and a randomly sampled (Uniform or Gaussian) mask. Second, we measure, for each metric, the similarity between two randomly sampled explanation masks (Uniform or Gaussian). Together, these two tasks allow us to see if high values for a particular metric indeed correspond to meaningfully high values.</p>
+<p>We use the skimage HOG function with a (16, 16) pixels per cell. Note that the input to the HOG function is 299 by 229 with the values normalized to [-1, +1]. We also used the skimage SSIM function with a window size of 5. We obtained the gradient saliency maps for 50 images in the ImageNet validation set. We then compare these under the two settings described above; we report the average across these 50 images as the following tuple: (Rank correlation with no absolute value, Rank correlation with absolute value, HOGs Metric, SSIM). The average similarity between the gradient mask and random Gaussian mask is: ( <em>−</em> 0 <em>.</em> 00049 <em>,</em> 0 <em>.</em> 00032 <em>, −</em> 0 <em>.</em> 0016 <em>,</em> 0 <em>.</em> 00027). We repeat this experiment for Integrated gradient and gradient <em>⊙</em> input and obtained: (0 <em>.</em> 00084 <em>,</em> 0 <em>.</em> 00059 <em>,</em> 0 <em>.</em> 0048 <em>,</em> 0 <em>.</em> 00018), and (0 <em>.</em> 00081 <em>,</em> 0 <em>.</em> 00099 <em>, −</em> 0 <em>.</em> 0024 <em>,</em> 0 <em>.</em> 00023). We now report results for the above metrics for similarity between two random masks. For uniform distribution [-1, 1], we obtain the following similarity: (0 <em>.</em> 00016 <em>, −</em> 0 <em>.</em> 0015 <em>,</em> 0 <em>.</em> 078 <em>,</em> 0 <em>.</em> 00076). For Gaussian masks with mean zero and unit variance that has been normalized to lie in the range [-1, 1], we obtain the following similarity metric: (0 <em>.</em> 00018 <em>,</em> 0 <em>.</em> 00043 <em>, −</em> 0 <em>.</em> 0013 <em>,</em> 0 <em>.</em> 00023).</p>
+<h3><strong>C Additional Figures</strong></h3>
+<p>We now present additional figures referenced in the main text.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Cascading Randomization Guided BackProp InceptionV3</strong></th>
+</tr>
+</thead>
+</table>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0015-05.jpg" alt="" /></p>
+<p>Figure 8: Cascading Randomization for several examples for Guided Backpropagation.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0016-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Cascading Randomization Guided BackProp InceptionV3<br><!-- End of picture text --></p>
+<p>Figure 9: Cascading Randomization for several examples for Guided Backpropagation in a different visualization scheme.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0016-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image Cascading Randomization GrayScale Visualization<br>Gradient<br>SmoothGrad<br>Gradient   Input<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradCAM<br>Integrated Gradients<br>Integrated Gradients-SG<br>Original Explanation logits mixed7c _ mixe d_ 7b mixe d_ 7a mixe d_ 6e mixe d <em>6d mixed6c _ mixe d</em> 6b mixe d_ 6a mixe d_ 5d mixe d_ 5c mixe d_ 5b 2d _4a_3x3conv 2d _3b_1x1conv 2d _2b_3x3conv 2d _2a_3x3conv 2d _1a_3x3conv<br><!-- End of picture text --></p>
+<p>Figure 10: Cascading Randomization on Inception V3 for bird example in Grayscale.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0017-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image Cascading Randomization ‘Diverging’ Visualization<br>Gradient<br>SmoothGrad<br>Gradient   I n put<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradC A M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Figure 11: Cascading Randomization on Inception V3 for bird example in diverging scheme.<br>Independent ‘Layer’ Randomization<br>Original Image<br>Gradient<br>SmoothGrad<br>Gradient   Input<br>Guided<br>Back-propagation<br>GradCAM<br>Guided Grad CA M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Original Explanation logits mixe d_ 7c mixe d _7b mixe d _7a mixe d _6e mixe d <em>6d mixe d</em> 6c mix ed _6b mixe d <em>6a mixe d <em>5d mixe d <em>5c mixe d <em>5b 2d <em>4a_3x3conv 2d <em>3b_1x1conv 2d <em>2b_3x3conv 2d <em>2a_3x3conv 2d <em>1a_3x3conv<br>Original Explanation logits mixe d</em> 7c mixe d</em> 7b mixe d</em> 7a mixe d</em> 6e mixe d <em>6d mixe d</em> 6c mixe d</em> 6b mixe d</em> 6a mixe d</em> 5d mixe d</em> 5c mixe d</em> 5b 2d _4a_3x3conv 2d _3b_1x1conv 2d _2b_3x3conv 2d _2a_3x3conv 2d _1a_3x3conv<br><!-- End of picture text --></p>
+<p>Figure 12: Independent Randomization on Inception V3 for bird example.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0018-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image Cascading Randomization GrayScale Visualization<br>Gradient<br>SmoothGrad<br>Gradient   I n put<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradC A M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Figure 13: Cascading Randomization on Inception V3 for dog example in Grayscale.<br>Original Image Cascading Randomization ‘Diverging’ Visualization<br>Gradient<br>SmoothGrad<br>Gradient   I np ut<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradC A M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Original Explanation logits mixe d_ 7c mixe d_ 7b mixe d_ 7a mixe d <em>6e mixe d</em> 6d mixe d_ 6c mixe d _6b mixe d <em>6a mixe d <em>5d mixe d</em> 5c mixe d</em> 5b 2d _4a_3x3conv 2d _3b_1x1conv 2d _2b_3x3conv 2d _2a_3x3conv 2d _1a_3x3conv<br>Original Explanation logits mixed_7c mixed_7b mixed_7a mixed_6e mixe d _6d mixe d _6c mix ed _6b mixe d _6a mixe d _5d mixe d _5c mixe d _5b 2 d_4a_3x3conv 2 d_3b_1x1conv 2 d_2b_3x3conv 2 d_2a_3x3conv 2 d_1a_3x3conv<br><!-- End of picture text --></p>
+<p>Figure 14: Cascading Randomization on Inception V3 for dog example in diverging scheme.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0019-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Independent ‘Layer’ Randomization<br>Original Image<br>Gradient<br>SmoothGrad<br>Gradient   I np ut<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradC A M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Figure 15: Independent Randomization on Inception V3 for dog example.<br>Original Image Cascading Randomization GrayScale Visualization<br>Gradient<br>SmoothGrad<br>Gradient   I n put<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradC A M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Original Explanation logits mixed_7c mixed_7b mixed_7a mixed_6e mixe d_ 6d mixe d_ 6c mix ed <em>6b mixe d <em>6a mixe d <em>5d mixe d <em>5c mixe d</em> 5b 2d <em>4a_3x3conv 2d <em>3b_1x1conv 2d <em>2b_3x3conv 2d <em>2a_3x3conv 2d <em>1a_3x3conv<br>Original Explanation logits mixe d</em> 7c mixe d</em> 7b mixe d</em> 7a mixe d</em> 6e mixe d</em> 6d mixe d</em> 6c mixe d <em>6b mixe d</em> 6a mixe d</em> 5d mixe d</em> 5c mixe d_ 5b 2d _4a_3x3conv 2d _3b_1x1conv 2d _2b_3x3conv 2d _2a_3x3conv 2d _1a_3x3conv<br><!-- End of picture text --></p>
+<p>Figure 16: Cascading Randomization on Inception V3 for corn example in Grayscale.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0020-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image Cascading Randomization ‘Diverging’ Visualization<br>Gradient<br>SmoothGrad<br>Gradient   I n put<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradC A M<br>Integrated Gradients<br>Integrated Gradients-SG<br>Figure 17: Cascading Randomization on Inception V3 for corn example in diverging scheme.<br>Independent ‘Layer’ Randomization<br>Original Image<br>Gradient<br>SmoothGrad<br>Gradient   I np ut<br>Guided<br>Back-propagation<br>GradCAM<br>Guided GradC AM<br>Integrated Gradients<br>Integrated Gradients-SG<br>Original Explanation logits mixe d_ 7c mixe d _7b mixe d _7a mixe d _6e mixe d <em>6d mixe d</em> 6c mix ed _6b mixe d _6a mixe d _5d mixe d _5c mixe d _5b 2d _4a_3x3conv 2d _3b_1x1conv 2 d_2b_3x3conv 2 d_2a_3x3conv 2 d_1a_3x3conv<br>Original Explanation logits mixed_7c mixed_7b mixed_7a mixed_6e mixe d <em>6d mixe d</em> 6c mix ed _6b mixe d _6a mixe d _5d mixe d _5c mixe d _5b 2d _4a_3x3conv 2d _3b_1x1conv 2d _2b_3x3conv 2d _2a_3x3conv 2d _1a_3x3conv<br><!-- End of picture text --></p>
+<p>Figure 18: Independent Randomization on Inception V3 for corn example.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0021-00.jpg" alt="" /></p>
+<p>Figure 19: <strong>Input</strong> <em>⊙</em> <strong>Random gradient experiment.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0021-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Cascading Randomization<br>CNN - MNIST CNN - Fashion MNIST MLP - MNIST MLP - Fashion MNIST<br>Rank<br>Correlation<br>ABS<br>Rank<br>Correlation<br>No ABS<br><!-- End of picture text --></p>
+<p>Figure 20: Additional cascading rank correlation metrics across MNIST and Fashion MNIST Convolutional Networks.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0022-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Independent randomization Fashion MNIST<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0022-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Inde pen dent  random iza ti on  MN IST<br><!-- End of picture text --></p>
+<p>Figure 21: Additional independent rank correlation metrics across MNIST and Fashion MNIST Convolutional Networks.</p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0022-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>CNN - MNIST<br>Absolute-Value Visualization Diverging Visualization<br>True   True<br>Labels Labels<br>Random   Random<br>Labels Labels<br>Rank Correlation - Abs Rank Correlation - No Abs<br>Gradient SmoothGrad Guided  BackProp GradCAM Guided   GradCAM Integrated   Gradients Integrated   Gradients-SG Gradient   Input Gradient SmoothGrad Guided  BackProp GradCAM Guided   GradCAM Integrated   Gradients Integrated   Gradients-SG Gradient   Input<br><!-- End of picture text --></p>
+<p>Figure 22: <strong>Comparison between explanations for a true model and one trained on random labels. CNN on MNIST.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0023-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>MLP - MNIST<br>Absolute-Value Visualization Diverging Visualization<br>True   True<br>Labels Labels<br>Random   Random<br>Labels Labels<br>Rank Correlation - Abs Rank Correlation - No Abs<br>Input Input<br>Gradient SmoothGrad Guided  BackProp Integrated   Gradients Integrated   Gradients-SG Gradient   Gradient SmoothGrad Guided  BackProp Integrated   Gradients Integrated   Gradients-SG Gradient<br><!-- End of picture text --></p>
+<p>Figure 23: <strong>Comparison between explanations for a true model and one trained on random labels. MLP on MNIST.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0023-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>CNN - FMNIST<br>Absolute-Value Visualization Diverging Visualization<br>True   True<br>Labels Labels<br>Random   Random<br>Labels Labels<br>Rank Correlation - Abs Rank Correlation - No Abs<br>Gradient SmoothGrad Guided  BackProp GradCAM Guided   GradCAM Integrated   Gradients Integrated   Gradients-SG Gradient   Input Gradient SmoothGrad Guided  BackProp GradCAM Guided   GradCAM Integrated   Gradients Integrated   Gradients-SG Gradient   Input<br><!-- End of picture text --></p>
+<p>Figure 24: <strong>Comparison between explanations for a true model and one trained on random labels. CNN on FMNIST.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0024-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>MLP - FMNIST<br>Absolute-Value Visualization Diverging Visualization<br>True   True<br>Labels Labels<br>Random   Random<br>Labels Labels<br>Rank Correlation - Abs Rank Correlation - No Abs<br>Input Input<br>Gradient SmoothGrad Guided  BackProp Integrated   Gradients Integrated   Gradients-SG Gradient   Gradient SmoothGrad Guided  BackProp Integrated   Gradients Integrated   Gradients-SG Gradient<br><!-- End of picture text --></p>
+<p>Figure 25: <strong>Comparison between explanations for a true model and one trained on random labels. MLP on FMNIST.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0024-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br>CNN Fashion MNIST Grayscale Visualization<br>Successive Randomization of   Independent Randomization of<br>Layers Layers<br><!-- End of picture text --></p>
+<p>Figure 26: <strong>Successive and Independent Layer Randomization: Fashion MNIST.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>CNN Fashion MNIST Diverging Visualization<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Successive Randomization of   Independent Randomization of<br>Layers Layers<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-04.jpg" alt="" /></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-05.jpg" alt="" /></p>
+<p>Figure 27: <strong>Successive and Independent Layer Randomization: Fashion MNIST diverging visualization.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br>CNN Fashion MNIST Grayscale Visualization<br>Successive Randomization of   Independent Randomization of<br>Layers Layers<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-08.jpg" alt="" /></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0025-09.jpg" alt="" /></p>
+<p>Figure 28: <strong>Successive and Independent Layer Randomization: Fashion MNIST grayscale visualization.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0026-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br><!-- End of picture text --></p>
+<h5><strong>CNN Fashion MNIST Diverging Visualization</strong></h5>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0026-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Successive Randomization of   Independent Randomization of<br>Layers Layers<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0026-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0026-04.jpg" alt="" /></p>
+<p>Figure 29: <strong>Successive and Independent Layer Randomization: Fashion MNIST diverging visualization.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0026-06.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br>CNN MNIST Grayscale Visualization<br>Successive Randomization of   Independent Randomization of<br>Layers Layers<br><!-- End of picture text --></p>
+<p>Figure 30: <strong>Successive and Independent Layer Randomization: MNIST.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0027-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br><!-- End of picture text --></p>
+<h5><strong>CNN MNIST Diverging Visualization</strong></h5>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0027-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Successive Randomization of   Independent Randomization of<br>Layers Layers<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0027-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0027-04.jpg" alt="" /></p>
+<p>Figure 31: <strong>Successive and Independent Layer Randomization: MNIST diverging visualization.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0027-06.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br><!-- End of picture text --></p>
+<h5><strong>CNN MNIST Grayscale Visualization</strong></h5>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0027-08.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Successive Randomization of   Independent Randomization of<br>Layers Layers<br><!-- End of picture text --></p>
+<p>Figure 32: <strong>Successive and Independent Layer Randomization: MNIST grayscale visualization.</strong></p>
+<h5><strong>CNN MNIST Diverging Visualization</strong></h5>
+<table>
+<thead>
+<tr>
+<th><strong>Successive Randomization of</strong></th>
+<th><strong>Independent Randomization of</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Layers</strong></td>
+<td><strong>Layers</strong></td>
+</tr>
+</tbody>
+</table>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0028-03.jpg" alt="" /></p>
+<p>Figure 33: <strong>Successive and Independent Layer Randomization: MNIST diverging visualization.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0028-05.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br>MLP MNIST<br>Successive Randomization of<br>Successive Randomization of<br>Layers<br>Layers<br><!-- End of picture text --></p>
+<p>Figure 34: <strong>Successive and Independent Layer Randomization: MLP MNIST diverging and Grayscale visualization.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0029-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Original Image<br>MLP on Fashion MNIST<br>Successive Randomization of   Successive Randomization of<br>Layers Layers<br><!-- End of picture text --></p>
+<p>Figure 35: <strong>Successive and Independent Layer Randomization: MLP Fashion MNIST diverging and Grayscale visualization.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0029-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>layer  Top  Cascading randomization  Completely random<br>randomized from top to bottom layers for AlexNet network<br>Original  FC8 FC7 FC6 Conv5 Conv4 Conv3 Conv2 Conv1<br>Mask<br><!-- End of picture text --></p>
+<p>Figure 36: <strong>Cascading randomization from top to bottom layers on AlexNet for Perturbation Method.</strong></p>
+<p><img src="../markdown/images/saliency_sanity_checks/84_saliency_sanity_checks.pdf-0030-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Gradient<br>IG GBP<br>Gradient SmoothGrad<br>RGB<br>Gray Scale<br>Input<br>A<br>B<br>Input<br>Gradient GBP Guided   GradCAM IG Gradient<br><!-- End of picture text --></p>
+<p>Figure 37: <strong>A: Single layer sum-convolutional figure from the paper. B:Saliency maps from input image, and input image</strong> <em>×</em> <strong>edge detector is visually similar.</strong></p>
+
+</article>
+<nav class="pager"><a class="prev" href="83_mythos_interpretability.html"><small>Previous · 83</small>The Mythos of Model Interpretability</a><a class="mid" href="index.html#section-I">Contents</a><a class="next" href="85_neuroscientist_microprocessor.html"><small>Next · 85</small>Could a Neuroscientist Understand a Microprocessor?</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

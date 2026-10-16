@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>65 · Weight-sparse Transformers Have Interpretable Circuits — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 65 / 91 &nbsp;·&nbsp; Section G</span></div>
+<header class="cover">
+<div class="numeral">65</div>
+<div class="tag"><span class="pri F" aria-hidden="true"></span><span class="label" style="color:var(--ink)">F — FRONTIER</span>
+</div>
+<h1>Weight-sparse Transformers Have Interpretable Circuits</h1>
+<p class="cite">Gao et al. — 2026</p>
+<p class="authors">Leo Gao, Achyuta Rajaram, Jacob Coxon, Soham V. Govande, Bowen Baker, Dan Mossing</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Trains transformers with mostly-zero weights so task circuits pruned from them consist of few, interpretable connections.</p></div><div class="note"><div class="label">Reading focus</div><p>Training and pruning procedure, the hand-crafted task circuits, the capability–interpretability trade-off, scaling behaviour, and transfer to dense models.</p></div><div class="note"><div class="label">In context</div><p>The one programme here that changes the model rather than the method: like <a href="32_softmax_linear_units.html">32</a> it buys legibility in training, from the group behind <a href="48_scaling_evaluating_saes.html">48</a>. Where <a href="63_circuits_sparse_neuron_basis.html">63</a> and <a href="64_neural_networks_already_clean.html">64</a> say dense networks are already readable in their neurons, and <a href="66_stochastic_parameter_decomposition.html">66</a>–<a href="67_interpreting_lm_parameters.html">67</a> decompose the weights a dense model has, it trains sparsity in, at a capability cost it measures. Its pruned task circuits invite comparison with <a href="13_ioi_circuit.html">13</a> and <a href="28_acdc.html">28</a>.</p></div><div class="note"><div class="label">Note</div><p>arXiv first posted November 2025.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>G — Competing programmes, 2025–26</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2511.13653v1">https://arxiv.org/abs/2511.13653v1</a> &nbsp;·&nbsp; arXiv:2511.13653v1</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 2467–2498 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="64_neural_networks_already_clean.html"><small>Previous · 64</small>Neural Networks Are Already Clean</a><a class="mid" href="index.html#section-G">Contents</a><a class="next" href="66_stochastic_parameter_decomposition.html"><small>Next · 66</small>Stochastic Parameter Decomposition</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1><strong>Weight-sparse transformers have interpretable circuits</strong></h1>
+<p><strong>Leo Gao</strong><sup>1</sup> <strong>Achyuta Rajaram</strong><sup>1</sup> <strong>Jacob Coxon</strong><sup>1</sup> <strong>Soham V. Govande</strong><sup>1</sup> <strong>Bowen Baker</strong><sup>1</sup> <strong>Dan Mossing</strong><sup>1</sup></p>
+<h2><strong>Abstract</strong></h2>
+<p>Finding human-understandable circuits in language models is a central goal of the field of mechanistic interpretability. We train models to have more understandable circuits by constraining most of their weights to be zeros, so that each neuron only has a few connections. To recover fine-grained circuits underlying each of several hand-crafted tasks, we prune the models to isolate the part responsible for the task. These circuits often contain neurons and residual channels that correspond to natural concepts, with a small number of straightforwardly interpretable connections between them. We study how these models scale and find that making weights sparser trades off capability for interpretability, and scaling model size improves the capability-interpretability frontier. However, scaling sparse models beyond tens of millions of nonzero parameters while preserving interpretability remains a challenge. In addition to training weight-sparse models <em>de novo</em> , we show preliminary results suggesting our method can also be adapted to explain existing dense models. Our work produces circuits that achieve an unprecedented level of human understandability and validates them with considerable rigor.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0001-05.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>� Train sparse transformer<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0001-06.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>.. .<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0001-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>� Find circuit for each task<br>print(&quot;Circuit sparsity &quot;)<br>.. . All pruned nodes are mean ablated<br><!-- End of picture text --></p>
+<p><em>Figure 1.</em> An illustration of our overall setup. We first train weightsparse models. Then, for each of a curated suite of simple behaviors, we prune the model down to the subset of nodes required to perform the task. We ablate nodes by pruning to their mean activation value over the pretraining distribution.</p>
+<h2><strong>1. Introduction</strong></h2>
+<p>While neural networks, such as large language models, have rapidly increased in capability in recent years, we still understand very little about how they work. Mechanistic interpretability seeks to reverse engineer neural networks and fully understand the algorithms they implement internally.</p>
+<p>A major difficulty for interpreting transformers is that the activations and weights are not directly comprehensible; for example, neurons activate in unpredictable patterns that don’t correspond to human-understandable concepts. One hypothesized cause is superposition (Elhage et al., 2022b),</p>
+<blockquote>
+<p>1OpenAI, San Francisco, California, United States. Correspondence to: Leo Gao <em>&lt;</em> lg@openai.com <em>&gt;</em> .</p>
+</blockquote>
+<p>the idea that dense models are an approximation to the computations of a much larger untangled sparse network.</p>
+<p>Existing approaches have made progress on tackling superposition by first learning a basis in which activations appear sparse, and then attempting to understand the computations of the model within that basis (Marks et al., 2024; Ameisen et al., 2025). However, these approaches obtain human-understandable circuits by abstracting away complex computations that are only partially understood. Thus, the resulting circuits may reflect the chosen abstractions in addition to the model’s true mechanisms.</p>
+<p>Here, we introduce a new paradigm which leads to substantially simpler and more general circuits that we can fully understand even at the lowest levels of abstraction. To do this, we train transformers where the vast majority of weights are zeros; i.e., the <em>L</em> 0 norm of the weights is small.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0002-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>0.500 Dense model 2 12 better<br>Sparse model 10 9<br>0.250<br>(Loss matched)<br>0.125<br>0.062 2 11<br>unpruned loss<br>0.031<br>10 8<br>0.016<br>L0<br>2 10<br>0.008 14.8M<br>7.4M<br>0.004<br>3.7M<br>0.002 1.9M<br>2 9 0.9M 10 7<br>256 Pruned circuit size (interpretability)1024 4096 16384 65536 9 × 10 1 10 0 1.1 × 10 0 1.2 × 10 0 1.3 × 10 0<br>Pretraining loss (capability)<br>Task loss<br>Total parameter count<br>Pruned circuit size (interpretability)<br><!-- End of picture text --></p>
+<p><em>Figure 2.</em> Our weight-sparse models learn simpler task-specific circuits than dense models. We examine a sparse model and a dense model with the same pretraining loss. We sweep target loss, and find the size of the minimal circuit in each model that can achieve that loss, averaged across tasks. Sparse model circuits are roughly 16-fold smaller at any given loss.</p>
+<p>This constraint drastically simplifies model computations. As each neuron can only read from or write to a few residual channels, the model is discouraged from distributing concept representations across multiple residual channels or using more neurons than strictly needed to represent a single concept.</p>
+<p>We show that the model learns disentangled circuits for different tasks by isolating the minimal circuit which can perform each task and showing that it is compact. Within these circuits, we find that neuron activations often correspond to simple concepts, such as “tokens following a single quote” or “depth of list nesting”, and the weights encode connections between concepts that are often intuitive. As a relatively rigorous validation, we further demonstrate that our disentangled circuits are necessary and sufficient for the model’s behavior on these tasks; mean-ablating every neuron except the few that are part of the circuit preserves task loss, whereas deleting the few nodes in the circuit severely harms task loss.</p>
+<p>Although weight-sparse training has substantial benefits for interpretability, it has the critical disadvantage that it requires training new models <em>de novo</em> ; these models are extremely inefficient to train and deploy, and are unlikely to ever reach frontier capabilities.<sup>1</sup></p>
+<p>While we believe that training larger interpretable models would be scientifically valuable, we’d also like to use weightsparse training to better understand existing dense models. We show preliminary results using <em>bridges</em> at each layer to</p>
+<blockquote>
+<p>1See Section B for more discussion on the inefficiencies of sparse training.</p>
+</blockquote>
+<p><em>Figure 3.</em> Scaling the total parameter count of weight-sparse models improves the capability-interpretability Pareto frontier. Making models sparser ( <em>i.e.</em> decreasing the <em>L</em> 0 norm of weights) while holding total parameter count fixed trades off the two, harming capability but improving interpretability. We define capability as pretraining loss; see Section 2.2 for our definition of interpretability. Down and to the left is better.</p>
+<p>couple a weight-sparse model’s representations to those of a target dense model, so that our model can then serve as an interpretable replacement for the original dense model.</p>
+<p>To make it easier to replicate our results, we release the weights and pruned circuits for all sparse models used in the experiments in this paper, as well as code for visualizing circuits, at https://github.com/openai/ circuit_sparsity/.</p>
+<h2><strong>2. Methods</strong></h2>
+<p>We first train <strong>weight-sparse models</strong> —Transformer models with most of their parameters set to zero.<sup>2</sup> All of our models are pretrained on a dataset of Python code. We then examine our models’ behavior on a curated suite of simple, unambiguous tasks where they are forced to choose between one of two completions.</p>
+<p>To assess the interpretability of our models, we isolate the small <strong>sparse circuits</strong> that our models use to perform each task using a novel pruning method. Since interpretable models should be easy to untangle, individual behaviors should be implemented by compact standalone circuits.</p>
+<p>Sparse circuits are defined as a set of nodes connected by edges. Our definition of nodes is maximally granular and corresponds to rows and columns of weight matrices: we de-</p>
+<blockquote>
+<p>2Not to be confused with sparsity via mixture-of-experts (Shazeer et al., 2017), which is weight-dense in our terminology, because its weights are almost all nonzero.</p>
+</blockquote>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0003-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>print (&quot; Circuits<br>205 83 205 83<br>Double quote detector 207985 460 207985 460<br>0.mlp<br>normalizermsnorm normalizermsnorm<br>0.mlp.post_act.863 -0.2 × × -0.1 -0.2 × × -0.1<br>Single quote detector 2790 863 2790 863<br>-0.15 × -0.15 × -0.15 × -0.15 ×<br>0.mlp.post_act.2790 -0.23 × 0.18 × -0.23 × 0.18 ×<br>Quote type classifier<br>10.attn<br>rmsnorm normalizermsnorm<br>0.mlp.resid_delta.460<br>Quote type classifier 1.56 × × -2.5 1.56 × × -2.5<br>4.0 4.0<br>Q.82.1 V.82.0 Q.82. 1 V.82.0<br>K.82.1 K.82. 1<br>10.attn.v.head82.ch0<br>+6 +0.2 +6 +0.2<br>Quote detector<br>Q Q<br>... K × K × ...<br>softmax softmax<br>10.attn.qk.head82.ch1<br>How did this string begin? ... V × V × ...<br>')<br>&quot;)<br>10.attn.resid_delta.83<br><!-- End of picture text --></p>
+<p><em>Figure 4.</em> The string closing circuit. We omit no detail, showing all 12 nodes and 9 edges needed to complete the task near perfectly. First, 0.mlp converts the token embeddings into “quote detector” and “quote type classifier” residual channels, which are read by key and value channels respectively in 10.attn. Subsequent tokens attend to the key and copy the value to predict the corresponding closing quote. In the diagram, the vertical bundle of lines under each input token is its residual stream. Activations of important nodes on cherry-picked task examples are shown on the left. Dashed horizontal lines mark layer boundaries. <em>⊗</em> denotes scalar multiplication; directly merged lines denote scalar addition. Black numbers indicate channel or neuron indices. Red and blue numbers mark positive and negative weights (or biases). This diagram only shows the relevant attention path. Inactive parts of the circuit are greyed out, and irrelevant layers are omitted.</p>
+<p>fine a <strong>node</strong> to mean an individual neuron, attention channel, residual channel read, or residual channel write. An <strong>edge</strong> , then, is a nonzero entry in a weight matrix and connects two nodes.<sup>3</sup></p>
+<p>We report the geometric mean number of edges in the circuit across our hand-curated tasks as our main quantitative <strong>interpretability metric</strong> .</p>
+<p>3For example, the simplest MLP circuit, consisting of one single neuron reading from and writing to one channel, is 3 nodes and 2 edges. MLP neuron nodes correspond to post-GELU activations, residual read nodes correspond to the rows of c ~~f~~ c, and residual write nodes correspond to the columns of c ~~p~~ roj.</p>
+<h3><strong>2.1. Sparse Training</strong></h3>
+<p><strong>Architecture.</strong> We use a GPT-2 style decoder-only transformer similar to Radford et al. (2019) with some minor modifications. We enforce sparsity of all weights and biases, including token embeddings, such that we can increase the width of the model while holding the number of nonzero parameters ( <em>L</em> 0) exactly constant. Our sparsest models have approximately 1 in 1000 nonzero weights. We also enforce mild activation sparsity at all node locations, with 1 in 4 nonzero activations.<sup>4</sup> See Section A.1 for more details and ablations.</p>
+<p>4Note that this does not directly enforce sparsity of the residual stream, only of residual reads and writes.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0004-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>values = [  [ 5, 3<br>2.attn<br>rmsnorm rmsnorm<br>Open bracket detector<br>(Q = 0, so attention is uniform average  # Don't get distracted: [<br>2.attn.v.head125.ch12 over V’s in context) values =[5, 3, 11, 3, 12]]<br>Nesting depth + V extrathe model to output[ tokens in preceding lines cause  ]]<br>4.attn<br>2.attn.resid_delta.1249 K Q<br>softmax (sink logit is very large, so softmax behaves as a threshold)<br>V<br>Nested list<br>4.attn.resid_delta.1079<br><!-- End of picture text --></p>
+<p><em>Figure 5.</em> A simplified illustration of the circuit for counting nesting depth, using the conventions from Figure 4. A single attention value channel functions as an “open bracket detector” derived from the embedding of the token [ . The attention head then averages the value of this detector <u>over</u> the context and writes it to the residual stream at each token (the “nesting depth”). A subsequent attention head reads out the nesting depth using a query channel, and thresholds it to only activate inside nested lists. This circuit uses 7 nodes and 4 edges. Understanding this algorithm allows us to adversarially attack the model with “distractors.”</p>
+<p><strong>Optimization.</strong> We train to minimize cross-entropy loss using the AdamW optimizer (Loshchilov &amp; Hutter, 2019). To enforce the <em>L</em> 0 weight sparsity constraint, we zero out all but the largest magnitude entries in each weight matrix after applying AdamW within each training step, such that every matrix has the same fraction of nonzero elements.<sup>5</sup> We anneal the <em>L</em> 0 from fully dense to the target <em>L</em> 0 throughout training. See Section A.2 for more details and ablations regarding techniques used to ensure optimization stability.</p>
+<h3><strong>2.2. Measuring interpretability</strong></h3>
+<p><strong>Task distribution.</strong> We manually construct a set of 20 simple Python next-token binary prediction tasks. For example, one task (single ~~d~~ ouble ~~q~~ uote) is to predict whether to close a string with a single or double quote, where the only difference in the context is whether the opening quote token has a single or double quote. Another (set ~~o~~ r ~~s~~ tring) measures the model’s ability to track the type of a variable, by asking whether a variable name should be followed by .add, or +=, where examples differ only in the variable’s initialization. See Table 1 for a description of all tasks.</p>
+<blockquote>
+<p>5We keep gradients and Adam moments dense, not modifying them from the standard implementation.</p>
+</blockquote>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0004-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>current = set()<br>4.attn.h73 current<br>QK (3)<br> for neighbor, cost in graph[node].items():V (8)<br>6.attn.h26<br>QK (2, 5, 14)<br>     if neighbor not in seen:V (1, 11)<br>         heappush(queue, (cost, neighbor))<br>set()<br> current .add<br><!-- End of picture text --></p>
+<p><em>Figure 6.</em> A rough schematic of the circuit for tracking the type of a variable. The model uses a two-hop algorithm with 2 attention heads, using 4 query/key channels and 3 value channels in total. First, it copies the variable name current into the set() token. It then uses <u>this as a key, allowing the model to copy the</u> value of the set() token into the final token position, where it reads out the correct answer.</p>
+<p><strong>Pruning.</strong> For each task, we prune the model to obtain the smallest circuit which achieves a target loss on the task distribution. The target loss is 0.15 everywhere unless otherwise specified. We prune by deleting some subset of nodes across all token positions, similar to Cao et al. (2021). Deleted nodes are <em>mean-ablated</em> — that is, their activation is frozen at the mean activation over the pretraining distribution. See Section E for a discussion of the implications of various ablation methods. We present a novel structured pruning algorithm. We learn a set of masks <em>τi</em> (indexed by node) which we use to gate the respective node locations <em>xi �→ xi⊙σ</em> ( <em>τi</em> ), where <em>σ</em> is the Heaviside step function. We train the mask parameters <em>τi</em> by using a sigmoid-derivative surrogate gradient to backpropagate through the Heaviside step function (analogous to the Straight-Through Estimator (Bengio et al., 2013)), minimizing a joint objective of task loss and circuit size. See Section A.5 for more details.</p>
+<h3><strong>2.3. Bridges</strong></h3>
+<p>In Section 3.3, we extend our methods to understanding behaviors of already-trained dense models. We train a weightsparse model alongside a series of bridges mapping between the dense and sparse model’s activations once per sublayer, <em>i.e.</em> before each attention and each MLP. Each bridge consists of an encoder which maps from the dense to sparse model activations, and a decoder that maps back.<sup>6</sup></p>
+<p><strong>Loss terms.</strong> We want the weight-sparse model to match the dense model’s computations, with the bridges accurately translating between the sparse and dense activations. To ac-</p>
+<blockquote>
+<p>6Each encoder is a linear map and activation function (AbsTopK), and the decoder is linear. In other words, each bridge can be viewed as a sparse autoencoder where the latent space is the sparse model’s residual activations.</p>
+</blockquote>
+<p>complish this, we use multiple bridge loss terms in addition to normal pretraining loss (Figure 7). We use a normalized MSE term that trains the bridge encoder to accurately predict sparse activations from dense ones (and vice versa for the bridge decoder). We also run hybrid forward passes of the sparse and dense models, using the bridges to convert one kind of activations to the other at various single locations. We train the sparse model weights such that these hybrid forward passes have low KL to the original dense model. See Section A.3 for a more precise statement of our setup.</p>
+<h2><strong>3. Results</strong></h2>
+<h3><strong>3.1. Weight sparsity improves interpretability</strong></h3>
+<p>First, we measure whether sparsity allows models to learn smaller circuits. We compute minimal circuits in a dense model and a sparse model of comparable pretraining loss for each of our tasks, and average the circuit size across tasks (Figure 2). We show that pruning our weight-sparse models yields roughly 16-fold smaller circuits on our tasks than pruning dense models of comparable pretraining loss. We are also able to construct arbitrarily accurate circuits at the cost of more edges. This shows that circuits for simple behaviors are substantially more disentangled and localizable in weight-sparse models than dense models.</p>
+<p>To further validate the faithfulness of our circuits, we also show that they are not only sufficient but necessary for our tasks. When we ablate the tiny fraction of nodes that are part of our circuits, leaving the rest of the network intact, performance is severely impaired (Figure 32).</p>
+<p>We also find that our method improves with model scale. When we increase the hidden dimension of the model, holding the number of layers constant, we improve the interpretability-capability frontier (Figure 3). Changing <em>L</em> 0 moves along the frontier, trading off between capability and interpretability. Finally, if we hold <em>L</em> 0 fixed, and use a larger model, we find that both capability and interpretability improve. The larger model with the same <em>L</em> 0 is strictly more expressive, and has fewer nonzero weights per neuron or residual channel.<sup>7</sup></p>
+<p>Another aspect of interpretability is feature quality, which empirically seems closely related to activation sparsity. We find that increasing weight sparsity naturally increases sparsity of residual stream activations (Figure 10).<sup>8</sup></p>
+<blockquote>
+<p>7Increasing the size of the model with fixed <em>L</em> 0 gives us more degrees of freedom; the number of bits to specify which parameters of the model are nonzero is approximately <em>O</em> ( <em>L</em> 0 log <em>N</em> ), where <em>N</em> is the total number of parameters.</p>
+</blockquote>
+<blockquote>
+<p>8The residual stream is rarely exactly zero, so we measure sparsity in terms of kurtosis (Hurley &amp; Rickard, 2009).</p>
+</blockquote>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0005-10.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>dense model sparse model<br>bridge<br>bridge<br>bridge<br>bridge<br>Loss<br><!-- End of picture text --></p>
+<p><em>Figure 7.</em> Starting with an existing dense model, we can train the weight-sparse model jointly with <em>bridges</em> —a series of linear maps that allow us to convert between the sparse and dense model representations—such that all paths through a mix of sparse and dense layers still perform well on pretraining.</p>
+<h3><strong>3.2. Qualitative circuit investigations</strong></h3>
+<p>Our ultimate goal is to fully understand the computations of a model mechanistically. While we find small circuits on our tasks, and verify with mean ablation that they faithfully implement the model’s underlying computations, circuit size is only a proxy for interpretability. To verify that the model implements human-understandable algorithms, we manually interpreted the pruned circuits for three different tasks across two models (chosen for their apparent simplicity). For each circuit, we spent roughly a researcher-day of work. This included manually removing extraneous nodes,<sup>9</sup> as well as verifying our natural language descriptions of nodes with manual activation patching experiments.</p>
+<p>A unique promise of sparse circuits is that we could aspire to interpret them in the absence of any task-specific data or assumptions. Optimistically, after relating nodes to natural concepts,<sup>10</sup> we could extract relevant circuits by directly inspecting their edges. To this end, for the following circuits we report how numerous are the components’ total edges relative to the interpreted subset, in each circuit. Generally, if components have fewer total edges, we expect that it will be easier to trace their circuits, and their edges may be more interpretable.</p>
+<blockquote>
+<p>9Our pruning algorithm is imperfect and leaves a small number of nodes with negligible impact on task loss.</p>
+</blockquote>
+<p>10We believe this to be generally possible; randomly selected nodes seem to be somewhat interpretable.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0006-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>0.275<br>0.8 0.250<br>0.225<br>0.6 0.200<br>incorrect completion threshold<br>0.175<br>0.4<br>0.150<br>0.125<br>0.2<br>0.100<br>0 10 20 30 40 50 60 70 0 10 20 30 40 50 60 70<br>Number of elements in list Number of elements in list<br>p(correct)<br>Activation 2.attn.resid_delta[1249]<br><!-- End of picture text --></p>
+<p><em>Figure 8.</em> A surprising adversarial example to our bracket-counting circuit found using our circuit. Because our model uses stronger and weaker activations of the same feature to represent different bracket nesting depths, and also takes the mean of this feature over the context, it should be possible to trick the model by putting more tokens in context. <u>We find that our model (even when unpruned)</u> experiences significant “context dilution”, failing to predict the correct completion of ]] on longer lists. This is a natural consequence of the circuit as understood in Section 3.2.2; the activation reduces in magnitude (proportional to n <u>1</u> ~~c~~ tx<sup>) as the average is taken over more</sup> tokens. Strikingly, we find this attack generalizes to similarly capable dense models.</p>
+<h3>3.2.1. CLOSING STRINGS</h3>
+<p>We begin with a simple task (single ~~d~~ ouble ~~q~~ uote), where the input contains a string opening with either a single or double quote, which must close with a quote of the corresponding type. We find that the circuit for this task uses two steps, involving two neurons in one MLP layer and one attention head (using one QK channel and one V channel). We are confident that the following mechanism reflects how the model closes strings on our task distribution.</p>
+<p>In the first step, the earliest MLP layer (0.mlp) combines the embeddings for (&quot; and (' into a “quote detector” neuron (channel 985, which is positive on both (&quot; and (' ), and a “quote type classifier” neuron (channel 460, which is positive on (&quot; and negative on (' ). In the second step, a layer 10 attention head (10.attn.head82) uses the “quote detector” as a key (channel 1), and the “quote type classifier” as a value (channel 0). As the last token has a constant positive-valued query, the attention head output successfully closes the string. A detailed schematic of this circuit is in Figure 4.</p>
+<p>We also check whether the nodes we find have the same interpretation on the entire pretraining distribution. We find that some but not all nodes are exactly monosemantic even on the pretraining distribution—see Figure 39 for an example.</p>
+<p>Together, the four components described (two MLP neurons, a QK channel, and a V channel) have 41 total edges connecting them to the rest of the network, of which 9 are used</p>
+<p>by this circuit— based on this, we are optimistic it would be possible to understand this circuit without task-specific data.</p>
+<h3>3.2.2. COUNTING NESTING DEPTH</h3>
+<p>Next, we examine a more complex task, probing whether a model<sup>11</sup> can appropriately close a flat or a nested list with ] or ]] , respectively (bracket ~~c~~ ounting). We manually extract a minimal circuit for this task.<sup>12</sup> We are reasonably confident the model counts nesting depth of lists on our task distribution with the following three steps:</p>
+<p><strong>Embedding.</strong> The token embedding of the final token is ignored. The token embedding of [ writes to residual channels 759, 826, and 1711. These channels become “bracket detectors” for the [ token.</p>
+<p><strong>Counting.</strong> Given these bracket detector activations, the model then counts the brackets using a single value channel in layer 2. The model sums the embedding channels into a value channel (head 125 channel 12) which functions as an</p>
+<p>11Note that this model uses attention sinks, unlike the model in the previous section.</p>
+<p>12In a small number of cases, we manually remove redundant components and rescale nodes to compensate. This effectively makes use of an additional operation that our pruning algorithm doesn’t have access to, which is lumping together apparently redundant nodes and treating them as a single (scaled) node. Doing this requires caution, as it can hide superposition; in this case, it seems likely to be harmless redundancy. See Section F.2.</p>
+<p>“open bracket detector” active at each open bracket token. Attention head 125 has nearly-zero query and constant keys across the sequence, meaning that the softmax attention operation amounts to averaging over the context. Head 125 then writes the resulting averaged open bracket detector value to residual channel 1249. Residual channel 1249 encodes the “list depth” with its magnitude.</p>
+<p><strong>Thresholding.</strong> However, to determine whether we want to output ]] , we need to threshold our list depth to a binary output. A second attention head in layer 4 (head 80) accomplishes this by using a strong attention sink, using list depth as a query channel activation (channel 4). The attention softmax acts as a threshold; tokens in flat lists and outside lists have <em>q · k ≪</em> sink, while nested lists have <em>q · k ≫</em> sink. Thus, head 80 outputs a positive value to residual stream channel 1079 (“nested list close”) <em>only</em> on nested lists (where the query is large enough), and outputs ]] .</p>
+<p>Our mechanistic understanding of bracket ~~c~~ ounting can be used to accurately predict how the model will perform on unseen, related inputs. The circuit relies on a simple average over tokens previously seen in the context, which would fail in the presence of “distractor” unmatched open brackets preceding the list. Using an adversarial code comment, we can successfully fool the model into predicting a double bracket completion on a flat list. This attack, alongside a circuit schematic, is presented in Figure 5. Furthermore, we know that the attention circuit uses the activation magnitude of residual channel 1249 to represent different bracket nesting depths, and also takes the mean of this feature over the context length. It’s thus <u>possible</u> to make the (unpruned) model incorrectly predict ] on nested lists by making the list very long, “diluting” the context. This effect correlates exactly with the activation magnitude of residual channel 1249 (see Figure 8 for more details). We find that this attack even generalizes to similarly capable dense models, showing that this attack is not due to idiosyncrasies of weight-sparse models.</p>
+<p>This circuit uses 6 channels total, with 283 edges connecting them to the rest of the network. An additional 11 layer 3 attention channels and 48 layer 7 MLP neurons elided from the above contribute an additional 1217 edges. It would likely be difficult to make progress on tracing this circuit without task-specific data.</p>
+<h3>3.2.3. TRACKING THE TYPE OF A VARIABLE</h3>
+<p>Even when the circuit describing a model’s behavior is not perfectly disentangled into a small number of individually interpretable activations, our models tend to learn partially interpretable computation graphs. On set ~~o~~ r ~~s~~ tring ~~f~~ ixedvarname, from inspecting the</p>
+<p>circuit, we believe that the model uses the following two-step algorithm for tracking whether a variable called current is a set or string. First, given an input current = set() or current = &quot;&quot;, a head in layer 4 which attends to recent tokens (head 73) copies the embedding of current into the set() or &quot;&quot; token via value channel 8. Then, when the model is required to recall the value of variable “current” later in the sequence, a head in layer 6 (head 26) uses the embedding of “current” as a query and key activation. Thus, the head copies the information to complete the task from the set() or &quot;&quot; token to the final token. This algorithm is outlined in a schematic in Figure 6.</p>
+<p>The circuit described uses 4 QK channels and 3 V channels across two attention heads in successive layers. These channels have 100 total edges connecting them to the rest of the network. It may be difficult to understand this circuit without task-specific data.</p>
+<h3><strong>3.3. Using bridges to extract circuits from existing models</strong></h3>
+<p>So far, all of our results are from weight-sparse models trained <em>de novo</em> . However, it would be valuable if we could also use our methods to understand behaviors of alreadytrained models. Dense models are vastly more computationally efficient than sparse models, and it would be valuable to gain confidence that sparse models have circuits that are mechanistically analogous to the ones in dense models.<sup>13</sup></p>
+<p>We do a preliminary exploration in this direction, by training a weight-sparse model whose computations correspond with a dense model’s computations at the same layer (Figure 7). Then, “interpretable” perturbations of the weight-sparse model’s activations can be mapped to corresponding perturbations of the dense model’s activations to achieve a desired change in behavior.</p>
+<p>Using pruning, we identify the minimal sparse circuit that can perform well on a specific task, as described in Section 2.2. We manually choose a node from this circuit which seems to (1) be important for the task based on ablations and (2) encode some feature of interest. We perturb these nodes in the sparse model, and linearly map the perturbation to the original dense model using bridges (see Section A.4).</p>
+<p>As shown in Figure 9, this procedure allows us to construct perturbations of the dense model’s activations consistent with altering a feature of interest.</p>
+<p>In the first case, we study the single ~~d~~ ouble ~~q~~ uote task in a 4-layer dense model and bridged 4-layer sparse</p>
+<blockquote>
+<p>13As some evidence for this, we find that the tokens that are hard/easy for dense models are largely the same as the ones that are hard/easy for our weight-sparse models (Figure 33).</p>
+</blockquote>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0008-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>10 0 10 0<br>random random<br>10 1<br>10 1<br>10 2<br>10 3<br>10 2<br>10 4<br>0.0 0.2 0.4 0.6 0.8 1.0 0.0 0.2 0.4 0.6 0.8 1.0<br>Steering strength (toward single quote) Steering strength (toward <code>while True</code>)<br>no steering no steering<br>P( : )<br>P(single quote)<br><!-- End of picture text --></p>
+<p><em>Figure 9.</em> Using sparse models and bridges to edit representations of an existing dense model. We perform “interpretable perturbations” on dense model activations in two tasks (single ~~d~~ ouble ~~q~~ uote and while ~~r~~ eturn ~~t~~ rue) to test whether a bridged sparse model is faithful to a dense model. On the left, we attempt to edit the dense model’s “quote type classifier” representation to induce the model to behave as if it were prompted to complete a single- rather than a double-quoted string using bridges. On the right, we attempt to edit the dense model’s representation of whether the current line began with if <u>,</u> while <u>, or</u> except , to induce the model to behave as if it were prompted with return True rather than while True . The dense model’s behavior is consistent with at least partially successful editing in both cases.</p>
+<p>model. This sparse model’s circuit qualitatively resembles the one described in Figure 4. We perturb a residual channel at the input to the sparse model’s final attention layer which acts as a “quote type classifier” (activations shown in Figure 40). We prompt the model with a double-quoted string, and steer this channel so that its activation resembles that of a single-quoted string to construct an interpretable perturbation. After applying the bridge to this perturbation, this causes a steep increase in the dense model’s probability of outputting a single quote. This is consistent with editing the model’s representation of the quote type as stored in the quote token.</p>
+<p>In the second case, we study a different task, while ~~r~~ eturn ~~t~~ rue, in which <u>the model is</u> expected to output a <u>:</u> token after while True but a newline after return True . For this task, we examine a second bridged 4-layer sparse model coupled to the same dense model, and manipulate a channel at the input to the final MLP layer. The channel’s activation is highly negative throughout lines that begin with if <u>,</u> while <u>,</u> or except (any of which should end in a colon; activations <u>shown</u> in Figure 41). We <u>prompt</u> the model with code ending in return True and steer</p>
+<p>this channel toward its counterfactual while True activation. After applying the bridge to this perturbation, this increases the dense model’s probability of outputting a colon rather than a newline (though not as steeply as the previous task). This is consistent with partially editing the dense model’s representation of whether the current line should end in a colon based on the first token.</p>
+<h2><strong>4. Discussion</strong></h2>
+<p>Due to fundamental constraints, unstructured weight-sparse neural networks are unlikely to ever approach the efficiency of dense networks (see Section B). Therefore, it will be infeasible to use our method to fully interpret frontier models, or to train interpretable frontier models <em>de novo</em> . We need to overcome this barrier to help us improve our understanding of frontier models. There are two main avenues that we’re excited about.</p>
+<p>First, we could scale our methods to create a series of interpretable model organisms up to the capability level of GPT-3. It seems plausible that transformers learn universal circuit motifs that appear in both sparse and dense models across scales.<sup>14</sup> If so, then studying the circuit motifs of these model organisms would give us a sense of what motifs to look for in frontier models and help us better target our investigations.</p>
+<p>In particular, if we created model organisms whose computations were coupled to dense models via bridges, comparing their computations could be valuable for studying phenomena such as superposition and interference weights in dense models (Olah et al., 2025).</p>
+<p>Second, although understanding a frontier model across its entire pretraining distribution is prohibitively expensive, we could save on compute by seeking to understand less. In particular, we could train a sparse bridged model on a narrow</p>
+<blockquote>
+<p>14Some preliminary evidence that sparse and dense models behave somewhat similarly is in Figure 33</p>
+</blockquote>
+<p>but important task distribution ( <em>e.g.</em> , deception, refusal, goalseeking). Although this might not enable ambitious reverse engineering of a frontier model’s behavior, this could be a valuable tool for safety cases.</p>
+<p>We are also excited about using sparse circuits to support automated interpretability. Sparse circuits, like dictionary learning approaches, provide new primitives for understanding model computations—a new language in which computations are simpler to express. We suspect that automated interpretability is bottlenecked on these kinds of primitives, making sparse circuits a natural complement to automation.</p>
+<h2><strong>5. Limitations and Future Work</strong></h2>
+<p>We believe many improvements can be made to our method.</p>
+<p><strong>Compute (in)efficiency.</strong> Sparse models require vastly (100–1000x) more training and inference compute than dense models of comparable capability. There is considerable room for improvements to both optimization and systems. For example, our current optimization procedure leads to many dead neurons, which reduces training efficiency. We’re excited about better reinitialization techniques for fixing this. We also believe that our current method does not maximally efficiently explore different sparsity masks. There is also room for systems improvements, in particular by using sparse kernels, though this is nontrivial from an optimization perspective because we would need to sparsify the gradient computation for the weights and Adam moments( Section B for more discussion). Furthermore, we are excited about weight-sparse mixture-of-experts models (Shazeer et al., 2017), for both systems and interpretability reasons (Chaudhari et al., 2025).</p>
+<p><strong>Polysemantic features.</strong> Our circuits, especially for more complex tasks, do not consist entirely of monosemantic nodes or edges; often concepts are still smeared across a number of nodes which also perform other tasks (albeit to a much lesser extent than dense models). One possibility is it might be fundamentally advantageous for models to use a small amount of superposition across groups of a few nodes, instead of fully monosemantic nodes. It may also be that scaling the width of our sparse models to be nearer to typical SAEs (whose hidden dimensions are in the millions rather than in the thousands) would resolve this.</p>
+<p><strong>Defining faithfulness.</strong> Mean ablation is not a perfect measure of faithfulness. Ultimately, some variant of causal scrubbing (Chan et al., 2022) is necessary to gain full confidence in the faithfulness of our circuits. See Section E for more discussion.</p>
+<p><strong>Defining interpretability.</strong> The notion of “interpretability” we use (having compact task-specific circuits) does not fully capture intuitive notions of interpretability. Our qualitative investigations point at a stronger notion of humanunderstandability, which we could attempt to codify in an improved interpretability metric.</p>
+<p><strong>Other interpretable inductive biases.</strong> More broadly, weight sparsity might not be the only inductive bias we need to fully disentangle superposition, and further conceptual progress may be necessary. For example, expert sparsity could help not just by improving efficiency but also by providing an important inductive bias. We find weight sparsity allows us to use a larger activation <em>L</em> 0 without collapsing into polysemantic features (Figure 37). In a similar way we can think of expert sparsity as allowing us to use a larger weight <em>L</em> 0 without collapsing into computation in superposition, by not using every parameter on every forward pass.</p>
+<p><strong>Better pruning.</strong> Our pruning method focuses on pruning nodes due to computational simplicity, but it would be ideal to prune edges directly. Also, we find that our pruning algorithm often does not fully eliminate all prunable nodes, necessitating additional manual pruning to obtain clean circuits.</p>
+<p><strong>Scaling beyond small models and simple tasks.</strong> We have started by explaining narrowly-trained models on simple tasks, and it is uncertain how our method would scale. Even under optimistic assumptions, our technique would produce extremely large and complicated circuits when explaining complex behaviors in more capable models, due to the granularity of our explanations. It may be necessary to rely on automated interpretability to make sense of such circuits. Pessimistically, it is also possible that more capable language models perform complex tasks in ways that fundamentally defy simple description. This would limit the promise of ambitious mechanistic interpretability as a whole.</p>
+<h2><strong>6. Related Work</strong></h2>
+<p><strong>Non-binary-valued features.</strong> Our features are not all binarizable, meaning that they sometimes carry information in their magnitude beyond whether they are on or off. If a feature can’t be discretized, it means that to fully explain it, we need to explain not just its activity pattern but also its magnitude. See Section C for more discussion.</p>
+<p><strong>SAEs and circuits.</strong> In recent years, many works have explored and refined the use of SAEs in finding interpretable concepts in transformer language models (Sharkey et al., 2022; Bricken et al., 2023; Templeton et al., 2024; Gao et al., 2024; Rajamanoharan et al., 2024; Lindsey et al., 2025).</p>
+<p>Olah et al. (2017) first found circuits in image models. A number of works have also attempted to find circuits using SAEs (Marks et al., 2025; Ameisen et al., 2025; Lai, 2025), Transcoders (Dunefsky et al., 2024), and using dense models directly (Wang et al., 2022; Conmy et al., 2023; Lieberum et al., 2023). Elhage et al. (2022a) trains interpretableby-design models with activation sparsity using a softmax activation function. Braun et al. (2024) trains SAEs end-toend on downstream KL.</p>
+<p>Conmy et al. (2023) creates circuits out of very coarse units such as entire attention heads using an iterative algorithm. Cao et al. (2021) applies a gradient-based pruning algorithm to dense models to directly find circuits, but such circuits are too large to be directly interpreted. Marks et al. (2025) builds circuits out of SAE features, but can only explain model behavior with circuits of thousands of nodes and hundreds of thousands of edges. Ameisen et al. (2025) yields circuits on production models across a variety of behaviors by using linear “attribution graphs” between cross-layer transcoder features. However, it fails to fully explain attention patterns within attention heads, and suffers from quite noisy “global weights” between features, such that per-prompt attribution is required to get clean circuits. Kamath et al. (2025) builds on this work and makes progress on explaining attention patterns by computing attribution scores through query-key interactions; but the dense “head loadings” do not usually result in simple attention circuits due to superposition across heads.</p>
+<p><strong>Alternatives to activation sparsity.</strong> A number of works have explored arguments for constraints other than activation sparsity (Hanni¨ et al., 2024; Chughtai &amp; Bushnaq, 2025). APD (Braun et al., 2025) and SPD (Bushnaq et al., 2025) decompose weights into a sum of simple components, attempting to sparsify causal attributions. Farnik et al. (2025) encourages sparsity of computation by training SAEs such that the Jacobian of features is sparse. Wong et al. (2021) trains the final layer to have sparse weights for interpretability. Friedman et al. (2023) learns RASP-like (Weiss et al., 2021) circuits.</p>
+<p><strong>Sparse weight training.</strong> Sparse training is a problem that is well-studied in the literature (Mocanu et al., 2018; Lee et al., 2019; Evci et al., 2020; Louizos et al., 2018; Dettmers &amp; Zettlemoyer, 2019). Evci et al. (2021) is similar to our method but uses a slightly different drop criterion. Jayakumar et al. (2021) retains a full set of dense weights on the CPU, rather than zeroing out weights outside the top- <em>k</em> . Zhu &amp; Gupta (2017) trains weight-sparse models by annealing from an initial dense model.</p>
+<p><strong>Pruning.</strong> Pruning is also a well studied problem (Han et al., 2016; Frankle &amp; Carbin, 2019; Blalock et al., 2020;</p>
+<p>Frantar &amp; Alistarh, 2023; Sun et al., 2024). The classic second order approaches to pruning (LeCun et al., 1990; Hassibi &amp; Stork, 1993; Frantar et al., 2023) are expensive to compute or rely on approximations. Attribution patching (Syed et al., 2023; Kramar´ et al., 2024) uses a first order Bhaskar et al. (2025) prunes networks for interpretability by pruning edges rather than nodes. Michaud et al. (2025) explores pruning as a method to localize model skills. Conmy et al. (2023) applied structure pruning to minimize a similar ”specific task loss” objective, iteratively pruning edges. Cao et al. (2021) decides to learn fine-grained masks via gradient descent instead of iteration, choosing to use an smooth estimator of the step function.</p>
+<h2><strong>Acknowledgements</strong></h2>
+<p>We thank Joshua Batson, Trenton Bricken, Lucius Bushnaq, Will Depue, Elias Frantar, Gabriel Goh, Johannes Heidecke, Jack Lindsey, Samuel Marks, Jake Mendel, Eric Michaud, Neel Nanda, Chris Olah, Asher Parker-Sartori, Alec Radford, Logan Riggs, Shibani Santurkar, Lee Sharkey, Rajan Troll, Jeff Wu, Yolanda Xie, and Rowechen Zhong for valuable discussions and feedback. We thank Ryan Kaufman for assistance with task creation.</p>
+<h2><strong>References</strong></h2>
+<ul>
+<li>
+<p>Ameisen, E., Lindsey, J., Pearce, A., Gurnee, W., Turner, N. L., Chen, B., Citro, C., Abrahams, D., Carter, S., Hosmer, B., Marcus, J., Sklar, M., Templeton, A., Bricken, T., McDougall, C., Cunningham, H., Henighan, T., Jermyn, A., Jones, A., Persic, A., Qi, Z., Thompson, T. B., Zimmerman, S., Rivoire, K., Conerly, T., Olah, C., and Batson, J. Circuit tracing: Revealing computational graphs in language models. https://transformer-circuits <em>.</em> pub/2025/ attribution-graphs/methods <em>.</em> html, 2025. Accessed July 2025.</p>
+</li>
+<li>
+<p>Bengio, Y., Leonard, N., and Courville, A.´ Estimating or propagating gradients through stochastic neurons for conditional computation. <em>arXiv preprint arXiv:1308.3432</em> , 2013.</p>
+</li>
+<li>
+<p>Bernstein, J., Wang, Y.-X., Azizzadenesheli, K., and Anandkumar, A. signsgd: Compressed optimisation for nonconvex problems, 2018. URL https://arxiv <em>.</em> org/ abs/1802 <em>.</em> 04434.</p>
+</li>
+<li>
+<p>Bhaskar, A., Wettig, A., Friedman, D., and Chen, D. Finding transformer circuits with edge pruning, 2025. URL https://arxiv <em>.</em> org/abs/2406 <em>.</em> 16778.</p>
+</li>
+<li>
+<p>Blalock, D., Gonzalez Ortiz, J. J., Frankle, J., and Guttag, J. What is the state of neural network pruning? In Dhillon, I., Papailiopoulos, D., and Sze, V. (eds.), <em>Proceedings of</em></p>
+</li>
+<li>
+<p><em>Machine Learning and Systems</em> , volume 2, pp. 129–146, 2020. URL https://proceedings <em>.</em> mlsys <em>.</em> org/ paper ~~f~~ iles/paper/2020/file/ 6c44dc73014d66ba49b28d483a8f8b0dPaper <em>.</em> pdf.</p>
+</li>
+<li>
+<p>Bolukbasi, T., Pearce, A., Yuan, A., Coenen, A., Reif, E., Viegas, F., and Wattenberg, M. An interpretability illusion´ for BERT. <em>arXiv preprint arXiv:2104.07143</em> , 2021.</p>
+</li>
+<li>
+<p>Braun, D., Taylor, J., Goldowsky-Dill, N., and Sharkey, L. Identifying functionally important features with end-toend sparse dictionary learning. 2024.</p>
+</li>
+<li>
+<p>Braun, D., Bushnaq, L., Heimersheim, S., Mendel, J., and Sharkey, L. Interpretability in parameter space: Minimizing mechanistic description length with attributionbased parameter decomposition, 2025. URL https: //arxiv <em>.</em> org/abs/2501 <em>.</em> 14926.</p>
+</li>
+<li>
+<p>Bricken, T., Templeton, A., Batson, J., Chen, B., Jermyn, A., Conerly, T., Turner, N., Anil, C., Denison, C., Askell, A., Lasenby, R., Wu, Y., Kravec, S., Schiefer, N., Maxwell, T., Joseph, N., Hatfield-Dodds, Z., Tamkin, A., Nguyen, K., McLean, B., Burke, J. E., Hume, T., Carter, S., Henighan, T., and Olah, C. Towards monosemanticity: Decomposing language models with dictionary learning. <em>Transformer Circuits Thread</em> , 2023. https://transformercircuits.pub/2023/monosemantic-features/index.html.</p>
+</li>
+<li>
+<p>Bushnaq, L., Braun, D., and Sharkey, L. Stochastic parameter decomposition. <em>arXiv preprint arXiv:2506.20790</em> , 2025.</p>
+</li>
+<li>
+<p>Cao, S., Sanh, V., and Rush, A. M. Low-complexity probing via finding subnetworks, 2021. URL https: //arxiv <em>.</em> org/abs/2104 <em>.</em> 03514.</p>
+</li>
+<li>
+<p>Chan, L., Garriga-Alonso, A., Goldwosky-Dill, N., Greenblatt, R., Nitishinskaya, J., Radhakrishnan, A., Shlegeris, B., and Thomas, N. Causal scrubbing, a method for rigorously testing interpretability hypotheses. <em>AI Alignment Forum</em> , 2022. https://www <em>.</em> alignmentforum <em>.</em> org/posts/ JvZhhzycHu2Yd57RN/causal-scrubbing-amethod-for-rigorously-testing.</p>
+</li>
+<li>
+<p>Chaudhari, M., Nuer, J., and Thorstenson, R. Superposition in mixture of experts. In <em>Mechanistic Interpretability Workshop at NeurIPS</em> , 2025.</p>
+</li>
+<li>
+<p>Chughtai, B. and Bushnaq, L. Activation space interpretability may be doomed. https://www <em>.</em> lesswrong <em>.</em> com/posts/ gYfpPbww3wQRaxAFD/activation-spaceinterpretability-may-be-doomed, 2025.</p>
+</li>
+<li>
+<p>Conmy, A., Mavor-Parker, A. N., Lynch, A., Heimersheim, S., and Garriga-Alonso, A. Towards automated circuit discovery for mechanistic interpretability, 2023. URL https://arxiv <em>.</em> org/abs/2304 <em>.</em> 14997.</p>
+</li>
+<li>
+<p>Dettmers, T. and Zettlemoyer, L. Sparse networks from scratch: Faster training without losing performance, 2019. URL https://arxiv <em>.</em> org/abs/1907 <em>.</em> 04840.</p>
+</li>
+<li>
+<p>Dunefsky, J., Chlenski, P., and Nanda, N. Transcoders find interpretable llm feature circuits, 2024. URL https: //arxiv <em>.</em> org/abs/2406 <em>.</em> 11944.</p>
+</li>
+<li>
+<p>Eldan, R. and Li, Y. Tinystories: How small can language models be and still speak coherent english?, 2023. URL https://arxiv <em>.</em> org/abs/2305 <em>.</em> 07759.</p>
+</li>
+<li>
+<p>Elhage, N., Hume, T., Olsson, C., Nanda, N., and et al. Softmax linear units. https://transformercircuits <em>.</em> pub/2022/solu/index <em>.</em> html, 2022a.</p>
+</li>
+<li>
+<p>Elhage, N., Hume, T., Olsson, C., Schiefer, N., Henighan, T., Kravec, S., Hatfield-Dodds, Z., Lasenby, R., Drain, D., Chen, C., et al. Toy models of superposition. <em>arXiv preprint arXiv:2209.10652</em> , 2022b.</p>
+</li>
+<li>
+<p>Evci, U., Pedregosa, F., Gomez, A., and Elsen, E. The difficulty of training sparse neural networks, 2020. URL https://arxiv <em>.</em> org/abs/1906 <em>.</em> 10732.</p>
+</li>
+<li>
+<p>Evci, U., Gale, T., Menick, J., Castro, P. S., and Elsen, E. Rigging the lottery: Making all tickets winners, 2021. URL https://arxiv <em>.</em> org/abs/1911 <em>.</em> 11134.</p>
+</li>
+<li>
+<p>Farnik, L., Lawson, T., Houghton, C., and Aitchison, L. Jacobian sparse autoencoders: Sparsify computations, not just activations, 2025. URL https://arxiv <em>.</em> org/ abs/2502 <em>.</em> 18147.</p>
+</li>
+<li>
+<p>Fetterman, A. J., Kitanidis, E., Albrecht, J., Polizzi, Z., Fogelman, B., Knutins, M., Wroblewski,´ B., Simon, J. B., and Qiu, K. Tune as you scale: Hyperparameter optimization for compute efficient training (cost-aware pareto region bayesian search), 2023. URL https: //arxiv <em>.</em> org/abs/2306 <em>.</em> 08055.</p>
+</li>
+<li>
+<p>Frankle, J. and Carbin, M. The lottery ticket hypothesis: Finding sparse, trainable neural networks, 2019. URL https://arxiv <em>.</em> org/abs/1803 <em>.</em> 03635.</p>
+</li>
+<li>
+<p>Frantar, E. and Alistarh, D. Sparsegpt: Massive language models can be accurately pruned in one-shot, 2023. URL https://arxiv <em>.</em> org/abs/2301 <em>.</em> 00774.</p>
+</li>
+<li>
+<p>Frantar, E., Singh, S. P., and Alistarh, D. Optimal brain compression: A framework for accurate posttraining quantization and pruning, 2023. URL https: //arxiv <em>.</em> org/abs/2208 <em>.</em> 11580.</p>
+</li>
+<li>
+<p>Friedman, D., Wettig, A., and Chen, D. Learning transformer programs, 2023. URL https://arxiv <em>.</em> org/ abs/2306 <em>.</em> 01128.</p>
+</li>
+<li>
+<p>Friedman, D., Lampinen, A., Dixon, L., Chen, D., and Ghandeharioun, A. Interpretability illusions in the generalization of simplified models, 2024. URL https: //arxiv <em>.</em> org/abs/2312 <em>.</em> 03656.</p>
+</li>
+<li>
+<p>Gale, T., Elsen, E., and Hooker, S. The state of sparsity in deep neural networks, 2019. URL https: //arxiv <em>.</em> org/abs/1902 <em>.</em> 09574.</p>
+</li>
+<li>
+<p>Gao, L., la Tour, T. D., Tillman, H., Goh, G., Troll, R., Radford, A., Sutskever, I., Leike, J., and Wu, J. Scaling and evaluating sparse autoencoders, 2024. URL https: //arxiv <em>.</em> org/abs/2406 <em>.</em> 04093.</p>
+</li>
+<li>
+<p>Han, S., Mao, H., and Dally, W. J. Deep compression: Compressing deep neural networks with pruning, trained quantization and huffman coding, 2016. URL https: //arxiv <em>.</em> org/abs/1510 <em>.</em> 00149.</p>
+</li>
+<li>
+<p>Hassibi, B. and Stork, D. G. Second order derivatives for network pruning: Optimal brain surgeon. <em>Advances in Neural Information Processing Systems</em> , 5:164–171, 1993.</p>
+</li>
+<li>
+<p>Haviv, A., Ram, O., Press, O., Izsak, P., and Levy, O. Transformer language models without positional encodings still learn positional information, 2022. URL https: //arxiv <em>.</em> org/abs/2203 <em>.</em> 16634.</p>
+</li>
+<li>
+<p>Heimersheim, S. and Nanda, N. How to use and interpret activation patching, 2024. URL https://arxiv <em>.</em> org/ abs/2404 <em>.</em> 15255.</p>
+</li>
+<li>
+<p>Hurley, N. P. and Rickard, S. T. Comparing measures of sparsity, 2009. URL https://arxiv <em>.</em> org/abs/ 0811 <em>.</em> 4706.</p>
+</li>
+<li>
+<p>Hanni,¨ K., Mendel, J., Vaintrob, D., and Chan, L. Mathematical models of computation in superposition, 2024. URL https://arxiv <em>.</em> org/abs/2408 <em>.</em> 05451.</p>
+</li>
+<li>
+<p>Jayakumar, S. M., Pascanu, R., Rae, J. W., Osindero, S., and Elsen, E. Top-kast: Top-k always sparse training, 2021. URL https://arxiv <em>.</em> org/abs/2106 <em>.</em> 03517.</p>
+</li>
+<li>
+<p>Kamath, H., Ameisen, E., Kauvar, I., Luger, R., Gurnee, W., Pearce, A., Zimmerman, S., Batson, J., Conerly, T., Olah, C., and Lindsey, J. Tracing attention computation: Attention connects features, and features direct attention. <em>Transformer Circuits Thread</em> , 2025. URL https://transformer-circuits <em>.</em> pub/2025/ attention-qk/index <em>.</em> html.</p>
+</li>
+<li>
+<p>Key, O., Ribar, L., Cattaneo, A., Hudlass-Galley, L., and Orr, D. Approximate top-$k$ for increased parallelism, 2024. URL https://arxiv <em>.</em> org/abs/2412 <em>.</em> 04358.</p>
+</li>
+<li>
+<p>Kingma, D. P. and Ba, J. Adam: A method for stochastic optimization. <em>arXiv preprint arXiv:1412.6980</em> , 2014.</p>
+</li>
+<li>
+<p>Kramar, J., Lieberum, T., Shah, R., and Nanda, N. Atp*: An´ efficient and scalable method for localizing llm behaviour to components, 2024. URL https://arxiv <em>.</em> org/ abs/2403 <em>.</em> 00745.</p>
+</li>
+<li>
+<p>Lai, P. Gpt circuits. https://peterlai <em>.</em> github <em>.</em> io/ gpt-circuits/, 2025.</p>
+</li>
+<li>
+<p>LeCun, Y., Denker, J. S., and Solla, S. A. Optimal brain damage. In <em>Advances in Neural Information Processing Systems 2</em> , pp. 598–605. Morgan Kaufmann, 1990.</p>
+</li>
+<li>
+<p>Lee, N., Ajanthan, T., and Torr, P. H. S. Snip: Single-shot network pruning based on connection sensitivity, 2019. URL https://arxiv <em>.</em> org/abs/1810 <em>.</em> 02340.</p>
+</li>
+<li>
+<p>Lieberum, T., Rahtz, M., Kramar, J., Nanda, N., Irving, G.,´ Shah, R., and Mikulik, V. Does circuit analysis interpretability scale? evidence from multiple choice capabilities in chinchilla, 2023. URL https://arxiv <em>.</em> org/ abs/2307 <em>.</em> 09458.</p>
+</li>
+<li>
+<p>Lindsey, J., Gurnee, W., Ameisen, E., Chen, B., Pearce, A., Turner, N. L., Citro, C., Abrahams, D., Carter, S., Hosmer, B., Marcus, J., Sklar, M., Templeton, A., Bricken, T., McDougall, C., Cunningham, H., Henighan, T., Jermyn, A., Jones, A., Persic, A., Qi, Z., Thompson, T. B., Zimmerman, S., Rivoire, K., Conerly, T., Olah, C., and Batson, J. On the biology of a large language model. <em>Transformer Circuits Thread</em> , 2025. URL https://transformer-circuits <em>.</em> pub/2025/ attribution-graphs/biology <em>.</em> html.</p>
+</li>
+<li>
+<p>Liu, D. C. and Nocedal, J. On the limited memory BFGS method for large scale optimization. <em>Mathematical Programming</em> , 45(1–3):503–528, 1989.</p>
+</li>
+<li>
+<p>Loshchilov, I. and Hutter, F. Decoupled weight decay regularization. In <em>Proceedings of the 2nd International Conference on Learning Representations (ICLR)</em> , pp. 1–13, 2019. doi: 10 <em>.</em> 48550/arXiv <em>.</em> 1711 <em>.</em> 05101. URL https://arxiv <em>.</em> org/abs/1711 <em>.</em> 05101.</p>
+</li>
+<li>
+<p>Louizos, C., Welling, M., and Kingma, D. P. Learning sparse neural networks through <em>L</em> 0 regularization, 2018. URL https://arxiv <em>.</em> org/abs/1712 <em>.</em> 01312.</p>
+</li>
+<li>
+<p>Makelov, A., Lange, G., and Nanda, N. Is this the subspace you are looking for? an interpretability illusion for subspace activation patching, 2023. URL https: //arxiv <em>.</em> org/abs/2311 <em>.</em> 17030.</p>
+</li>
+<li>
+<p>Marks, S., Rager, C., Michaud, E. J., Belinkov, Y., Bau, D., and Mueller, A. Sparse feature circuits: Discovering and editing interpretable causal graphs in language models. <em>arXiv preprint arXiv:2403.19647</em> , 2024.</p>
+</li>
+<li>
+<p>Marks, S., Rager, C., Michaud, E. J., Belinkov, Y., Bau, D., and Mueller, A. Sparse feature circuits: Discovering and editing interpretable causal graphs in language models, 2025. URL https://arxiv <em>.</em> org/abs/ 2403 <em>.</em> 19647.</p>
+</li>
+<li>
+<p>Michaud, E. J., Parker-Sartori, A., and Tegmark, M. On the creation of narrow ai: hierarchy and nonlocality of neural network skills, 2025. URL https://arxiv <em>.</em> org/ abs/2505 <em>.</em> 15811.</p>
+</li>
+<li>
+<p>Mocanu, D. C., Mocanu, E., Stone, P., Nguyen, P. H., Gibescu, M., and Liotta, A. Scalable training of artificial neural networks with adaptive sparse connectivity inspired by network science. <em>Nature Communications</em> , 9 (1), June 2018. ISSN 2041-1723. doi: 10 <em>.</em> 1038/s41467018-04316-3. URL http://dx <em>.</em> doi <em>.</em> org/10 <em>.</em> 1038/ s41467-018-04316-3.</p>
+</li>
+<li>
+<p>Olah, C., Mordvintsev, A., and Schubert, L. Feature visualization. <em>Distill</em> , 2017. doi: 10 <em>.</em> 23915/distill <em>.</em> 00007. https://distill.pub/2017/feature-visualization.</p>
+</li>
+<li>
+<p>Olah, C., Turner, N. L., and Conerly, T. A toy model of interference weights. https: //transformer-circuits <em>.</em> pub/2025/ interference-weights/index <em>.</em> html, 7 2025. Transformer Circuits.</p>
+</li>
+<li>
+<p>Radford, A., Wu, J., Child, R., Luan, D., Amodei, D., Sutskever, I., et al. Language models are unsupervised multitask learners. <em>OpenAI blog</em> , 1(8):9, 2019.</p>
+</li>
+<li>
+<p>Rajamanoharan, S., Lieberum, T., Sonnerat, N., Conmy, A., Varma, V., Kramar,´ J., and Nanda, N. Jumping ahead: Improving reconstruction fidelity with jumprelu sparse autoencoders, 2024. URL https://arxiv <em>.</em> org/abs/ 2407 <em>.</em> 14435.</p>
+</li>
+<li>
+<p>Sharkey, L., Braun, D., and Millidge, B. Taking features out of superposition with sparse autoencoders. <em>AI Alignment Forum</em> , 2022. URL https://www <em>.</em> alignmentforum <em>.</em> org/ posts/z6QQJbtpkEAX3Aojj/interimresearch-report-taking-features-outof-superposition.</p>
+<ul>
+<li>
+<p>Syed, A., Rager, C., and Conmy, A. Attribution patching outperforms automated circuit discovery, 2023. URL https://arxiv <em>.</em> org/abs/2310 <em>.</em> 10348.</p>
+</li>
+<li>
+<p>Templeton, A., Conerly, T., Marcus, J., Lindsey, J., Bricken, T., Chen, B., Pearce, A., Citro, C., Ameisen, E., Jones, A., Cunningham, H., Turner, N. L., McDougall, C., MacDiarmid, M., Freeman, C. D., Sumers, T. R., Rees, E., Batson, J., Jermyn, A., Carter, S., Olah, C., and Henighan, T. Scaling monosemanticity: Extracting interpretable features from claude 3 sonnet. <em>Transformer Circuits Thread</em> , 2024. URL https://transformer-circuits <em>.</em> pub/2024/ scaling-monosemanticity/index <em>.</em> html.</p>
+</li>
+<li>
+<p>Wang, K., Variengien, A., Conmy, A., Shlegeris, B., and Steinhardt, J. Interpretability in the wild: a circuit for indirect object identification in gpt-2 small, 2022. URL https://arxiv <em>.</em> org/abs/2211 <em>.</em> 00593.</p>
+</li>
+<li>
+<p>Weiss, G., Goldberg, Y., and Yahav, E. Thinking like transformers, 2021. URL https://arxiv <em>.</em> org/abs/ 2106 <em>.</em> 06981.</p>
+</li>
+<li>
+<p>Wong, E., Santurkar, S., and Madry, A. Leveraging sparse linear layers for debuggable deep networks, 2021. URL https://arxiv <em>.</em> org/abs/2105 <em>.</em> 04857.</p>
+</li>
+<li>
+<p>Xiao, G., Tian, Y., Chen, B., Han, S., and Lewis, M. Efficient streaming language models with attention sinks. <em>arXiv preprint arXiv:2309.17453</em> , 2023.</p>
+</li>
+<li>
+<p>Zhang, B. and Sennrich, R. Root mean square layer normalization, 2019. URL https://arxiv <em>.</em> org/abs/ 1910 <em>.</em> 07467.</p>
+</li>
+<li>
+<p>Zhu, M. and Gupta, S. To prune, or not to prune: Exploring the efficacy of pruning for model compression, 2017. URL https://arxiv <em>.</em> org/abs/1710 <em>.</em> 01878.</p>
+</li>
+</ul>
+</li>
+<li>
+<p>Shazeer, N. and Stern, M. Adafactor: Adaptive learning rates with sublinear memory cost, 2018. URL https: //arxiv <em>.</em> org/abs/1804 <em>.</em> 04235.</p>
+</li>
+<li>
+<p>Shazeer, N., Mirhoseini, A., Maziarz, K., Davis, A., Le, Q., Hinton, G., and Dean, J. Outrageously large neural networks: The sparsely-gated mixture-of-experts layer. <em>arXiv preprint arXiv:1701.06538</em> , 2017.</p>
+</li>
+<li>
+<p>Sun, M., Liu, Z., Bair, A., and Kolter, J. Z. A simple and effective pruning approach for large language models, 2024. URL https://arxiv <em>.</em> org/abs/2306 <em>.</em> 11695.</p>
+</li>
+</ul>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0014-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>4.25<br>0.5<br>7.4M<br>4.00<br>3.75 0.4<br>29.7M<br>3.50<br>0.3<br>118.8M 3.25<br>3.00 0.2<br>475.1M<br>2.75<br>2.50 0.1<br>1900.5M<br>2.25<br>0.9M 1.9M 3.7M 7.4M 14.8M 0.0<br>Number of nonzero parameters (L0) 0.0 0.2 0.4 0.6 0.8 1.0<br>Progress<br>log(mean(kurtosis))<br>Total parameter count Relative Learning Rate<br><!-- End of picture text --></p>
+<p><em>Figure 10.</em> We find that weight sparsity induces activation sparsity in the residual stream. Since the residual stream entries are rarely exactly zero, we measure kurtosis instead. As the weight <em>L</em> 0 gets smaller, or the number of total parameters gets larger, the kurtosis of the final residual stream activation increases.</p>
+<p><em>Figure 11.</em> The sharkfin lr schedule with 1% warmup and <em>L</em> 0 decay for the first 50% of training.</p>
+<h2><strong>A. Method details</strong></h2>
+<p>Many of our experiments were run with slightly different settings at different points in time. As a result, numbers across different plots are difficult to compare, and these method details are a general rule, but not exactly applicable to every model we train.</p>
+<h3><strong>A.1. Architecture</strong></h3>
+<p>Our architecture is very close to a standard GPT-2 Transformer architecture (Radford et al., 2019). Most experiments use <em>n</em> layer = 8, <em>d</em> model = 2048, <em>n</em> ctx = 256, unless stated otherwise. To ensure that zero values have a privileged meaning in the residual stream, we use RMSNorm (Zhang &amp; Sennrich, 2019) instead of LayerNorm. Using RMSNorm also enables us to fold all normalization weights into the MLP/attention weights without altering the weight <em>L</em> 0. Our embedding and unembedding matrices are untied. For some models, we use attention sinks (a per-head learnable attention denominator bias) (Xiao et al., 2023), which we find leads to cleaner attention circuits, without impacting loss substantially (Figure 18).</p>
+<p>To enforce small <em>L</em> 0 norm of activations, we apply an AbsTopK activation function at various locations in the model, zeroing out all but the <em>k</em> largest values by magnitude at various locations; we generally set <em>k</em> to<sup><u>1</u></sup> 4<sup>of the dimension of</sup> the location, unless otherwise indicated. See Figure 12 for an illustration of where the AbsTopK activation functions are placed for attention and MLP layers respectively. We find that some amount of activation sparsity helps on top of weight sparsity, but that too much activation sparsity hurts the capabilities-interpretability frontier again (Figure 37).</p>
+<p>We also have some evidence that activation sparsity emerges naturally from weight sparsity: we observe that kurtosis of activations increases with increasing weight sparsity (Figure 10).</p>
+<p>We also add a bigram table—a single dense <em>d</em> vocab <em>× d</em> vocab matrix, with the most recent token’s entries added to the final logits—to avoid the need for the sparse parameters to memorize bigram frequencies. Intuitively, it is desirable to add dense components to the model that have very simple interpretations (prior log probabilities over bigrams); they help improve the loss (Figure 24), and avoid valuable MLP and attention space being taken up by this information.</p>
+<p>In most experiments we do not use positional embeddings at all (Haviv et al., 2022); we find that this is roughly neutral on loss (Figure 26). In some earlier experiments we used learned absolute positional encodings, concatenated to the residual stream as read-only channels: we find that this improves interpretability, leading to sparser activation patterns within the attention heads.</p>
+<p>We use small <em>d</em> head (16 for most experiments in this paper), which we find anecdotally to improve monosemanticity of attention heads, at the cost of systems efficiency.</p>
+<h3><strong>A.2. Weight-Sparse Model Optimization</strong></h3>
+<p>We use AdamW (Loshchilov &amp; Hutter, 2019; Kingma &amp; Ba, 2014) with <em>β</em> 1 = 0 <em>.</em> 9 <em>, β</em> 2 = 0 <em>.</em> 95 <em>, λ</em> = 0 <em>.</em> 1 <em>, ϵ</em> = 0 <em>.</em> 1, and sweep lr for every experiment. See Figure 27, Figure 28, Figure 29, and Figure 30 for ablations of these hyperparameters.</p>
+<p>We also avoid zeroing values that would cause a neuron or attention channel to have fewer than <em>j</em> = 4 nonzero</p>
+<table>
+<thead>
+<tr>
+<th>TASKNAME</th>
+<th>DESCRIPTION</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>single<br>~~d~~ouble<br>~~q~~uote</td>
+<td>Predict whether a string should be closed with')or&quot;)</td>
+</tr>
+<tr>
+<td>final<br>~~k~~warg</td>
+<td>Predict whether a function argument has a default in the definition (because<br>previous arguments were kwargs), by measuring probability of=Nonevs<br>):__n.</td>
+</tr>
+<tr>
+<td>set<br>~~o~~r<br>~~s~~tring</td>
+<td>Track whether a variable is a<br>set()<br>or string, and predict whether to</td>
+</tr>
+<tr>
+<td></td>
+<td>complete the input with .add or += (these particular types chosen for<br>tokenization reasons)</td>
+</tr>
+<tr>
+<td>set<br>~~o~~r<br>~~s~~tring<br>~~f~~ixedvarname</td>
+<td>Same asset<br>~~o~~r<br>~~s~~tringbut the variable name is always the same.</td>
+</tr>
+<tr>
+<td>class<br>~~i~~nit</td>
+<td>Given a class init with many lines of the formself.x = x, learn to copy<br>the variable name after the equals sign.</td>
+</tr>
+<tr>
+<td>with<br>~~a~~s</td>
+<td>differentiate between using with as statements and variable declarations for<br>file loading (the former requires the model topredict as<br>)</td>
+</tr>
+<tr>
+<td>bracket<br>~~b~~race</td>
+<td>Predict whether the next token should be a :<br>or a ~~,~~<br>based on whether<br>we’re currently in a dict or a list.</td>
+</tr>
+<tr>
+<td>with<br>~~o~~pen</td>
+<td>predict whether to read 'r'<br>or write 'w'<br>to a file in a python open<br>statement based off of its name.</td>
+</tr>
+<tr>
+<td>bracket<br>~~c~~ounting</td>
+<td>Predict ]<br>or ]]<br>depending on how many layers of bracket nesting we’re<br>in.</td>
+</tr>
+<tr>
+<td>for<br>~~w~~hile</td>
+<td>Predict in<br>or :<br>based on if a loop in python is a for loop or a while loop.</td>
+</tr>
+<tr>
+<td>else<br>~~e~~lif</td>
+<td>Predict :<br>or not :<br>based on if a else statement is else or elif.</td>
+</tr>
+<tr>
+<td>fstring<br>~~b~~race</td>
+<td>Predict whether a print statement involves an fstring or not (by whether or<br>not a model inserts a variable name in the print).</td>
+</tr>
+<tr>
+<td>if<br>~~t~~ernary</td>
+<td>Predict :<br>depending on whether or not an if statement is inside a ternary<br>expression.</td>
+</tr>
+<tr>
+<td>var<br>~~s~~wap</td>
+<td>Predict x<br>when asked to swap variables x and y using x, y = y, x</td>
+</tr>
+<tr>
+<td>indent<br>~~f~~or</td>
+<td>Predict the correct indentation following a for loop in python.</td>
+</tr>
+<tr>
+<td>lambda<br>~~f~~unc</td>
+<td>distinguish lambda expressions from functions, predicting :<br>for lambdas<br>(x = lambda func :<br>), and ( for functions, def func (</td>
+</tr>
+<tr>
+<td>if<br>~~e~~quals</td>
+<td>Predict x ==<br>or x =<br>depending on if the statement is an if conditional or<br>variable declaration.</td>
+</tr>
+<tr>
+<td>enumerate<br>~~r~~ange</td>
+<td>Predict enumerate<br>vs range<br>depending on whether a for loop in</td>
+</tr>
+<tr>
+<td></td>
+<td>python is over one or two variables</td>
+</tr>
+<tr>
+<td>var<br>~~i~~f</td>
+<td>Predict if x == True :newline<br>or x = True newline<br>depending on if</td>
+</tr>
+<tr>
+<td></td>
+<td>the statement is an if conditional or variable declaration.</td>
+</tr>
+<tr>
+<td>while<br>~~r~~eturn<br>~~t~~rue</td>
+<td>Predict the correct indentation following a while true or return true statement.</td>
+</tr>
+</tbody>
+</table>
+<p><em>Table 1.</em> List of all handcrafted tasks we created.</p>
+<p>values, to reduce the chance of dead neurons (Figure 22).<sup>15</sup> We anneal the <em>L</em> 0 linearly over the first 50%<sup>16</sup> of training (Figure 17), so that the model becomes sparser throughout training (Zhu &amp; Gupta, 2017). Our lr schedule is defined by the product of a normal warmup-decay schedule, and a factor of 1 <em>/</em><sup><em>√</em></sup> <em>LO</em> , as we find smaller <em>L</em> 0 requires larger lrs. We find that this change is necessary to get any benefit from <em>L</em> 0 annealing (Figure 25).</p>
+<p>We clip the root-mean-square of the gradient to 1. We find gradient clipping essential for ensuring training stability</p>
+<p>15It hurts the loss, and has an unclear impact on interpretability. We’re not sure if we would include it in future runs. We also think this could reduce the apparent qualitative monosemanticity of randomly sampled nodes; it potentially artificially keeps some irrelevant neurons alive that “want” to be dead.</p>
+<blockquote>
+<p>16For our largest, sparsest models, we found it beneficial to increase this to 80%.</p>
+</blockquote>
+<p>(Figure 16).</p>
+<p>At some point, we identified a bug in our <em>L</em> 0 scheduling that meant while our weights had the intended <em>L</em> 0 schedule, the embedding, unembedding, and biases would go from dense to sparse in a relatively small number of steps in the middle of training. However, fixing this bug seems to very slightly hurt model quality in terms of both capabilities and interpretability, so we kept it in. (Figure 21).</p>
+<p>We find that lr warmup (for the first 1% of training in most of our experiments) is critical for stability at higher lrs, substantially improving optimal loss (Figure 13). We also find that doing a longer warmup is slightly beneficial (Figure 14).</p>
+<p>We generally don’t find improvements of the capabilityinterpretability pareto frontier from increased token budget on the current margin; while increasing token budget improves the pretraining loss, it generally hurts the pruned</p>
+<p>circuit size.</p>
+<h3><strong>A.3. Bridges loss terms</strong></h3>
+<p>We want the weight-sparse model to match the dense model’s computations, with the bridges accurately translating between the sparse and dense activations. To accomplish this, we use three bridge loss terms in addition to normal pretraining loss. Let <em>h</em><sup>d</sup> <em>i</em><sup>and</sup><sup>_h_s</sup> <em>i</em><sup>be the residual activations of</sup> the respective models at layer <em>i</em> , <em>Mi</em><sup>d,</sup><sup>_M_s</sup> <em>i</em><sup>be the sublayers of</sup> the model (either an MLP or attention block), so that <em>h</em><sup>d</sup> 0<sup>,</sup><sup>_h_s</sup> 0 are the token embeddings of the dense and sparse models, and <em>Mi</em><sup>d(</sup><sup>_h_d</sup> <em>i</em><sup>)=</sup><sup>_h_d</sup> <em>i</em> +1<sup>,</sup><sup>_M_s</sup> <em>i</em><sup>(</sup><sup>_h_s</sup> <em>i</em><sup>)=</sup><sup>_h_s</sup> <em>i</em> +1<sup>),</sup><sup>_fi_and</sup><sup>_gi_bethe</sup> bridge encoders and decoders, and <em>y</em><sup>d</sup> = <em>M</em> unemb<sup>d(</sup><sup><em>h</em></sup> <em>L</em><sup>d) as the</sup> final logits. First, we have a normalized MSE term</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0016-04.jpg" alt="" /></p>
+<p>Second, we have a KL term to train the sparse model to accept activations from the dense models</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0016-06.jpg" alt="" /></p>
+<p>and another term for the reverse—dense models accepting activations from sparse models</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0016-08.jpg" alt="" /></p>
+<h3>(Figure 7).</h3>
+<p>Ideally, we’d like to train over all 2<sup><em>L</em></sup> possible combinations of sparse and dense layers. We can think of our KL terms as the first order approximation of this, where we consider only the subset of combinations with one transition between sparse and dense.</p>
+<h3><strong>A.4. Bridge intervention</strong></h3>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0016-12.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>RMSNorm RMSNorm<br>AbsTopK AbsTopK<br>make Q,K,V mlp fc<br>AbsTopK AbsTopK<br>attn op mlp cproj<br>AbsTopK AbsTopK<br><!-- End of picture text --></p>
+<p><em>Figure 12.</em> An illustration of our attention and MLP blocks, respectively. The AbsTopK activation functions are inserted at each node position, between each operation. AbsTopK is applied to Q,K, and V seperately.</p>
+<p>with<sup><em>√</em></sup> <em>dmodel</em> -scale norm. To compensate, we multiply the bridge weights by the ratio of RMS residual stream activations averaged over a reference dataset before performing the intervention.</p>
+<p>To construct the sparse model intervention, we first subtract the activation of the channel of interest in the presented condition (e.g. double quote) from the activation in the counterfactual condition (e.g. single quote) at all tokens. We then take the outer product with the corresponding row of the bridge (scaled as described above) and construct a tensor of tokens by dense model hidden dimension. We scale this by a “steering strength” between 0.0 (no intervention) and 1.0 (fully patched).</p>
+<p>Bridges are trained to convert between residual stream locations in a dense and in a sparse model. We would like to reuse these bridges to convert single-node interventions in sparse models to “interpretable” dense interventions in dense models.</p>
+<p>Bridges act on residual stream locations (pre-RMSNorm), and so they learn to compensate for differences in scale of the residual stream between sparse and dense models. Because these locations are not “nodes” in our framework, when performing interventions we instead use the next nodes that exist, which are post-RMSNorm residual stream reads. The residual stream scale consideration does not apply post-RMSNorm, where both models have activations</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0017-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.35 × 10 0 Model width<br>1.325 × 10 0 256<br>512<br>1.3 × 10 0 1024<br>Experiment<br>1.275 × 10 0 Baseline<br>No lr warmup<br>1.25 × 10 0<br>1.225 × 10 0<br>1.2 × 10 0<br>1.175 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 13.</em> Learning rate warmup ablation</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0017-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Model width<br>1.35 × 10 0 256<br>512<br>1024<br>1.3 × 10 0 Experiment<br>Baseline<br>Lr warmup over first 5%<br>1.25 × 10 0 Lr warmup over first 10%<br>1.2 × 10 0<br>1.15 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 14.</em> Learning rate warmup fraction ablation (1%)</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0017-05.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.9 × 10 0 Model width<br>256<br>1.8 × 10 0 512<br>1.7 × 10 0 1024<br>Experiment<br>1.6 × 10 0 Baseline<br>No lr decay<br>1.5 × 10 0<br>1.4 × 10 0<br>1.3 × 10 0<br>1.2 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 15.</em> Learning rate decay ablation</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0017-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.5 × 10 0 Model width<br>256<br>1.45 × 10 0 512<br>1024<br>1.4 × 10 0 Experiment<br>Baseline<br>1.35 × 10 0 noclip<br>1.3 × 10 0<br>1.25 × 10 0<br>1.2 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 16.</em> Grad clipping ablations</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0017-09.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.35 × 10 0 Model width<br>256<br>1.325 × 10 0 512<br>1024<br>1.3 × 10 0 Experiment<br>Baseline<br>1.275 × 10 0<br>anneal_stop_frac0.2<br>1.25 × 10 0 anneal_stop_frac0.8<br>1.225 × 10 0<br>1.2 × 10 0<br>1.175 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 17.</em> Fraction of training spent annealing ablation (baseline is 50%)</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0017-11.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.35 × 10 0 Model width<br>1.325 × 10 0 256<br>512<br>1.3 × 10 0 1024<br>Experiment<br>1.275 × 10 0 Baseline<br>Attention sink<br>1.25 × 10 0<br>1.225 × 10 0<br>1.2 × 10 0<br>1.175 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 18.</em> Attention sink ablation</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0018-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.35 × 10 0<br>Model width<br>1.325 × 10 0 256<br>512<br>1.3 × 10 0 1024<br>Experiment<br>1.275 × 10 0<br>Baseline<br>1.25 × 10 0 Dense biases<br>1.225 × 10 0<br>1.2 × 10 0<br>1.175 × 10 0<br>1.15 × 10 0<br>10 1<br>Learning rate<br>Figure 19. Sparse bias (baseline) vs dense bias ablation<br>1.35 × 10 0 Model width<br>1.325 × 10 0 256<br>512<br>1.3 × 10 0 1024<br>Experiment<br>1.275 × 10 0 Baseline<br>d_head = 32<br>1.25 × 10 0<br>d_head = 64<br>1.225 × 10 0<br>1.2 × 10 0<br>1.175 × 10 0<br>1.15 × 10 0<br>10 1<br>Learning rate<br>Figure 20. d h ead sweep (baseline = 16)<br>1.35 × 10 0 Model width<br>1.325 × 10 0 256<br>512<br>1.3 × 10 0 1024<br>Experiment<br>1.275 × 10 0 Baseline<br>embbias_pfrac_anneal_fix<br>1.25 × 10 0<br>1.225 × 10 0<br>1.2 × 10 0<br>1.175 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br>Cross-entropy loss<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 21. L</em> 0 decay schedule for biases and embedding matrices</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0018-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Model width<br>1.35 × 10 0<br>256<br>512<br>1024<br>1.3 × 10 0<br>Experiment<br>Baseline<br>Keeping j = 1 neuron alive<br>1.25 × 10 0 Keeping j = 2 neurons alive<br>neuronwise_none<br>1.2 × 10 0<br>1.15 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 22.</em> Number of forced-alive weights per neuron ablation (baseline is <em>j</em> = 4)</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0018-05.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Model width<br>1.4 × 10 0<br>256<br>512<br>1.35 × 10 0 1024<br>Experiment<br>Baseline<br>1.3 × 10 0 No L0 annealing<br>1.25 × 10 0<br>1.2 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 23. L</em> 0 annealing ablation</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0018-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.375 × 10 0<br>Model width<br>1.35 × 10 0 256<br>1.325 × 10 0 512<br>1024<br>1.3 × 10 0 Experiment<br>Baseline<br>1.275 × 10 0<br>No bigram table<br>1.25 × 10 0<br>1.225 × 10 0<br>1.2 × 10 0<br>1.175 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 24.</em> Bigram table ablation</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0019-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Model width<br>256<br>1.35 × 10 0 512<br>1024<br>Experiment<br>1.3 × 10 0 Baseline<br>anneal_no_lr_with_L0<br>1.25 × 10 0<br>1.2 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 25.</em> Sharkfin (baseline) vs normal warmup-decay lr schedule</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0019-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.35 × 10 0 Model width<br>1.325 × 10 0 256<br>512<br>1.3 × 10 0 1024<br>Experiment<br>1.275 × 10 0 Baseline<br>Positional encoding<br>1.25 × 10 0<br>1.225 × 10 0<br>1.2 × 10 0<br>1.175 × 10 0<br>10 1<br>Learning rate<br>Figure 26. Positional embedding ablation<br>Model width<br>1.35 × 10 0 256<br>512<br>1024<br>1.3 × 10 0 Experiment<br>Baseline<br>b1_0.8<br>1.25 × 10 0 b1_0.95<br>1.2 × 10 0<br>1.15 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 27.</em> Adam <em>β</em> 1 ablation (baseline = 0.9)</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0019-05.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Model width<br>1.35 × 10 0 256<br>512<br>1024<br>Experiment<br>1.3 × 10 0<br>Baseline<br>b2_0.99<br>b2_0.999<br>1.25 × 10 0<br>1.2 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 28.</em> Adam <em>β</em> 2 ablation (baseline = 0.95)</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0019-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Model width<br>1.4 × 10 0<br>256<br>512<br>1.35 × 10 0 1024<br>Experiment<br>Baseline<br>1.3 × 10 0 wd0.03<br>wd0.3<br>1.25 × 10 0<br>1.2 × 10 0<br>10 1<br>Learning rate<br>Figure 29. Adam  λ  ablation (baseline = 0.1)<br>1.55 × 10 0<br>Model width<br>1.5 × 10 0 256<br>512<br>1.45 × 10 0 1024<br>1.4 × 10 0 Experiment<br>Baseline<br>1.35 × 10 0 eps = 1<br>eps = 0.01<br>1.3 × 10 0 eps = 0.001<br>1.25 × 10 0<br>1.2 × 10 0<br>10 1<br>Learning rate<br>Cross-entropy loss<br>Cross-entropy loss<br><!-- End of picture text --></p>
+<p><em>Figure 30.</em> Adam <em>ϵ</em> ablation (baseline = 0.1)</p>
+<h3><strong>A.5. Pruning algorithm</strong></h3>
+<p><strong>Setup.</strong> First, we insert boolean masks in several locations in the model:</p>
+<ul>
+<li>
+<p>Immediately after each RMSNorm in the attention and MLP blocks</p>
+</li>
+<li>
+<p>At the very end of each attention and MLP block, right before adding the result back to the residual stream</p>
+</li>
+<li>
+<p>After each MLP activation</p>
+</li>
+<li>
+<p>After the attention q, k, v activations<sup>17</sup></p>
+</li>
+</ul>
+<p>We consider each element of the mask in each of these locations to be a “node”, and the mask determines whether the node is included or excluded from the circuit. We reuse this definition of node in many other parts of this paper. Note that we apply the mask at the level of nodes, and not edges (e.g. interactions between nodes) as some previous pruning approaches (Bhaskar et al., 2025). We apply the mask uniformly across all prompts and across all tokens.</p>
+<p>We learn a parameter for each node that is clamped to [ <em>−</em> 1 <em>,</em> 1], which is used to compute a boolean mask at each step by passing the parameter through a Heaviside step function, which determines which nodes are included in the resulting circuit. By optimizing the mask, we can learn extremely small circuits (compared to baselines like selecting the top nodes by gradient attribution to task loss Figure 31).</p>
+<p><strong>Initialization.</strong> We initialize with Gaussian noise scaled by a factor of init ~~n~~ oise ~~s~~ cale, and centered at init ~~n~~ oise bias, and clamp the mask to [ <em>−</em> 1 <em>,</em> 1]. We enforce this clamping constraint after every training step.</p>
+<p><strong>Optimization.</strong> We optimize the masks using AdamW with grad clipping. We linearly decay lr through training without any warmup. To perform backpropagation through the Heaviside step function, we use a sigmoid estimator to compute a biased gradient approximation in the backward pass, with temperature heaviside ~~t~~ emp.</p>
+<p><strong>Loss function.</strong> We optimize our masks on a linear combination of task cross entropy and <em>k</em> , the number of nonzero elements in the mask. We weight these losses via a term k ~~c~~ oef.</p>
+<p><strong>Mask discretization.</strong> After training, we bisect for the <em>k</em> that exactly achieves the threshold; we’ve observed that</p>
+<blockquote>
+<p>17Since q and k channels are paired most of the time, this means that each attention qk pair generally uses up two nodes. In retrospect, queries and keys should have used tied masks.</p>
+</blockquote>
+<p>sometimes this diverges substantially from the final k output by the training procedure. As we find that our discretized models often are quite uncalibrated, we optimize a scale+shift transformation to the final logits using 16 steps of LBFGS (Liu &amp; Nocedal, 1989). It’s unclear whether this is principled to do in general.</p>
+<p><strong>Hyperparameter optimization.</strong> Because of the large number of hyperparameters, and the difficulty of setting them correctly, we use CARBS (Fetterman et al., 2023) to retune the hyperparameters for each combination of model and task. We run 32 iterations of CARBS with 8 parallel pruning jobs per iteration<sup>18</sup> , starting from the initial hyperparameters given in Table 2. We generally find that results are poor on the first iterations and improve dramatically towards the end of CARBS tuning.</p>
+<p>We use a batch size of 64 task datapoints (each consisting of a positive and negative sequence), for 128 total sequences of length up to 256 tokens.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0020-17.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>0.500<br>0.250<br>0.125<br>0.062<br>0.031<br>0.016<br>0.008<br>0.004<br>Attribution-based Pruning<br>0.002 Learned Pruning<br>128 512 2048 8192 32768 131072<br>Mean Edges (per circuit)<br>Task Loss<br><!-- End of picture text --></p>
+<p><em>Figure 31.</em> Learned pruning drastically outperforms a baseline of attribution-based pruning, finding much smaller circuits at all loss targets.</p>
+<h3><strong>A.6. Dataset</strong></h3>
+<p>Our data consists of Python code generated from a mix of GPT-4-base and GPT-4o-base. The data consists of two components: a 10 billion token component of Python code designed to consist of especially simple and repetitive idioms, and a 25 billion token component designed to be closer to the full distribution of Python code.</p>
+<p>Our decision to use a simpler data component was inspired by Eldan &amp; Li (2023), and our hope is that our mix makes it easier to observe interesting circuits at smaller scale without</p>
+<blockquote>
+<p>18That is, we do 256 total steps of the CARBS optimizer, but we alternate generating 8 suggestions, running all of them, updating on those 8 results, and repeating.</p>
+</blockquote>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0021-01.jpg" alt="" /></p>
+<p><em>Figure 32.</em> Inverse Pruning: ablating the circuit found by pruning cripples loss of the overall model. As the circuit found increases in size (and task performance), the model becomes (slightly) worse without it.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Hyperparameter</strong></th>
+<th><strong>CARBS search</strong><br><strong>center</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>k<br>~~c~~oef</td>
+<td>1_×<em>10<sup></em>−_4</sup></td>
+</tr>
+<tr>
+<td>init<br>~~n~~oise<br>~~s~~cale</td>
+<td>1_×<em>10<sup></em>−_2</sup></td>
+</tr>
+<tr>
+<td>init<br>~~n~~oise<br>~~b~~ias</td>
+<td>1_×<em>10<sup></em>−_1</sup></td>
+</tr>
+<tr>
+<td>wd</td>
+<td>1_×<em>10<sup></em>−_3</sup></td>
+</tr>
+<tr>
+<td>lr</td>
+<td>3_×<em>10<sup></em>−_3</sup></td>
+</tr>
+<tr>
+<td>inv<br>~~b~~eta2</td>
+<td>5_×<em>10<sup></em>−_2</sup></td>
+</tr>
+<tr>
+<td>lr<br>~~w~~armup<br>~~f~~rac</td>
+<td>5_×<em>10<sup></em>−_2</sup></td>
+</tr>
+<tr>
+<td>heaviside<br>~~t~~emp</td>
+<td>1_×_10<sup>0</sup></td>
+</tr>
+</tbody>
+</table>
+<p><em>Table 2.</em> Initial search centers for CARBS</p>
+<p>making the data too toy, though we did not ablate this. Some of the smaller scale experiments in this paper are trained only on the simpler component.</p>
+<p>We train a 2048 token BPE tokenizer on our dataset.</p>
+<h3><strong>A.7. Task tokenization considerations</strong></h3>
+<p>For <u>single</u> double quote, we consider the tokens (&quot; and (' , since they always appear as their own tokens, unlike &quot; and ' <u>,</u> which might be tokenized in diverse ways. Likewise for the closing quote tokens.</p>
+<p>For bracket ~~c~~ ounting, ], is one token, so ] is unlikely to indicate end of a non-final row.</p>
+<p>that high-performance GEMM kernels rely on, reduce data reuse from on-chip SRAM, and typically prevent the use of Tensor Cores. Since Tensor Cores provide the vast majority of available math throughput,<sup>19</sup> the default dense pathway is almost always preferable to attempting to implement matrix multiplies on CUDA cores.</p>
+<p><strong>GEMM dataflow on Hopper and Blackwell Architectures.</strong> Modern high-performance GEMM kernels typically use a tiled pipeline designed around bulk movement of <em>dense</em> submatrices and compute on Tensor Cores:</p>
+<ol>
+<li>
+<p><strong>Tile movement via Tensor Memory Accelerator (TMA).</strong> The TMA initiates asynchronous transfers of contiguous tensor tiles from global (HBM) to shared memory (SMEM).</p>
+</li>
+<li>
+<p><strong>MMA on tiles.</strong> Tensor core instructions operate on large tiles of data in SMEM and compute matrix multiplies of up to size 128x256.</p>
+</li>
+<li>
+<p><strong>Epilogue and global store.</strong> Accumulators are optionally fused with bias/activation epilogues and written back to HBM.</p>
+</li>
+</ol>
+<p>This dataflow assumes regular, contiguous tiles. Unstructured masks (our top- <em>k</em> selection) create irregular sparsity patterns that defeat bulk TMA copies and steady tensor core instruction issues.</p>
+<p>Even on non-GPU hardware, one can expect sparse models to be significantly inefficient compared to dense ones, due to the fundamental complexity required to implement sparse GEMMs. Using a tiled dataflow with tile size greater than one would result in the memory bandwidth being wasted on moving mostly zeros, so one needs to directly route the weights individually. On a fundamental level, one needs “extra space” on the GPU die to wire the any-to-any connections (to move each entry in each weight matrix from memory to its corresponding hardware arthimetic circuit), so even a hardware implementation heavily optimized for sparse models cannot achieve the same compute density as those using systolic array-like architectures. This limitation means that it is impossible for weight-sparse models as understood here to catch up to dense models in terms of kernel efficiency. Nonetheless, we present some ideas to improve efficiency on modern GPUs above the baseline naive implementation.</p>
+<h2><strong>B. Systems considerations for scaling</strong></h2>
+<p><strong>Option 1: CUDA Core GEMMs.</strong> Depending on the ra-</p>
+<p>Our weight-sparse training and pruning procedures optimize for interpretability, not for hardware efficiency. In particular, the (per-tensor) top- <em>k</em> magnitude masking used to enforce <em>L</em> 0 constraints induces <em>unstructured</em> sparsity. From a systems perspective, unstructured sparsity is unfriendly to modern GPUs: gathers/scatters break the tiled dataflow</p>
+<p>tio between the CUDA core FLOPS and the Tensor Core</p>
+<blockquote>
+<p>19On H100: <em>∼</em> 989 TFLOPs of half-precision matrixmultiply throughput on Tensor Cores versus <em>∼</em> 60 TFLOPs for “everything else,” i.e., CUDA cores and scalar units; see https://hazyresearch <em>.</em> stanford <em>.</em> edu/blog/202405-12-tk.</p>
+</blockquote>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0022-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>dense vs dense (correlation: 0.94) sparse vs dense (correlation: 0.93)<br>10 4 10 4<br>10 1<br>10 3 10 3<br>10 2 10 2<br>10 0<br>10 1 10 1<br>10 0 10 0<br>10 0 10 1 10 0 10 1<br>Dense model loss Sparse model loss<br>Number of tokens Number of tokens<br>Dense model loss (different seed) Dense model loss (different seed)<br><!-- End of picture text --></p>
+<p><em>Figure 33.</em> The loss of sparse and dense models on individual tokens is strongly correlated. The correlation is comparable to that between dense models trained with different seeds.</p>
+<p>FLOPS on the accelerator, we can determine to dispatch to sparse GEMM kernels written to run on the CUDA cores instead of Tensor Cores. CUDA cores have no tiling requirements and can thus efficiently operate on sparse data, with the caveat that they are much slower. We find that CUDA core GEMMs are more efficient than their Tensor Core counterparts at sub-1% sparsity levels.</p>
+<p><strong>Option 2: Semi-structured (2:4) sparsity.</strong> Sparse Tensor Cores accelerate GEMMs when one operand satisfies a 2:4 pattern (at minimum two zeros in every contiguous group of four elements along the reduction dimension), with a <em>maximum</em> theoretical 2 <em>×</em> math-throughput speedup and reduced memory traffic. We experiment with 2:4 semi-structured sparsity and find that it shows some improvement in throughput, especially in regimes of less sparsity (i.e., 1% to 50%). However, the improvement is generally less than the theoretical 2x. Fusing prune and compress into the matmul is challenging, so to minimize memory bandwidth usage, we would ideally fuse the 2:4 prune and compress for both the forward and backward (transposed) layouts into the top- <em>k</em> kernel.</p>
+<p><strong>TopK kernels.</strong> We find that significant time is spent on AbsTopK operations, both within the forward passes (enforcing activation sparsity) as well as during the training steps (enforcing weight sparsity). PyTorch’s naive TopK implementation uses a radix sort operation, which is slow.</p>
+<p>We find large speedups by binary searching over a threshold to find k, which requires very few memory writes. This speedup is most apparent during activation sparsity, as the small rows can be fit independently in different warps, allowing for massive parallelism across the batch dimension. This type of implementation can be sped up even more; we are excited about approaches for approximate top- <em>k</em> ,<sup>20</sup> as the model does not seem especially sensitive to this during training, as long as the final few steps are done exactly.</p>
+<p>Although these kernels would provide large speedups in theory, our current optimization stack is unsuited to using them during training. Significant further optimization research is needed to allow the use of sparse kernels everywhere, as well as sparse representations of all model parameters (to save memory). Early on in the project we experimented with various optimization changes to enable the kernel changes, but many of these systems changes would require architecting our codebase in a manner not conducive to rapid iteration, and so we ultimately decided to focus on research velocity for this work. Without additional research on systems approaches, we find it unlikely that we can drastically scale up our models, but we believe all of the problems outlined below to be tractable.</p>
+<blockquote>
+<p>20It’s worth being careful about approximate top- <em>k</em> . In some early experiments, we ran into some optimization degradation due to approximate top- <em>k</em> with Key et al. (2024), because the buckets would line up with rows of the matrix, thereby inducing unintended structure.</p>
+</blockquote>
+<p><em>dW</em> <strong>computation.</strong> While the forward pass matmul and <em>dx</em> matmul are both a sparse weight times a dense activation matrix, the <em>dW</em> computation requires taking the product of two dense matrices. Thus, the <em>dW</em> computation will become the limiting factor asymptotically. Importantly, only <em>L</em> 0 elements of <em>dW</em> will actually be used in the computation, but those elements are chosen by top- <em>k</em> of <em>W</em> + <em>dW</em> (assuming we use SGD; we address Adam in the next section). While the memory usage is more straightforward to fix (we can fuse a TopK into the matmul kernel), the compute usage is a greater challenge. We believe it may be possible to approximate the top- <em>k</em> of <em>W</em> + <em>dW</em> operation, or amortize it out over many steps, similar to Evci et al. (2021).</p>
+<p><strong>Adam moments.</strong> One other source of dense memory and compute usage is the Adam moments. In early experiments, we explored pruning the Adam moments to the <em>m · L</em> 0 most important entries, for various values of <em>m</em> and measures of moment importance, but always found this to be a nontrivial optimization hit at reasonable <em>m</em> . There are several approaches we could take: we could use an optimizer like SGD or signSGD (Bernstein et al., 2018); we could accept the cost of Adam moment pruning, if the systems win overall is worth it; we could use some hybrid of sparse-moment Adam with a memory-efficient Adam-like optimizer Adafactor (Shazeer &amp; Stern, 2018).</p>
+<p><strong>Annealing.</strong> We currently find that annealing our models from dense to sparse over a large amount of training helps substantially with optimization. If we were to significantly scale up, this would be a massive cost. We have also experimented with annealing schedules which decay rapidly over the first few training steps and still achieve similar final test loss.</p>
+<h2><strong>C. Binarizing feature magnitudes</strong></h2>
+<p>When an SAE feature activates, it can take on a very wide range of different possible strengths. Therefore, to fully understand what a feature is doing, it would be insufficient to merely show that it activates if and only if a certain concept is present; we’d also have to either explain why it activated to the extent it did, or claim that the magnitude is of no significance (Chan et al., 2022).</p>
+<p>Therefore, we binarized the model by inserting a step function at every node location, and then measuring the mean task loss.</p>
+<p><strong>Binarization algorithm.</strong> We construct an activation function <em>ψt,ℓ,r</em> such that <em>ψ</em> 1 is the identity function and <em>ψ</em> 0 is a step function</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0023-08.jpg" alt="" /></p>
+<p>so that we can interpolate between the two, and such that <em>ψt</em> ( <em>ℓ</em> ) = <em>ℓ</em> and <em>ψt</em> ( <em>r</em> ) = <em>r</em> , by mixing the identity function with an appropriately-shifted sigmoid of temperature <em>t</em> . Throughout training, we anneal <em>t</em> as (1 <em>−</em> progress)<sup>5</sup> .</p>
+<p>To initialize the parameters <em>ℓ</em> and <em>r</em> for each node, we iterate over each node and search over possible choices to find the choice that results in the least drop in performance. Specifically, we try thresholds<sup><u>1</u></sup> 4<sup>,</sup><sup><u>1</u></sup> 2<sup>,and</sup><sup><u>3</u></sup> 4<sup>ofthewayin</sup> between the max and min observed activations, and take the mean of the subset of activations above and below the threshold for <em>ℓ</em> and <em>r</em> .</p>
+<p><strong>Results.</strong> We find that we can often binarize tasks, and that while the result is very noisy, there is generally a trend towards greater binarizability as total params increases while <em>L</em> 0 is held constant (Figure 34). However, unlike the circuit size metric, where decreasing <em>L</em> 0 improves interpretability, we generally find that <em>increasing L</em> 0 at a constant number of total params improves binarizability. All baseline task losses start out the same, because we prune to a fixed target task loss.</p>
+<p>Anecdotally from qualitative exploration, some of our features do not seem binarizable, but still nonetheless seem to be understandable — for instance, some nodes, such as the one in bracket ~~c~~ ounting, take on 3 distinct semantic values (for outside a list, inside a singly nested list, or inside a doubly nested list); other nodes, especially attention key channels, grow continuously throughout the context, in order to pay more attention to recent tokens.</p>
+<h2><strong>D. Smooth Approximations to L0 Norm</strong></h2>
+<p>Previous work has discovered several techniques for enforcing sparsity in language models. In particular, Louizos et al. (2018) found success using a differentiable estimator of the <em>L</em> 0 norm based on the HardConcrete distribution. In this work, we benchmark this method against our TopK variant on a toy language modeling task.</p>
+<p>In order to improve performance, we make two main modifications to the technique outlined in Louizos et al. (2018). Namely,</p>
+<ul>
+<li>
+<p><strong>Initialization</strong> : Louizos et al. (2018) opts to initialize all parameters to roughly the same value. Instead, we sample original parameter values from a scaled Bernoulli distribution, with a fixed initial sparsity.</p>
+</li>
+<li>
+<p><strong>Sparsity Floor</strong> : Often, especially at high levels of sparsity regularization, the sparse model learns to deactivate all of its weights, stopping the model from learning further. To abate this, as well as provide more control over the final sparsity, we clip the sparsity penalty at a fixed minimum.</p>
+</li>
+</ul>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0024-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>7.4M<br>0.50<br>0.45<br>29.7M<br>0.40<br>118.8M 0.35<br>0.30<br>475.1M<br>0.25<br>0.9M 1.9M 3.7M 7.4M 14.8M<br>L0<br>Total params<br><!-- End of picture text --></p>
+<p><em>Figure 34.</em> Task loss after binarizing all features in the circuit, average across all tasks. No data is available for <em>L</em> 0 <em>&gt;</em> total params for obvious reasons.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0024-03.jpg" alt="" /></p>
+<p><em>Figure 35.</em> Comparing our method (baseline) to that of Louizos et al. (2018).</p>
+<p>We find that the technique performs consistently worse than TopK, with slightly higher loss across all sparsity levels (Figure 35). This aligns with previous work, such as Gale et al. (2019), which benchmarked these techniques on Neural Machine Translation.</p>
+<p>We also attempted to use a this technique for pruning, similar to Cao et al. (2021), and were unable to beat our baseline.</p>
+<h2><strong>E. Validating circuit hypothesis with mean ablations</strong></h2>
+<p>Once we believe we’ve found a circuit inside our sparse model, we need to ensure that the circuit is actually reflective of the internal behavior of the model. Without faithfulness, explanations might look plausible but do not necessarily accurately reflect the model’s underlying computation (Bolukbasi et al., 2021; Makelov et al., 2023; Friedman et al., 2024). Thus, in order to draw safety guarantees from interpretability, we must have some procedure for validating that our explanation is actually faithful.</p>
+<p>Our work substantially improves on the state of the art for circuit faithfulness with very granular nodes, but it is still by no means maximally faithful.</p>
+<p>We draw heavily on Causal Scrubbing (Chan et al., 2022) for inspiration. Unfortunately, our circuits are not fully faithful by the standards of causal scrubbing. Causal scrubbing has two components:</p>
+<ol>
+<li>
+<p>Any two node values that we claim to be semantically identical should be interchangeable. For example, if we claim that a neuron value is above <em>x</em> if and only if the token is a variable containing a string, then it must be the case that changing the node to any in-distribution value greater than <em>x</em> does not impact performance.</p>
+</li>
+<li>
+<p>Any node we claim to be irrelevant must be substitutable with any value of the node drawn from the distribution of values observed during pretraining.</p>
+</li>
+</ol>
+<p>As we see in Section C, while our models satisfy condition 1 for some tasks, they are by no means uniformly able to do so. On this front, our method offers some signs of life, but does not perform well.</p>
+<p>As for condition 2, using just the mean is a strictly weaker version of condition 2. In early results, we found that even just condition 2 of Causal Scrubbing alone was much harder to satisfy than mean ablation. However, we claim that the loss in faithfulness from using mean ablations instead of the full pretraining distribution is not so bad.</p>
+<p>Chan et al. (2022) claim that mean ablation is suboptimal because it (a) can take the model out-of-distribution in an unprincipled manner, (b) can have unpredictable effects on</p>
+<p>measured performance, and (c) remove variation that your model might depend on for performance. However, (a) only matters if your circuit actually depends on the irrelevant nodes, and even when it does, moving off the manifold of plausible activations should harm performance much more often than it helps; similarly, (b) plausibly increases variance and hurts the interpretability score on average, but seems unlikely to overestimate interpretability; to reduce (but not eliminate) the probability of (c) being a major issue, we also verify that ablating parts of the network that we claim to be relevant does indeed destroy performance (Figure 32).</p>
+<p>Importantly, mean ablations leads to much more <em>complete</em> circuits than activation patching (Heimersheim &amp; Nanda, 2024). If there are parts of the circuit that are critical for performing the task, but for which activations differ across prompt pairs rather than within each pair, then activation patching will fail to notice it. Concretely, for example, since each pair of prompts in set ~~o~~ r ~~s~~ tring uses a different variable name, but the variable name is the same within each pair, activation patching will completely ignore the part of the circuit that copies the name of the variable to the final token. In early experiments, we found that activation patching was substantially easier to get good scores on, but led to circuits which were qualitatively unsatisfying.</p>
+<p>We are excited for future work that further pushes the frontiers of circuit faithfulness to full causal scrubbing and beyond.</p>
+<h2><strong>F. Details for qualitative results</strong></h2>
+<h3><strong>F.1. Constant queries</strong></h3>
+<p>In single ~~d~~ ouble ~~q~~ uote, the query channel appears to be a constant, and not data-dependent. To verify that this is a valid simplification, we show that setting it to a constant value across the entire pretraining distribution increases loss by 2.6e-5 nats per token, which is small compared to the pretraining loss hit of 1.47e-4 nats per token when zeroing the Q.</p>
+<h3><strong>F.2. Rescaling Ablations and Redundancy</strong></h3>
+<p>For the circuit outlined in Section 3.2.2, to obtain the complete description, we found that rescaling a small number of nodes was helpful to remove redundant components of the model. However, this intervention is quite powerful when applied generally, and can “hide” superposition within the model.</p>
+<p>We take care to ensure that we only perform rescaling interventions when the model computation are truly redundant, and are not hiding superposition present within the model. For the bracket ~~c~~ ounting circuit, we rescale two activation scalars: 4.attn.resid ~~d~~ elta idx 1079</p>
+<h3>and 2.attn.resid ~~d~~ elta idx 1249.</h3>
+<p>For residual stream channel 1079, the circuit uses it in its final MLP layer, in order to compute the correct output logits. If this final MLP is ablated, loss suffers. However, this last layer can be ablated if one rescales 4.attn.resid ~~d~~ elta idx 1079 directly. This is equivalent to the logit ~~s~~ cale and logit ~~b~~ ias transformations used by pruning to recalibrate the output logits of the pruned circuits. We also find that by linearly replacing the unpruned outputs of the MLP is able to recover most of the loss, when compared to a baseline of zero ablation (5.8e-5 nats per token vs 2.69e-4).</p>
+<p>and rescale 2.attn.resid ~~d~~ elta idx 1249 correspondingly.</p>
+<p>We also find 3.attn to be implementing highly interpretable computation, essentially the ”same circuit” as 2.attn in one attention head (head 85), and copying the 2.attn.resid ~~d~~ elta idx 1249 in another (1249). We ablate it mostly for simplicity.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0026-05.jpg" alt="" /></p>
+<p><em>Figure 36.</em> Activation of 2.attn.resid ~~d~~ elta idx 1249 vs 3.attn.resid ~~d~~ elta idx 1249 across pretraining.</p>
+<p>For 2.attn.resid ~~d~~ elta idx 1249, it appears that within the bracket ~~c~~ ounting circuit, residual channel 1249 is written to by attention layer 3 as well as attention layer 2. The activation patterns of 2.attn.resid ~~d~~ elta idx 1249 and 3.attn.resid ~~d~~ elta idx 1249 look highly correlated, both across the pretraining distribution, and the bracket counting task distribution Figure 36. Thus, we suspect that the model is using 3.attn in order to amplify the activation from 2.attn. To verify this, we intervene on 3.attn.resid ~~d~~ elta idx 1249, replacing its activation with a linear function of 2.attn.resid delta idx 1249, and compute pretraining loss. When compared to a baseline of zero ablation of the node (a 4e-3 nat per token loss hit), the linear replacement suffers a comparatively negligible loss hit of 7e-4 nats per token. Thus, this channel is unlikely to be in cross-layer superposition, and 3.attn is redundant at index 1249. To simplify the circuit description, we ablate 3.attn,</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0027-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>iso-(afrac, total_params) lines<br>10 4<br>10 3<br>9 × 10 1 10 0 1.1 × 10 0 1.2 × 10 0 1.3 × 101.4 × 10 0 1.5 × 10 0 1.6 × 10 0 0<br>Pretraining loss (capability)<br>iso-(afrac, L0) lines<br>10 4<br>10 3<br>9 × 10 1 10 0 1.1 × 10 0 1.2 × 10 0 1.3 × 101.4 × 10 0 1.5 × 10 0 1.6 × 10 0 0<br>Pretraining loss (capability)<br>iso-(L0, total_params) lines<br>10 4<br>10 3<br>9 × 10 1 10 0 1.1 × 10 0 1.2 × 10 0 1.3 × 101.4 × 10 0 1.5 × 10 0 1.6 × 10 0 0<br>Pretraining loss (capability)<br>Pruned circuit size (interpretability)<br>Pruned circuit size (interpretability)<br>Pruned circuit size (interpretability)<br><!-- End of picture text --></p>
+<p><em>Figure 37.</em> Contours varying one of <em>{L</em> 0, total parameters, activation sparsity <em>}</em> and holding the other two constant. L0 moves along the frontier. The first plot varies L0, the second varies total parameters, and the third varies activation sparsity. Total parameters pushes the frontier. Increasing activation sparsity initially helps but eventually becomes Pareto dominated.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0028-01.jpg" alt="" /></p>
+<p><em>Figure 38.</em> A screenshot of the activation patterns of some random (post RMSNorm) residual stream features from one of our models. Notably, we do a pretraining pruning step to remove dead nodes which do not before we select random nodes. For each node, random documents from the top and bottom 5 percentile of activation are shown. Random nodes are somewhat interpretable, especially considering that our models are unlikely to represent extremely complex concepts.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0029-01.jpg" alt="" /></p>
+<p><em>Figure 39.</em> A screenshot from our circuit visualizer showing documents with various percentiles of activations, drawn from the entire pretraining distribution (and not just the single ~~d~~ ouble ~~q~~ uote task) for the 10.attn.resid ~~d~~ elta.83 node from Figure 4. Even on the pretraining distribution, the activations are surprisingly monosemantic—it activates positively inside double quote strings, negatively inside single quote strings, and near zero outside of strings. This node is cherrypicked; not all nodes are this monosemantic.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0030-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0030-02.jpg" alt="" /></p>
+<p><em>Figure 40.</em> A screenshot of visualized activations for a quote type classifier layer 3 attention input channel of a bridged sparse model used for constructing interpretable perturbations. Most positive and negative pretraining activations are on top and paired task activations are below.</p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0030-04.jpg" alt="" /></p>
+<p><img src="../markdown/images/weight_sparse_transformers/29_weight_sparse_transformers.pdf-0030-05.jpg" alt="" /></p>
+<p><em>Figure 41.</em> A screenshot of visualized activations for a “current line begins with if/while/except” layer 3 MLP input channel in a 30 bridged sparse model used for constructing interpretable perturbations. Most negative pretraining activations on top and paired task activations below.</p>
+<h2><strong>G. Contributions</strong></h2>
+<p><strong>Leo Gao</strong> set the research direction and led the project. Leo designed and implemented the sparse model training codebase and the pruning codebase. Leo studied scaling, optimization, architecture, pruning, bridges, and feature binarization. Leo worked on the pretraining systems and kernels. Leo created several of the pruning tasks. Leo contributed to the visualizer. Leo contributed substantially to the writing of the paper text. Leo provided technical mentorship for Achyuta through the duration of the project.</p>
+<p><strong>Achyuta Rajaram</strong> studied pretraining architecture, optimization, and circuit pruning. Achyuta improved the pruning algorithm. Achyuta performed the qualitative analysis for the examples in the paper. Achyuta created many of the pruning tasks. Achyuta experimented with alternatives to top-k for weight sparsity. Achyuta contributed substantially to the writing of the paper text.</p>
+<p><strong>Jacob Coxon</strong> studied optimization and circuit pruning. Jacob did initial explorations into <em>L</em> 0 annealing and attributionbased pruning. Jacob designed an initial version of the dataset. Jacob created several of the pruning tasks. Jacob implemented the circuit visualizer.</p>
+<p><strong>Soham V. Govande</strong> implemented an optimized CARBS implementation and contributed to the kernels and systems analysis.</p>
+<p><strong>Bowen Baker</strong> managed Leo for the first portion of the project.</p>
+<p><strong>Dan Mossing</strong> studied bridges and gave day-to-day technical feedback. Dan contributed substantially to the writing of the paper text. Dan managed Jacob and Achyuta through the duration of the project, and Leo for the latter portion of the project.</p>
+
+</article>
+<nav class="pager"><a class="prev" href="64_neural_networks_already_clean.html"><small>Previous · 64</small>Neural Networks Are Already Clean</a><a class="mid" href="index.html#section-G">Contents</a><a class="next" href="66_stochastic_parameter_decomposition.html"><small>Next · 66</small>Stochastic Parameter Decomposition</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>89 · Interpretability Will Not Reliably Find Deceptive AI — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 89 / 91 &nbsp;·&nbsp; Section I</span></div>
+<header class="cover">
+<div class="numeral">89</div>
+<div class="tag"><span class="pri P0" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P0 — ESSENTIAL</span>
+</div>
+<h1>Interpretability Will Not Reliably Find Deceptive AI</h1>
+<p class="cite">Nanda — 2025</p>
+<p class="authors">Neel Nanda</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Argues that neither interpretability nor black-box methods will give highly reliable safeguards for superintelligent systems, so interpretability should be one layer in a defence-in-depth portfolio rather than the path to safety.</p></div><div class="note"><div class="label">Reading focus</div><p>The ‘isolated demand for rigour’ argument, the six reasons interpretability will not be reliable, the black-box techniques it rates, and the roles left for interpretability: cheap probes, enhanced evaluations, debugging.</p></div><div class="note"><div class="label">In context</div><p>Prompted by <a href="91_urgency_of_interpretability.html">91</a> and written by a leading mechanistic researcher who says he once held the view he now rejects. It shares <a href="87_against_theories_of_impact.html">87</a>'s doubt that interpretability can certify the absence of deception but keeps it as decorrelated signal, citing the probing results of <a href="55_gdm_sae_negative_results.html">55</a>; <a href="90_pragmatic_vision.html">90</a> turns the stance into a research programme.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>I — Is this worth doing?</dd>
+<dt>Source</dt><dd><a href="https://www.alignmentforum.org/posts/PwnadG4BFjaER3MGf/interpretability-will-not-reliably-find-deceptive-ai">https://www.alignmentforum.org/posts/PwnadG4BFjaER3MGf/interpretability-will-not-reliably-find-deceptive-ai</a> &nbsp;·&nbsp; AI Alignment Forum</dd>
+<dt>Licence</dt><dd>No explicit licence (LessWrong / AI Alignment Forum terms leave copyright with the author)</dd>
+<dt>In print</dt><dd>PDF pages 3677–3683 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="88_misguided_quest.html"><small>Previous · 88</small>The Misguided Quest</a><a class="mid" href="index.html#section-I">Contents</a><a class="next" href="90_pragmatic_vision.html"><small>Next · 90</small>A Pragmatic Vision for Interpretability</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1>Interpretability Will Not Reliably Find Deceptive AI</h1>
+<p>by <strong>Neel Nanda</strong> 4th May 2025</p>
+<p><em>Disclaimer: Post written in a personal capacity. These are personal opinions and do not in any way represent my employer's views</em></p>
+<h3><strong>TL;DR:</strong></h3>
+<ul>
+<li>
+<p>I do not think we will produce <strong>high reliability methods</strong> to <strong>evaluate or monitor the safety of superintelligent systems</strong> via current research paradigms, with interpretability or otherwise.</p>
+</li>
+<li>
+<p><strong>Interpretability still seems a valuable tool</strong> and remains worth investing in, as it will hopefully <em>increase</em> the reliability we can achieve.</p>
+</li>
+<li>
+<p>However, interpretability should be viewed as part of an overall <strong>portfolio</strong> of defences: a layer in a <strong>defence-in-depth strategy</strong></p>
+</li>
+</ul>
+<p><strong>It is not the one thing that will save us</strong> , and it still won’t be enough for high reliability.</p>
+<p><em>EDIT: This post was originally motivated by refuting the claim &quot;interpretability is the only reliable path forward for detecting deception in advanced AI&quot;, but on closer reading this is a stronger claim than Dario's post explicitly makes. I stand by the actual contents of the post, but have edited the framing a bit, and also emphasised that I used to hold the position I am now critiquing, apologies for the mistake</em></p>
+<h2>Introduction</h2>
+<p>There’s a common argument made in AI safety discussions: <strong>it is important to work on interpretability research because it is a realistic path to high reliability safeguards on powerful systems</strong> - e.g. as argued in Dario Amodei’s recent “The Urgency of Interpretability”.[1] Sometimes an even stronger argument is made, that interpretability is the <em>only</em> realistic path to highly reliable safeguards - I used to believe both of these arguments myself. <strong>I now disagree with these arguments.</strong></p>
+<p>The conceptual reasoning is simple and compelling: a sufficiently sophisticated deceptive AI can say whatever we want to hear, perfectly mimicking aligned behavior externally. But faking its internal cognitive processes – its &quot;thoughts&quot; – seems much harder. Therefore, goes the argument, we <em>must</em> rely on interpretability to truly know if an AI is aligned.</p>
+<p>I am concerned this line of reasoning represents an <strong>isolated demand for rigor</strong> . It correctly identifies the deep flaws in relying solely on external behavior (black-box methods) but implicitly assumes that interpretability doesn't suffer from equally fundamental problems. <strong>There are many deep issues in interpretability that prevent very confident conclusions,</strong> even if we assume models cannot deliberately</p>
+<p>obfuscate their thoughts, e.g. superposition and the inherent error in our best tools and techniques. <strong>The challenges of interpretability do not seem qualitatively easier to solve than the big issues in black box tests</strong> , especially with more creative black-box tools like monitoring or editing the system’s chain of thought.[2]</p>
+<p>Should we give up on interpretability? No! I still think it has the potential to add a lot of value, and we will have better safeguards with interpretability as part of our portfolio. Even if it adds no value for making superintelligence safer[3], if it can add value for pre-superintelligence transformative systems that would be enough to justify investment. I just think that we should be more pragmatic about interpretability’s likely impact, and accept that while we can generally improve our safeguards we will likely not reach high reliability.</p>
+<h2>High Reliability Seems Unattainable</h2>
+<p>Based on the current state and foreseeable trajectory of the field without major paradigm shifts, I think that <strong>neither interpretability nor black box methods offer a high reliability</strong> [4] <strong>path to safeguards for superintelligence</strong> , in terms of evaluation or monitoring. This is due to fairly fundamental limitations of both methods, unless there are substantial breakthroughs, e.g. via using pre-superintelligence systems. This also stems from a general prior that being highly confident in any complex property of a complex system in a range of unpredictable situations is fairly implausible.</p>
+<p>However, I am pretty pessimistic in general about <em>reliable</em> safeguards against superintelligence with any methods, given how exceptionally hard it is to reason about how a system far smarter than me could evade my plans. As I see it we must either not create superintelligence, rely on pre-superintelligent automated researchers to find better methods, or deploy without fully reliable safeguards and roll the dice, and do as much as we can now to improve our odds.</p>
+<p>This doesn't mean we should give up! It means <strong>we need a pragmatic perspective.</strong> We should aim to build the <strong>best possible monitoring and evaluation portfolio</strong> we can, using <em>all</em> available tools, while accepting that high reliability might be out of reach. Interpretability can add a valuable source of de-correlated signal, or augment black box methods. The goal shifts from achieving near-certainty to maximizing the <em>chances</em> of catching misalignment, making deception <em>harder</em> and <em>riskier</em> for the AI, even if we can't guarantee detection.</p>
+<p>Further, methods that add significant safety to pre-superintelligent transformative systems still add significant value even if they don’t scale to superintelligence - one of the key insights behind the AI control agenda. Early transformative systems seem likely to be far easier to evaluate and control, but may still be very dangerous if unchecked, and extremely useful if under control. And <strong>when evaluating methods according to how much they help with early transformative systems, interpretability is just one among several reasonable methods</strong> (and probably not my first choice - things like chain of thought monitoring seem like lower hanging fruit)</p>
+<h2>Why Won’t Interpretability be Reliable?</h2>
+<p><strong>Caveat</strong> : The following is my inside view for the deep reasons why interpretability will never be truly reliable for human science, no matter how much the field progresses. This is a very strong statement, so I'm not that confident here - while it’s obvious that current techniques are unreliable, this is a question of forecasting future research progress, a highly questionable endeavour. It’s very hard to say what might be possible with a paradigm shift in how LLMs are trained, or how we do interpretability.</p>
+<p>More importantly, I do not feel able to reason about the effects of lots of AGIs doing AI research. &quot;Thousands of years of mech interp geniuses in a data center&quot; is a crazy anomaly that I can't reason well about, and seems reasonably likely to happen before superintelligence, so I want to hedge. Not only could the research lead to unexpected breakthroughs, it opens up all kinds of weird strategies leveraging the existence of the AGIs like inspecting every SAE latent in detail - though I'd imagine scalable oversight/control schemes using the AGIs should be higher priority than interp. I also think we should be fairly uncertain about what safety research directions the automated researchers will find to be most promising.</p>
+<p>That aside, reasons I won't be comfortable relying on interpretability:</p>
+<ul>
+<li>
+<p><strong>We miss things</strong> : We're still figuring out the basics. Concepts like superposition mean important features can be smeared across many neurons in non-obvious ways. Our tools like SAEs or transcoders have error and often miss things. We can misinterpret the features found, or only explain a fraction of the model's behavior.</p>
+</li>
+<li>
+<p><strong>It’s hard to measure progress</strong> : We don’t have a ground truth for what’s actually going on, and must inevitably use a range of proxies of varying quality. This means it’s hard to ever be confident you really understand what’s happening.</p>
+</li>
+<li>
+<p><strong>The Long Tail Problem</strong> : Models seem to have both some clean, interpretable structure <em>and</em> a massive, messy &quot;long tail&quot; of weird heuristics, special case handlers, and half-learned, noisy behaviours. I’d personally guess that important capabilities, including deception, are in the clean part, but can’t say for sure!</p>
+</li>
+<li>
+<p><strong>How to prove a negative</strong> : We can find <em>evidence</em> for or against a hypothesis, but rigorously <em>proving</em> the <em>absence</em> of deception circuits seems incredibly hard. How do you know you didn't just miss it? How much of the model do you need to understand? 90%? 99%? 99.99%? The required level of certainty for highstakes deployment feels far beyond our current capabilities.</p>
+<ul>
+<li>I’m more optimistic about interpretability as a way to potentially <em>demonstrate</em> misalignment, but failure to do so tells us little.</li>
+</ul>
+</li>
+<li>
+<p><strong>Scalability Questions</strong> : Most of our best results are on toy models or yesterday's LLMs. I think that scaling is a tractable problem, but likely involves a bunch of LLM labour assisting, another source of error and uncertainty.</p>
+</li>
+<li>
+<p><strong>Potential for Obfuscation</strong> : While maybe harder than faking outputs, a smart AI could potentially learn to structure its internal computations to be opaque to our specific interpretability tools.</p>
+</li>
+</ul>
+<h2>The Potential of Black-Box Methods</h2>
+<p>Black-box methods, i.e. things that engage with the model’s inputs and outputs, have clear issues: models can already tell when they’re being evaluated , or realise when they need to instrumentally fake obedience. But I think there’s also a lot of clever tricks you can do to strengthen them, and they might go a long way. This is more a question about AI control than my areas of expertise, but some thoughts on directions I find promising:</p>
+<ul>
+<li>
+<p>Reading the chain of thought (with another LLM) and looking for sketchy intent[5]</p>
+</li>
+<li>
+<p>Editing the model’s chain of thought so it e.g. thinks it concluded that it’s not in an evaluation</p>
+</li>
+<li>
+<p>Asking questions to many copies of the same model and look for inconsistencies while they can’t coordinate.</p>
+</li>
+<li>
+<p>Finetuning the model to e.g. be more truthful or forthcoming, or to insert misleading beliefs and trick it. Creating honeypots that try to trick the model into revealing its intent</p>
+</li>
+</ul>
+<h2>The Role of Interpretability</h2>
+<p>So, where does interpretability fit into this pragmatic portfolio? I see several key roles, viewing it not as a standalone solution, but as a valuable component.</p>
+<p>Firstly, safeguards can be categorised as follows:</p>
+<ol>
+<li>
+<p><strong>Evaluation</strong> : We take a system and perform extensive tests on it for undesired properties, like a tendency towards misalignment or sandbagging</p>
+</li>
+<li>
+<p><strong>Monitoring</strong> : When we deploy a system we are always running some checks at inference, which try to catch and mitigate bad behaviour</p>
+<ul>
+<li>a. Importantly, this needs to be cheap to be run in production, while evaluations can be more expensive and slow</li>
+</ul>
+</li>
+</ol>
+<p>How can interp help?</p>
+<ol>
+<li>
+<p><strong>A Layer of Swiss Cheese:</strong> I think the right monitoring schemes have several layers of defence (a la the swiss cheese model), with different cost to accuracy trade-offs.</p>
+<ul>
+<li>
+<p>Interpretability techniques like probes for known dangerous features are extremely cheap, and surprisingly effective , and can serve as a good first layer of defence, which call more expensive tests (e.g. an LLM reading the chain of thought) if they fire.</p>
+</li>
+<li>
+<p>Interpretability techniques like SAEs or cross-layer transcoders may have the potential to be more expensive but accurate ways to audit what’s going on and look for anything unexpected.</p>
+</li>
+<li>
+<p>Even if interpretability is not more accurate, so long as it has some signal and is de-correlated, then it adds value, even if it’ll miss many things.</p>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>Enhancing Black-Box Evaluations:</strong> Interpretability might make our external checks more effective. For example:</p>
+<ul>
+<li>
+<p>Could we use steering vectors identified via interpretability to <strong>manipulate whether the model thinks it’s in an eval?</strong> Maybe we can test it more effectively if we can trick it into thinking it's <em>not</em> in a honeypot or evaluation setting.</p>
+</li>
+<li>
+<p>Can we use interpretability to better elicit information from token forcing? We can make the model say “my secret plan is”, and even if it tries to internally suppress awareness or obfuscate the output perhaps interpretability can prevent that?</p>
+</li>
+<li>
+<p>Interpretability may provide a sanity check that our black box methods are not missing something, e.g. whether a model is passing an eval only because it knows it’s in one and is deliberately underperforming.</p>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>Debugging mysterious behaviour</strong> : One particularly interesting form of evaluation (or offline monitoring) is taking particularly weird or unexpected examples of model behaviour, e.g. it seeming to put vulnerabilities in critical code, and trying to debug what’s going on and see if it’s real alignment or not. I think interpretability methods may prove very good at raising unexpected hypotheses, and piecing together what’s happening (e.g. this proof of concept)</p>
+<ul>
+<li>
+<p>I expect these kinds of potential warning shots to happen, and anything that can add more signal here would be great.</p>
+</li>
+<li>
+<p>Even if we don’t trust the interpretability method fully, the hypotheses generated can be verified by other means.</p>
+</li>
+</ul>
+</li>
+</ol>
+<p>These applications aren't guaranteed to work or be ungameable, but they represent concrete ways <em>internal</em> understanding could augment <em>external</em> validation, creating a more robust overall system than either alone.</p>
+<h2>Conclusion</h2>
+<p>Let's stop framing interpretability as the <em>one true path</em> to reliably detecting AI deception, a view often born from an isolated demand for rigor against flawed black-box methods. Neither approach offers high reliability against superintelligence without fundamental breakthroughs, but flawed methods can still be useful. For the powerful pre-SI systems that concern us now, let's focus on building the best <strong>pragmatic portfolio</strong> of imperfect defenses we can. Interpretability is a useful part of that portfolio – offering unique angles of analysis and potential synergies with other methods – but it's one tool among many, not a substitute for a comprehensive, defense-in-depth strategy. We need to leverage every imperfect signal we can get, from both inside and outside the box.</p>
+<p><em>Thanks to my co-author Gemini 2.5 Pro</em></p>
+<ol>
+<li>
+<p>While this post was inspired by Dario's post and ensuing discussion, this is a common belief I've encountered, and this post is not intended to call out him specifically! ↩</p>
+</li>
+<li>
+<p>More specifically, I basically think the only way we might get high reliability is by using pre-superintelligent systems that are sufficiently aligned/controlled to either do a ton of automated research and find some breakthroughs, or by using them as a core part of a monitoring or scalable oversight scheme. But the human research trajectory is hard. ↩</p>
+</li>
+<li>
+<p>Defining “safety” is kinda messy, for the purposes of this post you can interpret it as evaluating ‘is the model thinking misaligned thoughts’ or monitoring for ‘is the model currently knowingly taking high-stakes actions against what we want’ ↩</p>
+</li>
+<li>
+<p>I’m not sure what the best precise definition of highly reliable is here, maybe 99.9% chance of stopping a catastrophic outcome? It’s not key to my argument. ↩</p>
+</li>
+<li>
+<p>Obviously, Chain of Thought can fail to reflect the model’s true reasoning. But I think that for tasks at the limits of its ability it likely needs to use the chain of thought for intermediate steps in the computation, creating an incentive to store key info in there. Of course, there are many ways this can fail. ↩</p>
+</li>
+</ol>
+
+</article>
+<nav class="pager"><a class="prev" href="88_misguided_quest.html"><small>Previous · 88</small>The Misguided Quest</a><a class="mid" href="index.html#section-I">Contents</a><a class="next" href="90_pragmatic_vision.html"><small>Next · 90</small>A Pragmatic Vision for Interpretability</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

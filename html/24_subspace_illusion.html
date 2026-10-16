@@ -1,0 +1,1528 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>24 · Is This the Subspace You Are Looking For? An Interpretability Illusion for Subspace Activation Patching — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 24 / 91 &nbsp;·&nbsp; Section C</span></div>
+<header class="cover">
+<div class="numeral">24</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>Is This the Subspace You Are Looking For? An Interpretability Illusion for Subspace Activation Patching</h1>
+<p class="cite">Makelov et al. — 2023</p>
+<p class="authors">Aleksandar Makelov, Georg Lange, Neel Nanda</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Shows that a subspace patch can make a model behave as if a feature changed while acting through a dormant direction causally disconnected from the output, an illusion demonstrated in a toy model, IOI and factual recall.</p></div><div class="note"><div class="label">Reading focus</div><p>The toy construction of disconnected and dormant directions, the MLP-in-the-middle example in IOI, the success case that rules the illusion out, the equivalence of rank-one fact edits and one-dimensional patches, and the recommendations.</p></div><div class="note"><div class="label">In context</div><p>The critique of <a href="23_distributed_alignment_search.html">23</a> at the centre of this section's main exchange, answered directly by <a href="25_illusion_reply.html">25</a>. Its factual-recall result offers a mechanism for the gap <a href="19_localization_editing.html">19</a> found between localizing and editing in <a href="18_rome.html">18</a>, and its IOI case builds on <a href="13_ioi_circuit.html">13</a>. The general worry, that a method can yield convincing evidence the model does not support, is pressed again in <a href="84_saliency_sanity_checks.html">84</a> and <a href="58_sae_random_transformers.html">58</a>.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>C — Causal methods and their critics</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2311.17030v2">https://arxiv.org/abs/2311.17030v2</a> &nbsp;·&nbsp; arXiv:2311.17030v2</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 791–849 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="23_distributed_alignment_search.html"><small>Previous · 23</small>Distributed Alignment Search (DAS)</a><a class="mid" href="index.html#section-C">Contents</a><a class="next" href="25_illusion_reply.html"><small>Next · 25</small>A Reply to the Interpretability Illusion</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1>Is This the Subspace You Are Looking for? An Interpretability Illusion for Subspace Activation Patching</h1>
+<p>Aleksandar Makelov<sup>*</sup></p>
+<p>Georg Lange<sup>*</sup></p>
+<p><code>aleksandar.makelov@gmail.com mail@georglange.com</code> SERI MATS SERI MATS</p>
+<p>Neel Nanda</p>
+<pre><code>neelnanda27@gmail.com
+</code></pre>
+<h4><strong>Abstract</strong></h4>
+<p>Mechanistic interpretability aims to understand model behaviors in terms of specific, interpretable features, often hypothesized to manifest as low-dimensional subspaces of activations. Specifically, recent studies have explored subspace interventions (such as activation patching) as a way to simultaneously manipulate model behavior and attribute the features behind it to given subspaces.</p>
+<p>In this work, we demonstrate that these two aims diverge, potentially leading to an illusory sense of interpretability. Counterintuitively, even if a subspace intervention makes the model’s output behave <em>as if</em> the value of a feature was changed, this effect may be achieved by activating a <em>dormant parallel pathway</em> leveraging another subspace that is <em>causally disconnected</em> from model outputs. We demonstrate this phenomenon in a distilled mathematical example, in two realworld domains (the indirect object identification task and factual recall), and present evidence for its prevalence in practice. In the context of factual recall, we further show a link to rank-1 fact editing, providing a mechanistic explanation for previous work observing an inconsistency between fact editing performance and fact localization.</p>
+<p>However, this does not imply that activation patching of subspaces is intrinsically unfit for interpretability. To contextualize our findings, we also show what a success case looks like in a task (indirect object identification) where prior manual circuit analysis informs an understanding of the location of a feature. We explore the additional evidence needed to argue that a patched subspace is faithful.</p>
+<h2><strong>1 Introduction</strong></h2>
+<p>Recently, large language models (LLMs) have demonstrated impressive (Vaswani et al., 2017; Devlin et al., 2019; OpenAI, 2023; Radford et al., 2019; Brown et al., 2020), and often surprising (Wei et al., 2022), capability gains. However, they are still widely considered ‘black boxes’: their successes – and failures – remain largely a mystery. It is thus an increasingly pressing scientific and practical question to understand <em>what</em> LLMs learn and <em>how</em> they make predictions.</p>
+<p>This is the goal of machine learning interpretability, a broad field that presents us with both technical and conceptual challenges (Lipton, 2016). Within it, mechanistic interpretability (MI) is a subfield that seeks to develop a rigorous low-level understanding of the mechanisms and</p>
+<blockquote>
+<p>*Equal Contribution.</p>
+</blockquote>
+<p>learned algorithms behind a model’s computations. MI frames these computations as collections of narrow, task-specific algorithms – <em>circuits</em> (Olah et al., 2020; Geiger et al., 2021; Wang et al., 2023) – whose operations are grounded in concrete, atomic building blocks akin to variables in a computer program (Olah, 2022) or causal model (Vig et al., 2020; Geiger et al., 2023a). MI has found applications in several downstream tasks: removing toxic behaviors from a model while otherwise preserving performance by minimally editing model weights (Li et al., 2023b), changing factual knowledge encoded by models in specific components to e.g. enable more efficient fine-tuning in a changing world (Meng et al., 2022a), improving the truthfulness of LLMs at inference time via efficient, localized inference-time interventions in specific subspaces (Li et al., 2023a) and studying the mechanics of gender bias in language models (Vig et al., 2020).</p>
+<p>A central question in MI is: what <em>is</em> the proper definition of these building blocks? Any satisfying mechanistic analysis of high-level LLM capabilities must rest on a rigorous and comprehensive answer to this question (Olah, 2022). Many initial mechanistic analyses have focused on mapping circuits to collections of <em>model components</em> (Wang et al., 2023; Heimersheim &amp; Janiak), such as attention heads and MLP layers. A workhorse of these analyses is <em>activation patching</em><sup>1</sup> (Vig et al., 2020; Geiger et al., 2020; Meng et al., 2022a; Wang et al., 2023), which intervenes on model computation on an input by replacing the activation of a given component with its value when the model is run on another input. By seeing which components lead to a significant task-relevant change in outputs compared to running the model normally, activation patching aims to pinpoint tasks to specific components.</p>
+<p>However, localizing features to entire components is not sufficient for a detailed understanding. A plethora of empirical evidence suggests that the features LLMs represent and use are more accurately captured by <em>linear subspaces</em> of component activations (Nanda, 2023a; Li et al., 2021; Abdou et al., 2021; Grand et al., 2018). Complicating matters, phenomena like superposition and polysemanticity (Elhage et al., 2022) suggest that these subspaces are not easily enumerable, like individual neurons – so searching for them can be non-trivial. This raises the question:</p>
+<p><em>Does the success of activation patching carry over from component-level analysis to finding the precise subspaces corresponding to features?</em></p>
+<p>In this paper, we demonstrate that naive generalizations of subspace activation patching can lead to misleading interpretability results. Specifically, we argue empirically and theoretically that a subspace seemingly encoding some feature may be found in the MLP layers on the path between two model components in a transformer model that communicate this feature as part of some circuit.</p>
+<p>As a concrete example of how this illusion can happen in the practice of interpretability, recent works such as Geiger et al. (2023b); Wu et al. (2023) have sought to identify interpretable subspaces using gradient descent, with training objectives that optimize for a subspace patch with a causal effect on model predictions. While this kind of end-to-end optimization has promise, we show that, instead of localizing a variable used by the model, subspace interventions such as subspace activation patching can create such a variable by <em>activating a dormant pathway</em> .</p>
+<p>Counterintuitively, the mathematics of subspace interventions makes it possible to activate another, ‘dormant’, direction, which is ordinarily inactive, but can change model outputs when activated (see Figure 1), by exploiting the variation of model activations in a direction correlated with a feature even if this second direction does not causally affect the output. An equivalent view of this phenomenon that we explore in Appendix A.3 is that the component contains two subspaces</p>
+<blockquote>
+<p>1also known as ‘interchange intervention’ (Geiger et al., 2020) and sometimes referred to as ‘resample ablation’ (Chan et al., 2022) or ‘causal tracing’ (Meng et al., 2022a).</p>
+</blockquote>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0003-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>activation to patch from activation to patch into<br>causally disconnected feature<br>1 2<br>1 + 2<br>direction to patch along ( v )<br>orthogonal complement  v ⊥<br>dormant feature<br>result of the patch<br><!-- End of picture text --></p>
+<p>Figure 1: The key mathematical phenomenon behind the activation patching illusion illustrated for a 2-dimensional activation space. We intervene on an example’s activation (green, right) by setting its orthogonal projection on a 1-dimensional subspace <strong>v</strong> of activation space (red, top-right) to equal the orthogonal projection of another example’s activation (green, left) on <strong>v</strong> . The result is a patched activation vector orthogonal to both activations. Specifically, to form the patched activation we take the <strong>v</strong> component ( <em>⃝</em> 1 ) of the activation we are patching from, and combine it with the <strong>v</strong><sup><em>⊥</em></sup> component ( <em>⃝</em> 2 ) of the original activation. This results in the patched activation <em>⃝</em> 1 + <em>⃝</em> 2 . This can lead to counterintuitive results when the original and new directions have fundamentally different roles in a model’s computation; see Section 3 for details, and Figure 14 for a step-by-step guide through this figure.</p>
+<p>that mediate the variable, but whose effects normally cancel each other out (hence, there’s no total effect, making the component as a whole appear ‘dormant’). The activation patching intervention decouples these two subspaces by altering an activation only along one of them. Under this perspective, our contribution is to show that model components are likely to contain such pairs of subspaces that perfectly cancel out. When this phenomenon is realized in the hidden activations of an MLP layer, it leads to causally meaningful subspaces which have a substantial and crucial component that is causally disconnected from model outputs, owing to the high-dimensional kernel of an MLP layer’s down-projection in a transformer (see Figure 3).</p>
+<p>While it is, in principle, possible that subspaces that represent some variable but cancel each other out exist in many model components, we find this unlikely. Specifically, our results suggest that every MLP layer between two components communicating some feature through residual connections is likely to contain a subspace which appears to mediate the feature when activation patched. We find this implausible on various grounds that we revisit in Section 8. Thus, we consider at least some of these subspaces to exhibit a kind of <em>interpretability illusion</em> (Bolukbasi et al., 2021; Adebayo et al., 2018).</p>
+<p>Our contributions can be summarized as follows:</p>
+<ul>
+<li>
+<p>In Section 3, we provide the key intuition for the illusion, and construct a distilled mathematical example.</p>
+</li>
+<li>
+<p>In Section 4, we find a realization of this phenomenon ‘in the wild’, in the context of the indirect object identification task (Wang et al., 2023), where a 1-dimensional subspace of MLP activations found using DAS (Geiger et al., 2023b) can seem to encode position information about names in the sentence, despite this MLP layer having negligible contribution to the circuit as argued by Wang et al. (2023).</p>
+</li>
+<li>
+<p>To contextualize our results, in Section 5 we also show how DAS can be used to find subspaces that faithfully represent a feature in a model’s computation. Specifically, we find a 1-dimensional subspace encoding the same position information in the IOI task, and validate its role in model computations via mechanistic experiments beyond end-to-end causal effect. We argue that activation patching on subspaces of the residual stream is less prone to illusions.</p>
+</li>
+<li>
+<p>Going beyond the IOI task, in Section 6 we also exhibit this phenomenon in the setting of <em>fact editing</em> (Meng et al., 2022a). We show that 1-dimensional activation patches imply approximately equivalent rank-1 model edits (Meng et al., 2022a). In particular, this shows that rank-1 model edits can also be achieved by activating a dormant pathway in the model, without necessarily relying on the presence of a fact in the weight being edited. This suggests a mechanistic explanation for the observation of (Hase et al., 2023) that rank-1 model editing ‘works’ regardless of whether the fact is present in the weights being edited.</p>
+</li>
+<li>
+<p>In Section 7, we collect arguments and evidence for why this interpretability illusion ought to be prevalent in real-world language models.</p>
+</li>
+<li>
+<p>Finally, in Section 8, we provide conceptual discussion of these findings.</p>
+</li>
+</ul>
+<p>We have also released code to reproduce our findings<sup>2</sup> .</p>
+<blockquote>
+<p>2 <code>https://github.com/amakelov/activation-patching-illusion</code></p>
+</blockquote>
+<h2><strong>2 Related Work</strong></h2>
+<h3><strong>2.1 Discovering and Causally Intervening on Representations with Activation Patching</strong></h3>
+<p>Researchers have been exploring increasingly fine-grained ways of reverse-engineering and steering model behavior. In this context, <em>activation patching</em> (Vig et al., 2020; Geiger et al., 2020) is a widely used causal intervention, whereby the model is run on an input A, but chosen activations are ‘patched in’ from input B. Motivated by causal mediation analysis (Pearl, 2001) and causal abstraction Geiger et al. (2023a), activation patching has been used to localize model components causally involved in various behaviors, such as gender bias (Vig et al.), factual recall (Meng et al., 2022a), multiple choice questions (Lieberum et al., 2023), arithmetic (Stolfo et al., 2023) and natural language reasoning (Geiger et al., 2021; Wang et al., 2023; Geiger et al., 2023b; Wu et al., 2023), code (Heimersheim &amp; Janiak), and (in certain regimes) topic/sentiment/style of free-form natural language (Turner et al., 2023).</p>
+<p>Activation patching is an area of active research, and many recent works have extended the method, with patching paths between components (Goldowsky-Dill et al., 2023), automating the finding of sparse subgraphs (Conmy et al., 2023), fast approximations (Nanda, 2023b), and automating the verification of hypotheses (Chan et al., 2022).</p>
+<p>In particular, <em>full-component activation patching</em> – where the entire activation of a model component such as attention head or MLP layer is replaced – is not the end of the story. A wide range of interpretability work (Mikolov et al., 2013; Conneau et al., 2018; Hewitt &amp; Manning, 2019; Tenney et al., 2019; Burns et al., 2022; Nanda et al., 2023) suggests the <em>linear representation hypothesis</em> : models encode features as linear subspaces of component activations that can be arbitrarily rotated with respect to the standard basis (due to phenomena like superposition, polysemanticity (Arora et al., 2018; Elhage et al., 2022) and lack of privileged bases (Smolensky, 1986; Elhage et al., 2021)).</p>
+<p>Motivated by this, recent works such as Geiger et al. (2023b); Wu et al. (2023); Lieberum et al. (2023) have explored <em>subspace activation patching</em> : a generalization of activation patching that operates only on linear subspaces of features (as low as 1-dimensional) rather than patching entire components.</p>
+<p>Our work contributes to this research direction by demonstrating both (i) a common illusion to avoid when looking for such subspaces and (ii) a detailed case study of successfully localizing a binary feature to a 1-dimensional subspace.</p>
+<h3><strong>2.2 Interpretability Illusions</strong></h3>
+<p>Despite the promise of interpretability, it is difficult to be rigorous and easy to mislead yourself. A common theme in the field is identifying ways that techniques may lead to misleading conclusions about model behavior (Lipton, 2016). In computer vision, Adebayo et al. (2018) show that a popular at the time class of pixel attribution methods is not sensitive to whether or not the model used to produce is has actually been trained or not. In Geirhos et al. (2023), the authors show how a circuit can be hardcoded into a learned model so that it fools interpretability methods; this bears some similarity to our illusion, especially its fact editing counterpart.</p>
+<p>In natural language processing, Bolukbasi et al. (2021) show that interpreting single neurons with maximum activating dataset examples may lead to conflicting results across datasets due to subtle polysemanticity (Elhage et al., 2022). Recently, McGrath et al. (2023) demonstrated that full-component activation patching in large language models is vulnerable to false negatives due to (ordinariliy dormant) backup behavior of downstream components that activates when a</p>
+<p>component is ablated.</p>
+<p>We contribute to the study of interpretability illusions by demonstrating a new kind of illusion which can arise when intervening on model activations along arbitrary subspaces, by demonstrating it in two real-world scenarios, and providing recommendations on how to avoid it.</p>
+<h3><strong>2.3 Factual Recall</strong></h3>
+<p>A well-studied domain for discovering and intervening on learned representations is the localization and editing of factual knowledge in language models (Wallat et al., 2020; Meng et al., 2022b; Dai et al., 2022; Geva et al., 2023; Hernandez et al., 2023). A work of particular note is Meng et al. (2022a), which localizes factual information using a variation of full-component activation patching, and then edits factual information with a rank-1 intervention on model weights. However, recent work has shown that rank-1 editing can work even on weights where the fact supposedly is not encoded (Hase et al., 2023), and that editing a single fact often fails to have its expected common-sense effect on logically related downstream facts (Cohen et al., 2023; Zhong et al., 2023).</p>
+<p>We contribute to this line of work by showing a formal and empirical connection between activation patching along 1-dimensional subspaces and rank-1 model editing. In particular, rank-1 model edits can work by creating a dormant pathway of an MLP layer, regardless of whether the fact is stored there. This provides a mechanistic explanation for the discrepancy observed in Hase et al. (2023).</p>
+<h2><strong>3 A Conceptual View of the Illusion</strong></h2>
+<h3><strong>3.1 Preliminaries: (Subspace) Activation Patching</strong></h3>
+<p><em>Activation patching</em> (Vig et al., 2020; Geiger et al., 2020; Wang et al., 2023; Chan et al., 2022) is an interpretability technique that intervenes upon model components, forcing them to take on values they would have taken if a different input were provided. For instance, consider a model that has knowledge of the locations of famous landmarks, and completes e.g. the sentence <em>A</em> = ‘The Eiffel Tower is in’ with ‘Paris’.</p>
+<p>How can we find which components of the model are responsible for knowing that ‘Paris’ is the right completion? Activation patching approaches this question by</p>
+<ul>
+<li>
+<p>(i) Running the model on <em>A</em> ;</p>
+</li>
+<li>
+<p>(ii) Storing the activation of a chosen model component <em>C</em> , such as the output of an attention head, the hidden activations of an MLP layer, or an entire residual stream (a.k.a. bottleneck) layer;</p>
+</li>
+<li>
+<p>(iii) Running the model on e.g. <em>B</em> = ‘The Colosseum is in’, <em>but</em> with the activation of <em>C</em> taken from <em>A</em> .</p>
+</li>
+</ul>
+<p>If we find that the model outputs ‘Paris’ instead of ‘Rome’ in step (iii), this suggests that component <em>C</em> is important for the task of recalling the location of a landmark.</p>
+<p>The linear representation hypothesis proposes that <em>linear subspaces</em> of vectors will be the most interpretable model components. To search for such subspaces, we can adopt a natural generalization of full component activation patching, which only replaces the values of a subspace <em>U</em> (while leaving the projection on its orthogonal complement <em>U</em><sup><em>⊥</em></sup> unchanged). This was proposed in Geiger et al. (2023b), and closely related variants appear in Turner et al. (2023); Nanda et al. (2023); Lieberum et al. (2023).</p>
+<p>For the purposes of exposition, we now restrict our discussion to activation patching of a 1-dimensional subspace (i.e., a <em>direction</em> ) spanned by a unit vector <strong>v</strong> (i.e., <em>∥</em> <strong>v</strong> <em>∥</em> 2 = 1). We remark that the illusion also applies to higher-dimensional subspaces (see Appendix A.1 for theoretical details; later on, in Appendix B.6, we also show this empirically for the IOI task). If <strong>act</strong> <em>A</em> , <strong>act</strong> <em>B ∈</em> <strong>R</strong><sup><em>d</em></sup> are the activations of a model component <em>C</em> on examples <em>A</em> , <em>B</em> and <em>pA</em> = <strong>v</strong><sup><em>⊤</em></sup> <strong>act</strong> <em>A</em> , <em>pB</em> = <strong>v</strong><sup><em>⊤</em></sup> <strong>act</strong> <em>B</em> are their projections on <strong>v</strong> , patching from <em>A</em> into <em>B</em> along <strong>v</strong> results in the patched activation</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0007-01.jpg" alt="" /></p>
+<p>For a concrete scenario motivating such a patch, consider a discrete binary feature used by the model to perform a task, and prompts <em>A</em> , <em>B</em> which only differ in the value of this feature. A 1- dimensional subspace can easily encode such a feature (and indeed we explore an example of this in great detail in Sections 4 and 5).</p>
+<h3><strong>3.2 Intuition for the Illusion</strong></h3>
+<p>What would make activation patching a good attribution method? Intuitively, an equivalence is needed: an activation patch should work <em>if and only if</em> the component/subspace being patched is indeed a <em>faithful to the model’s computation</em> representation of the concept we seek to localize. Revisiting Equation 1 with this in mind, it is quite plausible that, if <strong>v</strong> indeed encodes a binary feature relevant to the task, the patch will essentially overwrite the feature with its value on <em>A</em> , and this would lead to the expected downstream effect on model predictions<sup>3</sup> .</p>
+<p>Going in the other direction of the equivalence, when will the update in Equation 1 change the model’s output in the intended way? Intuitively, two properties are necessary:</p>
+<ul>
+<li>
+<p><strong>correlation with the concept</strong> : <strong>v</strong> must be activated differently by the two prompts. Otherwise, <em>pA ≈ pB</em> , and the patch has no effect;</p>
+</li>
+<li>
+<p><strong>potential for changing model outputs</strong> : <strong>v</strong> must be ‘causally connected’ to the model’s outputs; in other words, it should be the case that changing the activation along <strong>v</strong> can at least in some cases lead to a change in the next-token probabilities output by the model. Otherwise, if, for instance, <strong>v</strong> is in the nullspace of all downstream model components, changing the activation’s projection along <strong>v</strong> alone won’t have any effect on the model’s predictions.</p>
+</li>
+</ul>
+<p>For example, if the component <em>C</em> we are patching is the post-nonlinearity activation of an MLP layer, the only way this activation affects the model’s output is through matrix multiplication with a down-projection <em>Wout</em> . So, if <strong>v</strong> <em>∈</em> ker <em>Wout</em> , we will have</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0007-09.jpg" alt="" /></p>
+<p>In other words, the activation patch leads to the exact same output of the MLP layer as when running the model on <em>B</em> without an intervention. So, the patch will leave model predictions unchanged.</p>
+<blockquote>
+<p>3It is in principle possible that, even if the value of the feature is overwritten, this has no effect on model predictions. For example, it is possible that <strong>v</strong> is not the only location in the model’s computation where this feature is represented; or, it may be that there are backup components that are normally inactive on the task, but activate when the value of the subspace <strong>v</strong> is changed, as explored in McGrath et al. (2023). Such scenarios are beyond the scope of this simplified discussion.</p>
+</blockquote>
+<p>The crux of the illusion is that <strong>v</strong> may obtain each of the two properties from two ‘unrelated’ directions in activation space (as shown in Figure 1) which ‘happen to be there’ as a side effect of linear algebra. Specifically, we can form</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0008-01.jpg" alt="" /></p>
+<p>for orthogonal unit vectors <strong>v</strong> disconnected<sup><em>⊤</em></sup><sup><strong>v</strong>dormant= 0 such that</sup></p>
+<ul>
+<li>
+<p><strong>v</strong> disconnected is a <strong>causally disconnected direction</strong> in activation space: it distinguishes between the two prompts, but is in the nullspace of all downstream model components (e.g., a vector in ker <em>Wout</em> for an MLP layer with down-projection <em>Wout</em> );</p>
+</li>
+<li>
+<p><strong>v</strong> dormant is a <strong>dormant direction</strong> in activation space: it can <em>in principle</em> steer the model’s output in the intended way, but is not activated differently by the two prompts (in other words, <strong>v</strong> dormant<sup><em>⊤</em></sup><sup><strong>act</strong></sup><sup><em>A≈</em></sup><sup><strong>v</strong></sup> dormant<sup><em>⊤</em></sup><sup><strong>act</strong></sup><sup><em>B</em>).</sup></p>
+</li>
+</ul>
+<p>To illustrate this algebraically, consider what happens when we patch along <strong>v</strong> illusory. We have</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0008-06.jpg" alt="" /></p>
+<p>By assumption, <strong>v</strong> dormant<sup><em>⊤</em></sup><sup><strong>act</strong></sup><sup><em>B</em>=</sup><sup><strong>v</strong></sup> dormant<sup><em>⊤</em></sup><sup><strong>act</strong></sup><sup><em>A</em>.Thus,</sup></p>
+<p>so the patched activation is</p>
+<p>If for example <strong>v</strong> illusory is in the space of post-nonlinearity activations of an MLP layer with downprojection matrix <em>Wout</em> , and <strong>v</strong> disconnected <em>∈</em> ker <em>Wout</em> , the new output of the MLP layer after the patch will be</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0008-10.jpg" alt="" /></p>
+<p>where we used that <em>Wout</em> <strong>v</strong> disconnected = 0. From this equation, we see that, by patching along the sum of a disconnected and dormant direction, the variation in activation projections on the disconnected part (which we assume is significant) ‘activates’ the dormant part: we get a new contribution to the MLP’s output (along <em>Wout</em> <strong>v</strong> dormant) which can then possibly influence model outputs. This contribution would not exist if we patched only along <strong>v</strong> disconnected (because it would be nullified by <em>Wout</em> ) or <strong>v</strong> dormant (because then we would have <em>pA ≈ pB</em> ).</p>
+<p>We make the concepts of causally disconnected and dormant subspaces formal in Subsection 3.5. We also remark that, under the assumptions of the above discussion, the optimal illusory patch will provably combine the disconnected and dormant directions with equal weight <em>~~√~~</em> <u>12</u><sup>as in</sup> Equation 2; the proof is given in Appendix A.2.</p>
+<h3><strong>3.3 The Illusion in a Toy Model</strong></h3>
+<p>With these concepts in mind, we can construct a distilled example of the illusion in a toy (linear) neural network. Specifically, consider a network <em>M</em> that takes in an input <em>x ∈</em> <strong>R</strong> , computes a three-dimensional hidden representation <strong>h</strong> = <em>x</em> <strong>w</strong> 1, and then a real-valued output <em>y</em> = <strong>w</strong> 2<sup><em>T</em></sup><sup><strong>h</strong>.Define</sup> the weights to be</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0009-02.jpg" alt="" /></p>
+<p>and observe that <em>M</em> ( <em>x</em> ) = <em>x</em> , i.e. the network computes the identity function:</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0009-04.jpg" alt="" /></p>
+<p>This network is illustrated in Figure 2. We can analyze the 1-dimensional subspaces (directions) spanned by each of the three hidden activations:</p>
+<ul>
+<li>
+<p>the <em>h</em> 1 direction is causally disconnected: setting it to any value has no effect on the output;</p>
+</li>
+<li>
+<p>the <em>h</em> 2 direction is dormant: it is constant (always 0) on the data, but setting it to some other value will affect the model’s output;</p>
+</li>
+<li>
+<p>the <em>h</em> 3 direction mediates the signal through the network: the input <em>x</em> is copied to it, and is in turn copied to the output<sup>4</sup> .</p>
+</li>
+</ul>
+<p>As expected, patching along the direction <em>h</em> 3 overwrites the value of the <em>x</em> feature (which in this example is identical to the input). That is, patching along <em>h</em> 3 from <em>x</em><sup><em>′</em></sup> into <em>x</em> makes the network output <em>x</em><sup><em>′</em></sup> instead of <em>x</em> .</p>
+<p>However, patching along the sum of the causally disconnected direction <em>h</em> 1 and the dormant direction <em>h</em> 2 represented by the unit vector <strong>v</strong> illusory = � <em>~~√~~</em> <u>12</u><sup>,</sup> <em>~~√~~</em> <u>12</u><sup>, 0</sup> � has the same effect: using Equation 1, patching from <em>x</em><sup><em>′</em></sup> into <em>x</em> along <strong>v</strong> illusory results in the hidden activation</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0009-11.jpg" alt="" /></p>
+<h3><strong>3.4 Detecting the illusion in practice</strong></h3>
+<p>How can we tell if this kind of phenomenon occurs for a given subspace activation patch? Given a subspace spanned by a unit vector <strong>v</strong> , suppose that activation patching along this subspace has an effect on model outputs consistent with changing the property that varies between the examples being patched. We can attempt to decompose it orthogonally into a causally disconnected part and a dormant part, and argue that each of these parts has the properties described in the above sections.</p>
+<blockquote>
+<p>4An important note on this particular example is that the distinction between causally disconnected, dormant and faithful to the computation directions is artificial, and here it is only used for exposition. In particular, we show in Appendix A.3 that re-parametrizing the hidden layer of the network via a rotation makes <strong>v</strong> illusory take the role of the faithful direction <strong>e</strong> 3, and the two other (rotated) basis vectors become a disconnected/dormant pair. By contrast, when we exhibit the illusion in real-world scenarios, a reparametrization of this kind would need to combine activations between different model components, such as MLP layers and residual stream activations. We return to this point in Section 8.</p>
+</blockquote>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0010-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>h 1 ← x<br>× 1<br>x h 2 ← 0 y ← x<br>× 2<br>× 1 × 1<br>h 3 ← x<br><!-- End of picture text --></p>
+<p>Figure 2: A network <em>M</em> illustrating the illusion. The network computes the identity function: <em>M</em> ( <em>x</em> ) = <em>x</em> . The activation of the input, output and each hidden neuron for a generic input <em>x</em> are shown in the circles, with arrows indicating the weight of the connections (no arrow means a weight of 0). The hidden unit <em>h</em> 3 stores the value of the input and passes this to the output, while the unit <em>h</em> 2 is dormant and <em>h</em> 1 is disconnected from the output. However, activation patching the 1-dimensional linear subspace spanned by the sum of the <em>h</em> 1 and <em>h</em> 2 basis vectors (defined by the unit vector <strong>v</strong> = ( <em>~~√~~</em><sup><u>1</u></sup> 2<sup>,</sup> <em>~~√~~</em> <u>12</u><sup>, 0)) has the same effect on model behavior as patching just the unit</sup><sup>_h_3.</sup></p>
+<p>Specifically, when <strong>v</strong> is in the post-GELU activations of an MLP layer in a transformer with downprojection <em>Wout</em> (almost all examples in this paper are of this form), it is clear that the orthogonal projection of <strong>v</strong> on ker <em>Wout</em> is causally disconnected. This suggests writing <strong>v</strong> = <strong>v</strong> null + <strong>v</strong> row where <strong>v</strong> null <em>∈</em> ker <em>Wout</em> is the orthogonal projection on ker <em>Wout</em> , and <strong>v</strong> row is the remainder, which is in (ker <em>Wout</em> )<sup><em>⊥</em></sup> , the rowspace of <em>Wout</em> . Using this decomposition, we can perform several experiments:</p>
+<ul>
+<li>
+<p>compare the strength of the patch to patching along the subspace spanned by <strong>v</strong> row alone, obtained by removing the causally disconnected part of <strong>v</strong> . If <strong>v</strong> row is indeed dormant as we hope to show, this patch should have no effect on model outputs; in reality, <strong>v</strong> row may only be approximately dormant, so the patch may have a small effect. Conversely, if this patch has an effect similar to the original patch along <strong>v</strong> , this is evidence against the illusion;</p>
+</li>
+<li>
+<p>check how dormant <strong>v</strong> row is compared to <strong>v</strong> null by comparing the spread of projections of the examples on both directions.</p>
+</li>
+</ul>
+<p>We use these experiments, as well as others, throughout the paper in order to rule out or confirm the illusion.</p>
+<h3><strong>3.5 Formalization of Causally Disconnected and Dormant Subspaces</strong></h3>
+<p>For completeness, in this subsection we give a (somewhat) formal treatment of the intuitive ideas introduced in the previous subsection. Readers may also want to consult Appendix A.1 for background on patching higher-dimensional subspaces, which is used to define these concepts.</p>
+<p>Let <em>M</em> : <em>X →O</em> be a machine learning model that on input <em>x ∈X</em> outputs a vector <em>y ∈O</em> of probabilities over a set of output classes. Let <em>D</em> be a distribution over <em>X</em> , and <em>C</em> be a component of</p>
+<p><em>M</em> , such that for <em>x ∼D</em> the hidden activation of <em>C</em> is a vector <em>cx ∈</em> <strong>R</strong><sup><em>d</em></sup> . For a subspace <em>UC ⊂</em> <strong>R</strong><sup><em>d</em></sup> , we let <em>ux</em> be the orthogonal projection of <em>cx</em> onto <em>UC</em> . Finally, let <em>MUC ←uy</em> ( <em>x</em> ) be the result of running <em>M</em> with the input <em>x</em> and setting the subspace <em>UC</em> patched to <em>uy</em> .</p>
+<p>We say <em>UC</em> is <em>causally disconnected</em> if <em>MUC ←u′</em> ( <em>x</em> ) = <em>M</em> ( <em>x</em> ) for all <em>u</em><sup><em>′</em></sup> <em>∈ UC</em> . In other words, intervening on the model by setting the orthogonal projection of <em>C</em> ’s activation on <em>UC</em> to any other value does not change the model’s outputs. For a concrete example of a causally disconnected subspace, consider an MLP layer in a transformer model with an output projection matrix <em>Wout</em> ; then, ker <em>Wout</em> is a causally disconnected subspace of the hidden (post-nonlinearity) activations of the MLP layer.</p>
+<p>We say <em>UC</em> is <em>dormant</em> if <em>MUC ←uy</em> ( <em>x</em> ) <em>≈M</em> ( <em>x</em> ) with high probability over <em>x</em> , <em>y ∼D</em> , but there exists <em>u</em><sup><em>′</em></sup> <em>∈</em> <strong>R</strong><sup><em>d</em></sup> such that <em>MUC ←u′</em> ( <em>x</em> ) is substantially different from <em>M</em> ( <em>x</em> ) (e.g., significantly changes the model’s confidence on the task’s answer). In other words, a dormant subspace is approximately causally disconnected when we patch its value using activations realized under the distribution <em>D</em> , but can have substantial causal effect if set to other values.</p>
+<h2><strong>4 The Illusion in the Indirect Object Identification Task</strong></h2>
+<h3><strong>4.1 Preliminaries</strong></h3>
+<p>In Wang et al. (2023), the authors analyze how the decoder-only transformer language model GPT-2 Small (Radford et al., 2019) performs the <em>indirect object identification</em> task. In this task, the model is required to complete sentences of the form ‘When Mary and John went to the store, John gave a bottle of milk to’ (with the intended completion in this case being ‘ Mary’). We refer to the repeated name (John) as <strong>S</strong> (the subject) and the non-repeated name (Mary) as <strong>IO</strong> (the indirect object). For each choice of the <strong>IO</strong> and <strong>S</strong> names, there are two patterns the sentence can have: one where the <strong>IO</strong> name comes first (we call these ‘ABB examples’), and one where it comes second (we call these ‘BAB examples’). Additional details on the data distribution, model and task performance are given in Appendix B.1.</p>
+<p>Wang et al. (2023) suggest the model uses the algorithm ‘Find the two names in the sentence, detect the repeated name, and predict the non-repeated name’ to do this task. In particular, they find a set of four heads in layers 7 and 8 – the <strong>S-Inhibition heads</strong> – that output the signal responsible for <em>not</em> predicting the repeated name. The dominant part of this signal is of the form ‘Don’t attend to the name in first/second position in the first sentence’ depending on where the <strong>S</strong> name appears (see Appendix A in Wang et al. (2023) for details). In other words, this signal detects whether the example is an ABB or BAB example. This signal is added to the residual stream<sup>5</sup> at the last token position, and is then picked up by another class of heads in layers 9, 10 and 11 – the <strong>Name Mover heads</strong> – which incorporate it in their queries to shift attention to the <strong>IO</strong> name and copy it to the last token position, so that it can be predicted (Figure 3).</p>
+<h3><strong>4.2 Finding Subspaces Mediating Name Position Information</strong></h3>
+<p>How, precisely, is the positional signal communicated? In particular, ‘don’t attend to the first/second name’ is plausibly a binary feature represented by a 1-dimensional subspace. In this subsection, we present methods to look for such a subspace.</p>
+<blockquote>
+<p>5We follow the conventions of Elhage et al. (2021) when describing internals of transformer models. The residual stream at layer <em>k</em> is the sum of the output of all layers up to <em>k −</em> 1, and is the input into layer <em>k</em> .</p>
+</blockquote>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0012-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Baseline Patched<br>96 Rudi 92 Emma<br>2 Him 4 them<br>1 … 3 …<br>1 Emma 1 Rudi<br>+<br>Name<br>Mover<br>+<br>W��� �����<br>gelu<br>��� W��<br>+<br>S-<br>Inhib<br>… to<br>Rudi and says<br>Emma Emma<br><!-- End of picture text --></p>
+<p><strong>Gradient of name mover attention scores</strong> .</p>
+<p>As shown in Wang et al. (2023), the three name mover heads identified therein will attend to one of the names, and the model will predict whichever name is attended to. The position feature matters mechanistically by determining whether they attend to <strong>IO</strong> over <strong>S</strong> . This motivates us to consider the gradient <strong>v</strong> grad of the difference of attention scores of these heads on the <strong>S</strong> and <strong>IO</strong> names with respect to the residual stream at the last token, right after layer 8. We choose this layer because it right after the S-Inhibition heads (in layers 7 and 8) and before the name mover heads (in layers 9 and 10); see Figure 3. This gradient is the direction in the space of residual stream activations at this location that maximally shifts attention between the two names (per unit <em>ℓ</em> 2 norm), so we expect it to be a strong mediator of the position signal. Implementation details are given in Appendix B.2.</p>
+<p>Importantly, the transformation from residual stream activations to attention scores is an approximately linear map: it consists of layer normalization followed by matrix multiplication. Layer normalization is a linear operation modulo the scaling step, and empirically, the scales of different examples in a trained model at inference time are tightly concentrated (see also ‘Handling Layer Normalization’ in Elhage et al. (2021)). This justifies the use of the gradient – which is in general only locally meaningful – as a direction in the residual stream globally meaningful for the attention scores of the name mover heads.</p>
+<p>Figure 3: Schematic of the IOI circuit and locations of key interventions. As argued in Wang et al. (2023), GPT2-Small predicts the correct name by S-inhibition heads writing positional information to the residual stream, which is used by the name movers to copy the non-duplicated name (green arrows). Location of subspace interventions <strong>v</strong> MLP (analyzed in Subsection 4.4) and <strong>v</strong> resid (analyzed in Section 5) are marked. Patching the illusory subspace <strong>v</strong> MLP adds a new path (red) along the established one that is used to flip positional information when patched.</p>
+<p><strong>Distributed alignment search</strong> . We can also directly optimize for a direction that mediates the position signal. This is the approach taken by DAS (Geiger et al., 2023b). In our context, DAS optimizes for an activation subspace which, when activation patched from prompt <em>B</em> into prompt <em>A</em> , makes the model behave as if the relative position of the <strong>IO</strong> and <strong>S</strong> names in the sentence is as in prompt <em>B</em> . Specifically, if we patch between examples where the positions of the two names are the same, we optimize for a patch that <em>maximizes</em> the difference in predicted logits for the <strong>IO</strong> and <strong>S</strong> names. Conversely, if we patch between examples where the positions of the two names are switched, we optimize to <em>minimize</em> this difference. This approach is based purely on the model’s predictions, and does not make any assumptions about its internal computations.</p>
+<p>We let <strong>v</strong> MLP and <strong>v</strong> resid be 1-dimensional subspaces found by DAS in the layer 8 MLP activations and layer 8 residual stream output at the last token, respectively (see Figure 3). Both of these locations are between the S-Inhibition and Name Mover heads; however, Wang et al. (2023) did not</p>
+<p>find any significant contribution from the MLP layer, making it a potential location for our illusion. Implementation details are given in Apendix B.3.</p>
+<h3><strong>4.3 Measuring Patching Success via the Logit Difference Metric</strong></h3>
+<p>In our experiments, we perform all patches between examples that only differ in the variable we want to localize in the model, i.e. the position of the <strong>S</strong> and <strong>IO</strong> names in the first sentence. In other words, we patch from an example of the form ‘Then, Mary and John went to the store. John gave a book to’ (an ABB example) into the corresponding example ‘Then, John and Mary went to the store. John gave a book to’ (a BAB example), and vice-versa. Our activation patches have the goal of making the model output the <strong>S</strong> name instead of the <strong>IO</strong> name.</p>
+<p>Accordingly, we use the <em>logit difference</em> between the logits assigned to the <strong>IO</strong> and <strong>S</strong> names as our main measure of how well a patch performs. We note that the logit difference is a meaningful quantifier of the model’s confidence for one name over the other (it is equal to the log-odds between the two names assigned by the model), and has been extensively used in the original IOI circuit work Wang et al. (2023) to measure success on the IOI task.</p>
+<p>Given a prompt <em>x</em> from the IOI distribution, let logit <strong>IO</strong> ( <em>x</em> ) , logit <strong>S</strong> ( <em>x</em> ) denote the last-token logits output by the model on input <em>x</em> , for the <strong>IO</strong> and <strong>S</strong> names in the prompt <em>x</em> respectively (note that in our IOI distribution, all names are single tokens in the vocabulary of the model). The logit difference</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0013-05.jpg" alt="" /></p>
+<p>when <em>x</em> is sampled from the IOI distribution is <em>&gt;</em> 0 for almost all examples (99 + %), and is on average <em>≈</em> 3.5 (for this average value, the probability ratio in favor of the <strong>IO</strong> name is <em>e</em><sup>3.5</sup> <em>≈</em> 33).</p>
+<p>Similarly, for an activation patching intervention <em>ι</em> , let logit <strong>IO</strong><sup><em>ι</em>(</sup><sup><em>x←x′</em>)</sup> ( <em>x</em> ), logit <strong>S</strong><sup><em>ι</em>(</sup><sup><em>x←x′</em>)</sup> ( <em>x</em> ) denote the last-token logits output by the model when run on input <em>x</em> but patching from <em>x</em><sup><em>′</em></sup> using <em>ι</em> . The logit difference after intervening via <em>ι</em> is thus</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0013-08.jpg" alt="" /></p>
+<p>Our main metric is the average <strong>fractional logit difference decrease (FLDD)</strong> due to the intervention <em>ι</em> , where</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0013-10.jpg" alt="" /></p>
+<p>The average FLDD is 0 when the patch does not, on average, change the model’s log-odds. The more positive FLDD is, the more successful the patch, with values above 100% indicating that the patch more often than not makes the model prefer the <strong>S</strong> name over the <strong>IO</strong> name. Finally, an average FLDD below 0% means that the patch on average helps the model do the task (and thus the patch has failed).</p>
+<p>We also measure the <strong>interchange accuracy</strong> of the intervention: the fraction of patches for which the model predicts the <strong>S</strong> (i.e., wrong) name for the patched run. This is a ‘hard’ 0-1 counterpart to the FLDD metric.</p>
+<p><strong>Why prefer the FLDD metric to interchange accuracy?</strong> We argue that our main metric, which is based on logit difference (Equation 4), is a better reflection of the success of a patch than the accuracy-based interchange accuracy. Specifically, there are practical cases (e.g. the results in</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0014-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>160 Input<br>ABB (no intervention)<br>BAB (no intervention)<br>140<br>patch BAB -&gt; ABB<br>patch ABB -&gt; BAB<br>120<br>100<br>80<br>60<br>40<br>20<br>0<br>10.0 7.5 5.0 2.5 0.0 2.5 5.0 7.5<br>Activation projection<br>Number of examples<br><!-- End of picture text --></p>
+<p>Figure 4: Projections of the output of the MLP layer on the gradient direction <strong>v</strong> grad before (blue/orange) and after (green/red) the activation patch along <strong>v</strong> MLP. In the legend, ‘ABB’ denotes examples where the <strong>IO</strong> name comes before the <strong>S</strong> name, and ‘BAB’ the other kind of examples.</p>
+<p>While before the patch the contribution of the MLP layer to the causally relevant direction <strong>v</strong> grad distinguishes between values of the <strong>IO</strong> position in the prompt, after the patch there is a strong distinction (in the opposite direction). This shows that the patch activates a potential mediator of this feature that is normally dormant, taking model activations off-distribution.</p>
+<table>
+<thead>
+<tr>
+<th>Patching</th>
+<th>FLDD</th>
+<th>Interchange</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>subspace</td>
+<td></td>
+<td>accuracy</td>
+</tr>
+<tr>
+<td>full MLP</td>
+<td>-8%</td>
+<td>0.0%</td>
+</tr>
+<tr>
+<td><strong>v</strong>MLP</td>
+<td>46.7%</td>
+<td>4.2%</td>
+</tr>
+<tr>
+<td><strong>v</strong>MLProwspace</td>
+<td>13.5%</td>
+<td>0.2%</td>
+</tr>
+<tr>
+<td><strong>v</strong>MLPnullspace</td>
+<td>0%</td>
+<td>0.0%</td>
+</tr>
+<tr>
+<td>full residual stream</td>
+<td>123.6%</td>
+<td>54.8%</td>
+</tr>
+<tr>
+<td><strong>v</strong>resid</td>
+<td>140.7%</td>
+<td>74.8%</td>
+</tr>
+<tr>
+<td><strong>v</strong>residrowspace</td>
+<td>127.5%</td>
+<td>63.1%</td>
+</tr>
+<tr>
+<td><strong>v</strong>residnullspace</td>
+<td>13.9%</td>
+<td>0.4%</td>
+</tr>
+<tr>
+<td><strong>v</strong>grad</td>
+<td>111.5%</td>
+<td>45.1%</td>
+</tr>
+<tr>
+<td><strong>v</strong>gradrowspace</td>
+<td>106.47%</td>
+<td>40.6%</td>
+</tr>
+<tr>
+<td><strong>v</strong>gradnullspace</td>
+<td>2.2%</td>
+<td>0.0%</td>
+</tr>
+</tbody>
+</table>
+<p>Table 1: Effects of activation patching of full components and 1-dimensional subspaces on the IOI task: fractional logit difference decrease (FLDD, higher means more successful patch; 0% means no change) and interchange accuracy (fraction of predictions flipped; higher means more successful patch). The first 5 interventions are described in more detail in Section 4, and the next 6 in Section 5.</p>
+<p>An FLDD metric of <em>&gt;</em> 100% indicates that the patch is more successful than not on average; however, an FLDD of <em>≈</em> 50% is still significant, even if the associated interchange accuracy may be <em>≈</em> 0%. See Subsection 4.3 for more on interpreting the FLDD metric.</p>
+<p>Subsection 4.4) in which an intervention consistently achieves FLDD <em>≈</em> 50%, even though the interchange accuracy is <em>≈</em> 0%. In practice, circuits often have multiple components contributing to the same signal (including the IOI circuit found in Wang et al. (2023)). So a single non-residualstream component consistently responsible for shifting 50% of the model’s log-odds towards another prediction is significant (even more so for a low-dimensional subspace of the component). Indeed, even if this component’s contribution alone is insufficient to cause the predicted token to change, three such components would robustly change the prediction.</p>
+<h3><strong>4.4 Results: Demonstrating the Illusion for the vMLP Direction</strong></h3>
+<p>We now show that patching the <strong>v</strong> MLP direction exhibits the illusion from Section 3. By contrast, we revisit <strong>v</strong> grad and <strong>v</strong> resid in Section 5, where we show that both are representations of the name position information that are highly faithful to the model’s computation.</p>
+<p><strong>Methodology and interventions considered</strong> To contextualize the effect of the <strong>v</strong> MLP patch, we compare it to several additional subspace- and component-level activation patching interventions:</p>
+<ul>
+<li>
+<p><strong>full MLP</strong> : patching the full value of the hidden activation of the 8-th MLP layer at the last token.</p>
+</li>
+<li>
+<p><strong>vMLP</strong> : patching along the 1-dimensional subspace spanned by the direction <strong>v</strong> MLP found in Subsection 4.2.</p>
+</li>
+<li>
+<p><strong>vMLP nullspace</strong> : patching along the 1-dimensional subspace spanned by the causally disconnected component of <strong>v</strong> MLP. This is the orthogonal projection <strong>v</strong><sup>nullspace</sup> MLP of <strong>v</strong> MLP on the nullspace ker <em>Wout</em> of the down-projection <em>Wout</em> of the MLP layer. Note that <em>Wout ∈</em> <strong>R</strong><sup>768</sup><sup>_×_3072</sup> , so its kernel occupies at least 2304 dimensions, or 3/4 of the total dimension of the space of MLP activations.</p>
+</li>
+<li>
+<p><strong>vMLP rowspace</strong> : patching along the 1-dimensional subspace spanned by causally relevant component of <strong>v</strong> MLP. This is the orthogonal projection <strong>v</strong><sup>rowspace</sup> MLP of <strong>v</strong> MLP on the rowspace of <em>Wout</em> . Note that we have the orthogonal decomposition</p>
+</li>
+</ul>
+<p><strong>v</strong> MLP = <strong>v</strong><sup>nullspace</sup> MLP + <strong>v</strong><sup>rowspace</sup> MLP .</p>
+<ul>
+<li><strong>full residual stream</strong> : patching the entire activation of the residual stream at the last token after layer 8 of the model. This is indicated as the location of <strong>v</strong> resid in Figure 3.</li>
+</ul>
+<p><strong>Results.</strong> Metrics are shown in Table 1. In particular, we confirm the mechanics of the illusion are at play through the following observations.</p>
+<p><strong>The causally disconnected component of vMLP drives the effect.</strong> While patching the <strong>v</strong> MLP direction has a significant effect on the FLDD metric (46.7%), this effect is greatly diminished when we remove the component of <strong>v</strong> MLP in ker <em>Wout</em> whose activations are (provably) causally disconnected from model predictions (13.5%), or when we patch the entire MLP activation ( <em>−</em> 8%, actually increasing confidence). By contrast, performing analogous ablations on <strong>v</strong> resid leads to roughly the same numbers for the three analogous interventions (140.7%/127.5%/123.6%; we refer the reader to Section 5 for details on the <strong>v</strong> resid experiments).</p>
+<p><strong>Patching vMLP activates a dormant pathway through the MLP.</strong> To corroborate these findings, in Figure 4, we plot the projection of the MLP layer’s contribution to the residual stream on the gradient direction <strong>v</strong> grad before and after patching, in order to see how it contributes to the attention of name mover heads. We observe that in the absence of intervention, the MLP output is weakly sensitive to the name position information, whereas after the patch this changes significantly.</p>
+<p><strong>Further validations of the illusion.</strong> We observe that the disconnected-dormant decomposition from the illusion approximately holds: the causally disconnected component of <strong>v</strong> MLP (the one in ker <em>Wout</em> ) is significantly more discriminating between ABB and BAB examples than the component in (ker <em>Wout</em> )<sup><em>⊤</em></sup> , which is the one driving the causal effect (Figure 5); in this sense, the causally relevant component is ‘dormant’ relative to the causally diconnected one<sup>6</sup> .</p>
+<blockquote>
+<p>6The projection of <strong>v</strong> MLP onto ker <em>Wout</em> is substantial: it has norm <em>≈</em> 0.65, and the orthogonal projection onto (ker <em>Wout</em> )<sup><em>⊤</em></sup> has norm <em>≈</em> 0.75 (as predicted by our model, the two components are approximately equal in norm; see Appendix A.2).</p>
+</blockquote>
+<p>While the contribution of the <strong>v</strong> MLP patch to the FLDD metric may appear relatively small, and the interchange accuracy of this intervention is very low, in Appendix B.4 we argue that this is significant for a single component.</p>
+<p>A potential concern when evaluating these results is overfitting by DAS. In our experiments, we always evaluate trained subspaces on a held-out test dataset which uses different names, objects, places and templates for the sentences; this makes sure that we learn a general (relative to our IOI distribution) subspace representing position information and not a subspace that only works for particular names or other details of the sentence. We investigated overfitting in DAS further in Appendix B.7, and found that when DAS is trained on a dataset with a small number of names, overfitting is a real concern. However, the extent of overfitting is not such that DAS works in layers of the model where a generalizing DAS solution can also be found.</p>
+<p>Another potential concerns is that the model could be somehow representing the position information in the MLP layer in a higher-dimensional subspace, and that our 1-dimensional intervention is perhaps not fit to illuminate the properties of that larger representation. In Appendix B.6, we show that the illusion occurs when patching 100-dimensional subspaces as well, and the quantitative effect of the illusion is just a little stronger than that for 1-dimensional subspaces (as measured by the FLDD metric).</p>
+<p>Finally, in Appendix B.5, we show that we can find a direction within the post-gelu activations that has an even stronger effect on the model’s behavior, <em>even when</em> we replace the MLP weights with random matrices.</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0016-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Projection onto nullspace component Projection onto rowspace component<br>140<br>pattern 500 pattern<br>ABB ABB<br>120 BAB BAB<br>400<br>100<br>80 300<br>60<br>200<br>40<br>100<br>20<br>0 0<br>1.5 1.0 0.5 0.0 0.5 1.0 1.5 2.0 2.5 3.0 1.5 1.0 0.5 0.0 0.5 1.0 1.5 2.0 2.5 3.0<br>Activation projection Activation projection<br>Number of examples<br><!-- End of picture text --></p>
+<p>Figure 5: Projections of dataset examples onto the two (normalized to unit <em>ℓ</em> 2 norm) components of the illusory patching direction found in MLP8: the nullspace (irrelevant) component (left), and the rowspace (dormant) component (right).</p>
+<h2><strong>5 Finding and Validating a Faithful Direction Mediating Name Position in the IOI Task</strong></h2>
+<p>As a counterpoint to the illusion, in this section we demonstrate a success case for subspace activation patching, as well as for DAS as a method for finding meaningful subspaces, by revisiting the directions <strong>v</strong> grad and <strong>v</strong> resid defined in Subsection 4.2, and arguing they are faithful to the model’s computation to a high degree.</p>
+<p>Specifically, we subject these directions to the same tests we used for the illusory direction <strong>v</strong> MLP, and arrive at significantly different results. Through these and additional validations, we demonstrate that these directions possess the necessary and sufficient properties of a successful activation patch – being both correlated with input variation and causal for the targeted behavior – in a way that does not rely on a large causally disconnected component for the effect.</p>
+<h3><strong>5.1 Ruling Out the Illusion</strong></h3>
+<p>Intuitively, the main property of <strong>v</strong> resid we want to establish in order to rule out the illusion is that it is simultaneously (1) strongly discriminating between ABB and BAB examples (i.e., projections of activations on <strong>v</strong> resid separate these two classes well), and (2) is highly aligned with the direction <strong>v</strong> grad that downstream model components read this information from in order to put attention on the <strong>IO</strong> name and not the <strong>S</strong> name. To this end, we define a notion of causally disconnected component for <strong>v</strong> resid, and we show that removing it does not diminish the effect of the patch; we further show that <strong>v</strong> resid and <strong>v</strong> grad are quite similar, and that <strong>v</strong> grad is also strongly activated by position information.</p>
+<p><strong>What is the causally (dis)connected subspace of the residual stream?</strong> While for an MLP layer it is clear that ker <em>Wout</em> is the subspace of post-GELU activations which is causally disconnected from model outputs, the residual stream after layer 8 has no subspace which is simultaneously in the kernel of all downstream model components, or even of all the query matrices of downstream attention heads (we checked this empirically).</p>
+<p>To overcome this, recall from Section 4 that Wang et al. (2023) argued that the three Name Mover heads in layers 9 and 10 are mostly responsible for the IOI task specifically. Let <em>WQ</em><sup>NM</sup> <em>∈</em> <strong>R</strong><sup>(3</sup><sup>_×<em>64)</sup><sup></em>×<em>768</sup> = <strong>R</strong><sup>192</sup><sup></em>×_768</sup> be the stacked query matrices of the three name mover heads (which are full-rank). We use the 192-dimensional subspace �ker <em>WQ</em><sup><em>NM</em></sup> � <em>⊤</em> as a proxy for the causally relevant subspace<sup>7</sup> of the residual stream at the last token position after layer 8.</p>
+<p>To further narrow down the precise subspace read by the Name Mover heads, we also compare <strong>v</strong> resid with the gradient <strong>v</strong> grad, which is the direction that the Name Mover’s attention on the <strong>IO</strong> vs. <strong>S</strong> name is most sensitive to.</p>
+<p><strong>Results.</strong> In Table 1, we report the fractional logit difference decrease (FLDD, recall Subsection 4.3) and interchange accuracy when patching <strong>v</strong> resid and <strong>v</strong> grad, as well as their components along</p>
+<blockquote>
+<p>7Note that, while technically all attention heads in layers 9, 10 and 11 read information from the residual stream after layer 8, using their collective query matrices instead of just the name movers would lead to a vacuous concept of a causally relevant subspace, because their collective query matrices’ rowspaces span the entire residual stream. As a rough baseline, a random isotropic unit vector would have on average � <u>192768</u><sup>=</sup> 2<sup><u>1</u>of its</sup><sup>_ℓ_2-norm in</sup> �ker <em>WQ</em><sup><em>NM</em></sup> � <em>⊤</em> . We also note that this is on par with the decomposition of <strong>v</strong> MLP we considered in Section 4, where ker <em>Wout</em> occupied 3/4 of the dimension of the full space of activations.</p>
+</blockquote>
+<p>ker <em>WQ</em><sup>NM</sup> (denoted ‘nullspace’) and its orthogonal complement �ker <em>WQ</em><sup><em>NM</em></sup> � <em>⊤</em> (denoted ‘rowspace’). We observe that the non-nullspace metrics are broadly similar<sup>8</sup> ; in particular, removing the causally disconnected component of <strong>v</strong> resid does not significantly diminish the effect of the patch in terms of the logit difference metrics (as it does for <strong>v</strong> MLP).</p>
+<p>Furthermore, we find that the cosine similarity between <strong>v</strong> resid and <strong>v</strong> grad is <em>≈</em> 0.78, which is significant (the baseline for random vectors in the residual stream is on the order of <em>~~√~~</em> 7681<sup>_≈_0.03).</sup> Both <strong>v</strong> resid and <strong>v</strong> grad have a significant fraction of their norm in the �ker <em>WQ</em><sup><em>NM</em></sup> � <em>⊤</em> subspace (91% and 98%, respectively). These results suggest that this <strong>v</strong> resid and <strong>v</strong> grad are highly similar directions, and that they’re both strongly causally connected to the model’s output.</p>
+<p>In Figure 6, we also find that both directions are strongly discriminating between ABB and BAB examples.</p>
+<p><strong>Discussion.</strong> A key observation about the residual stream at the last token is that it is a full bottleneck for the model’s computation over the last token position: all updates to that position are added to it. This provides another viewpoint on why the successful patches we find don’t rely on a dormant subspace: there can be no earlier model component that activates the directions we find in a way that skips over the patch via a residual connection (unlike for <strong>v</strong> MLP). Indeed, in Figure 20 in Appendix C we show that the <strong>v</strong> resid direction gets written to by the S-Inhibition heads.</p>
+<h3><strong>5.2 Additional Validations</strong></h3>
+<p>In Appendix C, we further validate these directions’ faithfulness to the computation of the IOI circuit from Wang et al. (2020) by finding the model components that write to them and studying how they generalize on the pre-training distribution (OpenWebText); representative samples annotated with attention scores are shown in Figures 23, 21, 22 in Appendix C.</p>
+<h2><strong>6 Factual Recall</strong></h2>
+<p>This section has two major goals. One is to show that the interpretability illusion can also be exhibited for the factual recall capability of language models, a much broader setting than the IOI task. The other is to exhibit in practice an approximate equivalence between two seemingly different interventions: rank-1 weight editing and interventions on 1-dimensional subspaces of activations. We do this in several complementary ways:</p>
+<ol>
+<li>
+<p>we show that DAS (Geiger et al., 2023b) finds illusory 1-dimensional subspace patches that change factual recall (e.g., to make a model complete ‘The Eiffel Tower is in’ with ‘ Rome’ instead of ‘ Paris’). The patches found strongly update the model’s confidence towards the false completion, but the effect disappears when the causally disconnected component of the subspace is removed, or when the entire MLP activation containing the subspace is patched instead.</p>
+</li>
+<li>
+<p>we show that for a wide range of layers in the middle of the model (GPT2-XL Radford et al. (2019)), rank-1 fact editing using the ROME method (Meng et al., 2022a) is approximately</p>
+</li>
+</ol>
+<blockquote>
+<p>8We observe that the <strong>v</strong> resid patch is more successful than the <strong>v</strong> grad patch; we conjecture that this is due to <strong>v</strong> resid being able to contribute to all downstream attention heads, not just the three name-mover heads. In particular, the original IOI paper Wang et al. (2023) found that there is another class of heads, Backup Name Movers, which act somewhat like Name Mover heads.</p>
+</blockquote>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0019-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>pattern 70 pattern<br>60 ABB ABB<br>BAB 60 BAB<br>50<br>50<br>40<br>40<br>30<br>30<br>20<br>20<br>10 10<br>0 0<br>10 5 0 5 10 15 20 25 20 15 10 5 0 5 10 15<br>Activation projection Activation projection<br>Number of examples<br><!-- End of picture text --></p>
+<p>Figure 6: Projections of dataset examples’ activations in the residual stream after layer 8 onto the <strong>v</strong> resid direction found by DAS (left) and the <strong>v</strong> grad direction (right) which is the gradient for difference in attention of the name mover heads to the two names.</p>
+<p>equivalent to a 1-dimensional subspace intervention that generalizes activation patching. The same arguments from Sections 3 and 8 apply to this intervention, suggesting that it is likely to work successfully in a wide range of MLP layers, regardless of the role of these MLP layers for factual recall.</p>
+<ol start="3">
+<li>Finally, we show that the existence of the illusory patches from 1. implies the existence of rank1 weight edits which have identical effect at the token being patched, and comparable overall effect on the model. This provides the other direction of an approximate equivalence between 1-dimensional subspace interventions and rank-1 editing, which may be of independent interest.</li>
+</ol>
+<p>In particular, these findings provide a mechanistic explanation for the observation of prior work (Hase et al., 2023) that ROME works even in layers where the fact is supposedly not stored. As we discuss in Section 8, we expect that in practice all MLP layers between two model components communicating some feature are likely to contain an illusory subspace – and, by virtue of the approximate equivalence we demonstrate, rank-one fact edits will exist in these MLP layers, regardless of whether they are responsible for recalling the fact being edited.</p>
+<h3><strong>6.1 Finding Illusory 1-Dimensional Patches for Factual Recall</strong></h3>
+<p>Given a fact expressed as a subject-relation-object triple ( <em>s</em> , <em>r</em> , <em>o</em> ) (e.g., <em>s</em> = ‘Eiffel Tower’, <em>r</em> = ‘is in’, <em>o</em> = ‘Paris’), we say that a model <em>M recalls</em> the fact ( <em>s</em> , <em>r</em> , <em>o</em> ) if <em>M</em> completes a prompt expressing just the subject-relation pair ( <em>s</em> , <em>r</em> ) (e.g., ‘The Eiffel Tower is in’) with the object <em>o</em> (‘Paris’).</p>
+<p>Let us be given two facts ( <em>s</em> , <em>r</em> , <em>o</em> ) and ( <em>s</em><sup><em>′</em></sup> , <em>r</em> , <em>o</em><sup><em>′</em></sup> ) for the same relation that a model recalls correctly, with corresponding factual prompts <em>A</em> expressing ( <em>s</em> , <em>r</em> ) and <em>B</em> expressing ( <em>s</em><sup><em>′</em></sup> , <em>r</em> ) (e.g., <em>r</em> = ‘is in’, <em>A</em> = ‘The Eiffel Tower is in’, <em>B</em> = ‘The Colosseum is in’). In this subsection, we patch from <em>B</em> into <em>A</em> , with</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0020-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0 Method<br>DAS<br>Full MLP patch<br>0.8<br>DAS rowspace component<br>0.6<br>0.4<br>0.2<br>0.0<br>0 5 10 15 20 25 30 35 40 45<br>Intervention layer<br>Fraction of facts changed<br><!-- End of picture text --></p>
+<p>Figure 7: Fraction of successful fact patches under three interventions: patching along the direction found by DAS (blue), patching the component of the DAS direction in the rowspace of <em>Wout</em> (green), and patching the entire hidden MLP activation (orange).</p>
+<p>the goal of changing the model’s output from <em>o</em> to <em>o</em><sup><em>′</em></sup> . Implementation details are given in Appendix D.1.</p>
+<p>Results are shown in figure 7. We find a stronger version of the same qualitative phenomena as for the IOI illusory direction from Section 4: (i) the directions we find have a strong causal effect (successfully changing <em>o</em> to <em>o</em><sup><em>′</em></sup> ), but (ii) this effect disappears when we instead patch along the subspace spanned by the component orthogonal to ker <em>Wout</em> , and (iii) patching the entire MLP activation instead has a negligible effect on the difference in logits between the correct and incorrect objects. Further experiments confirming the illusion are in Appendix D.2.</p>
+<p>We conclude that it is possible to make a model output a different object for a given fact by exploiting a 1-dimensional subspace patch that activates a dormant circuit in the model; in particular, using such a patch to localize the fact in the model is prone to interpretability illusions. Next, we turn to a more sophisticated intervetion that has been used to edit a fact in a more holistic way, so that related facts update accordingly while the model otherwise stays mostly the same.</p>
+<h3><strong>6.2 Background on ROME</strong></h3>
+<p>Meng et al. (2022a) propose an intervention to overwrite a fact ( <em>s</em> , <em>r</em> , <em>o</em> ) with another fact ( <em>s</em> , <em>r</em> , <em>o</em><sup><em>′</em></sup> ) while minimally changing the model otherwise. The intervention is a <em>rank-1 weight edit</em> , which updates the down-projection <em>Wout</em> of a chosen MLP layer to become <em>Wout</em><sup><em>′</em>=</sup><sup><em>Wout</em>+</sup><sup><strong>ab</strong></sup><sup>_⊤_for some</sup> <strong>a</strong> <em>∈</em> <strong>R</strong><sup>_d_resid</sup> , <strong>b</strong> <em>∈</em> <strong>R</strong><sup>_d_MLP</sup> . The edit takes a ‘key’ vector <strong>k</strong> <em>∈</em> <strong>R</strong><sup><em>d_MLP</sup> representing the subject (e.g., an average of its last-token MLP post-gelu activations over many prompts containing it) and a ‘value’ vector <strong>v</strong> <em>∈</em> <strong>R</strong><sup><em>d_resid</sup> which, when output by the MLP layer, will cause the model to predict the new object <em>o</em><sup></em>′</em></sup> for the factual prompt (together with some other conditions incentivizing the model to not change much otherwise).</p>
+<p>Importantly, we demonstrate that ROME can be formulated as an optimization problem with a natural objective, and this objective allows us to compare it to related interventions. Namely, the vectors <strong>a</strong> , <strong>b</strong> are the solution to</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0020-08.jpg" alt="" /></p>
+<p>where Cov [ <strong>r</strong> ] = <strong>E</strong> denotes the covariance matrix of a random vector <strong>r</strong> with �( <strong>r</strong> <em>−</em> <strong><em>µ</em></strong> ) ( <strong>r</strong> <em>−</em> <strong><em>µ</em></strong> )<sup><em>⊤</em>�</sup> mean <strong><em>µ</em></strong> , and Σ <em>⪰</em> 0 is an empirical (uncentered) covariance matrix for the MLP activations (proof in Appendix D.4). In words, the ROME update is the update that alters <em>Wout</em> so it outputs <strong>v</strong> on input <strong>k</strong> , and minimizes the total variance of the extra contribution of the update in the output of the MLP layer under the assumption that the pre- <em>Wout</em> activations are normally distributed with mean zero and covariance Σ <em>⪰</em> 0.</p>
+<h3><strong>6.3 Rank-1 Fact Edits Imply Approximately Equivalent 1-Dimensional Subspace Interventions</strong></h3>
+<p>Comparing the effect of a rank-1 edit to the MLP layer’s output with equation 3 expressing the effect of patching on the MLP’s outputs, we see that the two are quite similar. This leads to a natural question: given a rank-1 weight edit <em>Wout</em><sup><em>′</em>=</sup><sup><em>Wout</em>+</sup><sup><strong>ab</strong></sup><sup>_⊤_suchasROME,canwefinda</sup> 1-dimensional activation patch that has the same contribution to the MLP’s output for any MLP activation <strong>x</strong> ?</p>
+<p><strong>Motivation and details.</strong> As it turns out, finding a patch that has the same effect as a rank-1 edit is not feasible in practice. For an activation <strong>x</strong> , the extra contribution to the MLP’s output due to a rank-1 edit is � <strong>b</strong><sup><em>⊤</em></sup> <strong>x</strong> � <strong>a</strong> , whereas the extra contribution of a 1-dimensional patch from activation <strong>x</strong><sup><em>′</em></sup> is � <strong>v</strong><sup><em>⊤</em></sup> <strong>x</strong><sup><em>′</em></sup> <em>−</em> <strong>v</strong><sup><em>⊤</em></sup> <strong>x</strong> � <em>W</em> <strong>v</strong> , where crucially <em>∥</em> <strong>v</strong> <em>∥</em> 2 = 1. In particular, the vectors <strong>a</strong> , <strong>b</strong> are not norm-constrained, unlike <strong>v</strong> . This restricts the magnitude of the contribution of a patch, and we find this matters in practice.</p>
+<p>To overcome this, we consider a closely related subspace intervention,</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0021-05.jpg" alt="" /></p>
+<p>where <strong>v</strong> is no longer restricted to be unit norm, and <strong>x</strong><sup><em>′</em></sup> is chosen to be <strong>0</strong> to match the expectation of the rank-1 edit’s contribution (see Appendix D.7 for details). This intervention bears many similarities to subspace patching; in particular, this intervention leaves the projections on all directions orthogonal to <strong>v</strong> the same, and the intuitions about the illusion from Sections 3 and 7 also apply to this intervention. We also remark that, at the same time, this intervention is exactly equivalent to the rank-1 edit <em>Wout</em><sup><em>′′</em>=</sup><sup><em>Wout</em>+</sup><sup><em>Wout</em></sup><sup><strong>v</strong>(</sup><sup><em>−</em></sup><sup><strong>v</strong>)</sup><sup>_⊤_intermsofcontributiontotheMLP</sup> output.</p>
+<p>It turns out that this more general intervention can often approximate the ROME intervention well. Specifically, given a rank-1 edit <em>Wout</em> + <strong>ab</strong><sup><em>⊤</em></sup> , we can treat the problem probabilistically over activations <strong>x</strong> <em>∼N</em> (0, Σ) like done in Meng et al. (2022a), and ask for a direction <strong>v</strong> with the following properties:</p>
+<ul>
+<li>
+<p>the expected value of both interventions is the same;</p>
+</li>
+<li>
+<p>the resulting extra contribution � <em>−</em> <strong>v</strong> <em>⊤</em> <strong>x</strong> � <em>Wout</em> <strong>v</strong> to the MLP’s output points in the same direction as the extra contribution � <strong>b</strong><sup><em>⊤</em></sup> <strong>x</strong> � <strong>a</strong> of the rank-1 edit;</p>
+</li>
+<li>
+<p>the total variance trace �Cov �� <em>−</em> <strong>v</strong> <em>⊤</em> <strong>x</strong> � <em>Wout</em> <strong>v</strong> <em>−</em> � <strong>b</strong><sup><em>⊤</em></sup> <strong>x</strong> � <strong>a</strong> �� of the difference of these two contributions is minimized over <strong>x</strong> <em>∼N</em> (0, Σ).</p>
+</li>
+</ul>
+<p>Details are given in Appendix D.7. The important takeaway is that the solution <strong>v</strong> has the form</p>
+<p><strong>v</strong> = <em>αWout</em><sup>+</sup><sup><strong>a</strong>+</sup><sup><strong>u</strong></sup> where <strong>u</strong> <em>∈</em> ker <em>Wout</em></p>
+<p>for a constant <em>α ≥</em> 0 that is optimized. In particular, <em>Wout</em> <strong>v</strong> points in the direction <strong>a</strong> , and the component <strong>u</strong> (which is causally disconnected) is a ’free variable’ that is essentially optimized to bring <strong>v</strong><sup><em>⊤</em></sup> <strong>x</strong> close to <em>−</em> <strong>b</strong><sup><em>⊤</em></sup> <strong>x</strong> / <em>α</em> (subject to accounting for Σ).</p>
+<p><strong>Metrics and evaluation.</strong> We apply this method to find subspace interventions corresponding to edits extracted from the COUNTERFACT dataset (Meng et al., 2022a); see Appendix D.1 for details. Specifically, we run ROME for all the edits, and we find the approximate subspace intervention (defined by a vector <strong>v</strong> ) corresponding to each ROME edit. To compare the interventions, we consider the following metrics:</p>
+<p><strong>Rewrite score.</strong> Defined in Hase et al. (2023) (and a closely related metric is optimized by Meng et al. (2022a)), the rewrite score is a relative measure of how well a change to the model (ROME or our subspace intervention) increases the probability of the false target <em>o</em><sup><em>′</em></sup> we are trying to substitute for <em>o</em> . Specifically, if <em>p</em> clean ( <em>o</em> ) is the probability assigned by the model to output <em>o</em> under normal operation, and <em>p</em> intervention ( <em>o</em> ) is the probability assigned when the intervention is applied, the rewrite score is</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0022-03.jpg" alt="" /></p>
+<p>with a value of 1 indicating the model assigns probability 1 to <em>o</em><sup><em>′</em></sup> after the intervention. We measure the rewrite score for the ROME intervention, our approximation of it, and also the corresponding subspace intervention with the ker <em>Wout</em> component of <strong>v</strong> removed, in analogy with how we examine the subspace patches in Sections 4 and 6.1. That is, if <strong>v</strong> null is the orthogonal projection of <strong>v</strong> on ker <em>Wout</em> and <strong>v</strong> rowsp = <strong>v</strong> <em>−</em> <strong>v</strong> null, we apply the intervention</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0022-05.jpg" alt="" /></p>
+<p>Results comparing ROME and the subspace intervention we use to approximate it are shown in Figure 8. When using the rowspace intervention, all rewrite scores are less than 10<sup>_−_3</sup> , indicating a strong reliance on the nullspace component.</p>
+<p><strong>Cosine similarity of v and b.</strong> Our intervention contributes <em>−</em> � <strong>v</strong><sup><em>⊤</em></sup> <strong>x</strong> � <em>W</em> <strong>v</strong> , and the ROME edit contributes � <strong>b</strong><sup><em>⊤</em></sup> <strong>x</strong> � <strong>a</strong> . Note that, by construction, the cosine similarity of <em>W</em> <strong>v</strong> with <strong>a</strong> is 1. So, the cosine similarity of <strong>v</strong> and <strong>b</strong> measures how well the direction we are projecting the activation <strong>x</strong> on matches that from the ROME edit. Results are shown in Figure 9 (left); in a range of layers we observe cosine similarity significantly close to 1. <strong>Overall change to the model relative to ROME.</strong> This is the total variance introduced by this intervention as a fraction of the total variance introduced by the corresponding ROME edit. It measures the extent to which the subspace intervention damages the model overall, following our formulation of ROME as an optimization problem (see Appendix D.4). Results are shown in Figure 9 (right). Note that this metric is a ratio of variances; a ratio of standard deviations can be obtained by taking the square root.</p>
+<p>In conclusion, we observe that in layers 20-35 inclusive, the two interventions are very similar according to all metrics considered.</p>
+<p><strong>What is the interpretability illusion implied by this?</strong> An important difference between the IOI case study from Section 4 and the factual recall results from the current section is that, while activating a dormant circuit is contrary to activation patching’s interpretability fact editing is, by definition, allowed to alter the model. In this sense, activating a dormant circuit via a rank-1 edit should no longer be considered a sign of spuriosity.</p>
+<p>Instead, we argue that the interpretability illusion is to assume that the success of ROME means that the fact is stored in the layer being edited. This was already observed in Hase et al. (2023). Our work provides a mechanistic explanation for this observation.</p>
+<p>We also note that we have evaluated the success of ROME and our approximately-equivalent subspace intervention only using the rewrite score metric and the measure of total variance implicit in the ROME algorithm. Ideally, there would be other validations of a fact edit that test the behavior of the intervened-upon model on other facts that should be changed by the edit.</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0023-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>layer 20 layer 25<br>1.0 1.0<br>0.8 0.8<br>0.6<br>0.6<br>0.4<br>0.90 0.95 1.00 0.85 0.90 0.95 1.00<br>layer 30 layer 35<br>1.00 1.00<br>0.75 0.75<br>0.50<br>0.50<br>0.25<br>0.25<br>0.00<br>0.2 0.4 0.6 0.8 1.0 0.00 0.25 0.50 0.75 1.00<br>Rewrite score (ROME) Rewrite score (ROME)<br>Rewrite score (ours)<br>Rewrite score (ours)<br><!-- End of picture text --></p>
+<p>Figure 8: Rewrite score comparison between ROME (x-axis) and our approximation to it (y-axis) via a subspace intervention for layers 20, 25, 30, 35.</p>
+<h3><strong>6.4 1-Dimensional Fact Patches Imply Equivalent Rank-1 Fact Edits</strong></h3>
+<p>Finally, we show that the existence of an activation patch as in Subsection 6.1 implies the existence of a rank-1 weight edit which has the same contribution to the MLP’s output at the token being patched, and otherwise results in very similar model outputs as the activation patch.</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0024-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0<br>10<br>0.8<br>8<br>0.6<br>6<br>0.4<br>4<br>0.2<br>2<br>0.0<br>0 5 10 15 20 25 30 35 40 45 15 20 25 30 35<br>Intervention layer Intervention Layer<br>Cosine similarity<br>Variance ratio (ours/ROME)<br><!-- End of picture text --></p>
+<p>Figure 9: Comparisons between ROME rank-1 edits and our approximation via a subspace intervention. Left: cosine similarity between the vector <strong>v</strong> defining the subspace we intervene on and the vector <strong>b</strong> from the ROME edit (dashed horizontal line is at <em>y</em> = 1). Right: ratio of the total variance introduced by the subspace intervention to the total variance of the ROME intervention (x-axis scale is restricted to make the plot readable; dashed horizontal line is at <em>y</em> = 1).</p>
+<p>Intuitively, a ‘fact patch’ as in Subsection 6.1 should have a corresponding rank-1 edit with the same effect: the last subject token MLP activation <strong>u</strong> <em>A</em> for prompt A takes the role of <strong>k</strong> , and the patch modifies the MLP’s output (making it <strong>v</strong> ) to change the model’s output to <em>o</em><sup><em>′</em></sup> . We make this intuition formal in Appendix D.5, where we show that for each 1-dimensional activation patch between a pair of examples in the post-GELU activations of an MLP layer, there is a rank-1 model edit to <em>Wout</em> that results in the same change to the MLP layer’s output at the token where we do the patching, and minimizes the variance of the extra contribution in the sense of Equation 5.</p>
+<p>While this shows that the patch implies a rank-1 edit with the same behavior <em>at the token where we perform the patch</em> , the rank-1 edit is applied <em>permanently</em> to the model, which means that it (unlike the activation patch) applies to <em>every</em> token. Thus, it is not a priori obvious whether the rank-1 edit will still succeed in making the model predict <em>o</em><sup><em>′</em></sup> instead of <em>o</em> . To this end, in Appendix D.6, we evaluate empirically how using the rank-1 edit derived in Appendix D.5 instead of the activation patch changes model predictions, and we find negligible differences.</p>
+<h2><strong>7 Reasons to Expect the MLP-in-the-middle Illusion to be Prevalent</strong></h2>
+<p>We only exhibit our illusion empirically in two settings: the IOI task and factual recall. However, we believe it is likely prevalent in practice. In this section, we provide several theoretical, heuristic and empirical arguments in support of this.</p>
+<p>Specifically, we expect the illusion to be likely occur whenever we have an MLP <em>M</em> which is not used in the model’s computation on a given task, but is between two components <em>A</em> and <em>B</em> which <em>are</em> used, and communicate by writing to / reading from the direction <strong>v</strong> via the skip connections of the model. This structure has been frequently observed in the mechanistic interpretability literature (Lieberum et al., 2023; Wang et al., 2023; Olsson et al., 2022; Geva et al., 2021): circuits contain components composing with each other separated by multiple layers, and circuits have often been observed to be sparse, with most components (including most MLP layers) not playing a significant role.</p>
+<h3><strong>7.1 Assumptions: a Simple Model of Linear Features in the Residual Stream</strong></h3>
+<p>The linear representation hypothesis suggests a natural way to formalize this intuition. Namely, let’s assume for simplicity that there is a binary feature <em>C</em> in the data, and the value of <em>C</em> influences the model’s behavior on a task, by e.g. making some next-token predictions more likely than others. Concretely, there is a residual stream direction <strong>v</strong> <em>∈</em> <strong>R</strong><sup><em>dresid</em></sup> that mediates this effect: projections on <strong>v</strong> (at an appropriate token position) linearly separate examples according to the value of <em>C</em> , and intervening on this projection by setting it to e.g. the mode of the opposite class has the same effect on model outputs as changing the value of <em>C</em> in the input itself. Furthermore, we assume that this direction has this property in all residual stream layers between some two layers <em>a &lt; b</em> .</p>
+<p>We note that these assumptions can be realized ‘in the wild’: the highly similar directions <strong>v</strong> grad and <strong>v</strong> resid discussed in Section 5 are both examples of such directions <strong>v</strong> for the binary concept of whether the <strong>IO</strong> name comes first or second in the sentence, as we argued empirically.</p>
+<h3><strong>7.2 Overview of Argument</strong></h3>
+<p>The key hypothesis is that, given the setup from the previous Subsection 7.1, the post-nonlinearity activations of every MLP layer between layers <em>a</em> and <em>b</em> are likely to contain a 1-dimensional subspace whose patching will have the same effect (possibly with a smaller magnitude) on model outputs as changing the value of <em>C</em> in the input. For this, it is sufficient to have two kinds of directions in the MLP’s activation space:</p>
+<ul>
+<li>
+<p>a ‘causal’ direction, such that changing the projection of an activation along this direction results in the expected change of model outputs. Such a direction will exist simply because <em>Wout</em> is a full-rank matrix, so we can simply pick <em>Wout</em><sup>+</sup><sup><strong>v</strong>.We give an empirically-supported</sup> theoretical argument for this in Appendix E.1.</p>
+</li>
+<li>
+<p>a ‘correlated’ direction that linearly discriminates between the values of <em>C</em> : such a direction will exist because the pre-nonlinearity activations (which are an approximately linear image of the residual stream) will linearly discriminate <em>C</em> , and the transformation <strong>x</strong> <em>�→</em> gelu( <strong>x</strong> ) <em>�→</em> projker <em>Wout</em> gelu ( <strong>x</strong> ) approximately preserves linear separability. We give an empirically-supported theoretical argument for this in Appendix E.2.</p>
+</li>
+</ul>
+<h2><strong>8 Discussion, Limitations, and Recommendations</strong></h2>
+<p>Throughout this paper, we have seen that interventions on arbitrary linear subspaces of model activations, such as subspace activation patching, can have counterintuitive properties. In this section, we take a step back and provide a more conceptual point of view on these findings, as well as concrete advice for interpretability practitioners.</p>
+<p><strong>Why should this phenomenon be considered an illusion?</strong> One argument for the illusory nature of the subspaces we find is the reliance on a large causally disconnected component (in all our examples, this component is in the kernel of the down-projection <em>Wout</em> of an MLP layer). In particular, patching along only the causally-relevant component of the subspace (the one in (ker <em>Wout</em> )<sup><em>⊥</em></sup> ) destroys the effect of the subspace patch; we find this a convincing reason to be suspicious of the explanatory faithfulness of these subspaces.</p>
+<p>Beyond this argument, there are several more subtle considerations. For an explanation to be ‘illusory’, there has to be some notion of what the ‘true’ explanation is. We admit that a</p>
+<p>definition of a ‘ground truth’ mechanistic explanation is conceptually challenging. In the absence of such a definition, our claims rest on various observations about model’s inner workings that we now collect in one place and make more explicit. We believe these findings collectively point to meaningful constraints on mechanistic explanations.</p>
+<p>For example, the IOI circuit work of Wang et al. (2023) finds through various component-level interventions that the layer 8 MLP <em>as a whole</em> does not contribute significantly to the model’s ability to do the IOI task. However, does this imply that there aren’t individual subspaces of the MLP layer that mediate the model’s behavior on the IOI task? Not necessarily: there could be, for example, two subspaces mediating the position signal, but which have opposite contributions to the MLP’s output that cancel out. This is compatible with our model of the illusion from Section 3: for example, we can form two ‘cancelling’ 1-dimensional subspaces by taking the sum and difference of the causally disconnected and dormant directions in our model. From this point of view, our subspace intervention decouples these (ordinarily coupled) subspaces by changing the activation only along one of them. This is impossible for an intervention that operates on entire model components.</p>
+<p>Should we prefer the view under which the MLP layer simply does not participate in any meaningful way in the IOI task, or the view under which it contains subspaces that mediate information about the IOI task, but whose contributions cancel out? Note that meaningful cancellation behavior between entire model components has been observed to some extent in the mechanistic interpretability literature, such as with negative heads (Wang et al., 2023), anti-induction heads (Olsson et al., 2022) and copy suppression heads (McDougall et al., 2023). Furthermore, it is not clear that, in general, a component-level explanation should take precendence over subspace-level explanations. So, a priori, we have a conundrum: two different kinds of interventions arrive at conflicting interpretations.</p>
+<p>Nevertheless, based on our experiments, we suggest that the view under which the MLP layer contains meaningful subspaces that cancel out is the less likely mechanistic explanation for several reasons. A first argument is that, as we argue in Section 7, the existence of the illusory subspace only relies on the existence of certain directions in the residual stream; the MLP weights themselves don’t play a role. In some sense, the illusory subspace is a ‘necessity of linear algebra’. This is further reinforced by the fact that we find illusory directions even when the MLP weights are replaced by random matrices (see Appendix B.5). A second argument is that features that are individually strong, but whose contributions almost exactly cancel out, seem unlikely to be prevalent.</p>
+<p>Finally, we again remark that circuits for specific tasks have been observed to be sparse (recall Section 7). Our model of the illusion from Section 3 and the evidence from Section 7 suggest that any MLP layer between two circuit components using the residual stream as a communication bottleneck for some feature will contain a subspace that appears to mediate this feature. Thus, even if we cannot conclusively rule out any given MLP layer on the path as not being meaningfully involved in the computation, it would be quite surprising if always all of them are involved. So we expect that at least some of these subspaces will be illusory.</p>
+<p><strong>The importance of correct model units.</strong> A further implicit assumption in our work is that model components are meaningful boundaries for mechanistic explanation. As we illustrate in Appendix A.3, our toy example of the illusion can be considered in a rotated basis, in which the ‘illusory’ direction appears ‘meaningful’. In a similar way, if we allow ourselves to arbitrarily reparametrize spaces of activations by crossing the boundaries between e.g. attention heads and MLP layers, calling the MLP subspace ‘illusory’ is much more tenuous.</p>
+<p>To respond to this criticism, we point to the many observations in the mechanistic literature</p>
+<p>that different components (like heads and MLP layers) perform qualitatively different functions in a model. For example, tasks involving algorithmic manipulations of in-context text, such as the IOI task, often rely predominantly on attention heads (Wang et al., 2023; Heimersheim &amp; Janiak). On the other hand, MLP layers have so far been implicated in tasks having to do with recalling bigrams and facts (Meng et al., 2022a; Gurnee et al., 2023). On these grounds, mixing activations between them is likely to lead to less parsimonious and less principled mechanistic explanations.</p>
+<p><strong>Takeaways and recommendations.</strong> As we have seen, optimization-based methods using subspace activation patching, such as DAS (Geiger et al., 2023b) can find both faithful (Section 5) and illusory (Section 4) features with respect to the model’s computation. We recommend running such methods in activation bottlenecks, especially the residual stream, as well as using validations beyond end-toend evaluations to ascertain the precise role of such features.</p>
+<h2><strong>9 Acknowledgments</strong></h2>
+<p>We are deeply indebted to Atticus Geiger for many useful discussions and helpful feedback, as well as help writing parts of the paper. We particularly appreciate his thoughtful pushback on framing and narrative, and commitment to rigour, without which this manuscript would be far poorer. We would also like to thank Christopher Potts, Curt Tigges, Oskar Hollingsworth, Tom Lieberum, Senthooran Rajamanoharan and Peli Grietzer for valuable feedback and discussions. The authors used the open-source library <code>transformerlens</code> (Nanda &amp; Bloom, 2022) to carry out the experiments related to the IOI task. AM and GL did this work as part of the SERI MATS independent research program, with support from AI Safety Support.</p>
+<h2><strong>10 Author Contributions</strong></h2>
+<p>NN was the main supervisor for this project, and provided high level feedback on experiments, prioritisation, and writing throughout. NN came up with the original idea of the illusion and the conceptual example. AM came up with the correspondence with factual recall, developed the factual recall results, and ran the experiments for Sections 6, 7 and part of 5 (with the exception of experiments from Appendix E.6 ran by GL), and wrote the majority of the paper and appendices, as well as the public version of the code for the paper. GL also ran the experiments for Sections 4 and 5 with some guidance from AM, wrote and ran the experiments for Appendices B.5, B.6, B.7, C and E.6, and contributed to Section 5 and various other sections.</p>
+<h2><strong>References</strong></h2>
+<ul>
+<li>
+<p>Mostafa Abdou, Artur Kulmizev, Daniel Hershcovich, Stella Frank, Ellie Pavlick, and Anders Søgaard. Can language models encode perceptual structure without grounding? a case study in color. <em>arXiv preprint arXiv:2109.06129</em> , 2021.</p>
+</li>
+<li>
+<p>Julius Adebayo, Justin Gilmer, Michael Muelly, Ian J. Goodfellow, Moritz Hardt, and Been Kim. Sanity checks for saliency maps. In Samy Bengio, Hanna M. Wallach, Hugo Larochelle, Kristen Grauman, Nicol0 Cesa-Bianchi, and Roman Garnett (eds.), <em>Advances in Neural Information Processing Systems 31: Annual Conference on Neural Information Processing Systems 2018, NeurIPS 2018,</em></p>
+</li>
+</ul>
+<p><em>December 3-8, 2018, Montreal, Canada</em> , pp. 9525–9536, 2018. URL <code>https://proceedings.neurips. cc/paper/2018/hash/294a8ed24b1ad22ec2e7efea049b8737-Abstract.html</code> .</p>
+<ul>
+<li>
+<p>Sanjeev Arora, Yuanzhi Li, Yingyu Liang, Tengyu Ma, and Andrej Risteski. Linear algebraic structure of word senses, with applications to polysemy. <em>Transactions of the Association for Computational Linguistics</em> , 6:483–495, 2018.</p>
+</li>
+<li>
+<p>Mariette Awad, Rahul Khanna, Mariette Awad, and Rahul Khanna. Support vector machines for classification. <em>Efficient Learning Machines: Theories, Concepts, and Applications for Engineers and System Designers</em> , pp. 39–66, 2015.</p>
+</li>
+<li>
+<p>Tolga Bolukbasi, Adam Pearce, Ann Yuan, Andy Coenen, Emily Reif, Fernanda Viégas, and Martin Wattenberg. An interpretability illusion for bert. <em>arXiv preprint arXiv:2104.07143</em> , 2021.</p>
+</li>
+<li>
+<p>Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. Language models are few-shot learners. <em>Advances in neural information processing systems</em> , 33:1877–1901, 2020.</p>
+</li>
+<li>
+<p>Collin Burns, Haotian Ye, Dan Klein, and Jacob Steinhardt. Discovering latent knowledge in language models without supervision. <em>arXiv preprint arXiv:2212.03827</em> , 2022.</p>
+</li>
+<li>
+<p>Lawrence Chan, Adria Garriga-Alonso, Nicholas Goldowsky-Dill, Ryan Greenblatt, Jenny Nitishinskaya, Ansh Radhakrishnan, Buck Shlegeris, and Nate Thomas. Causal scrubbing: a method for rigorously testing interpretability hypotheses, 2022. URL <code>https://www.alignmentforum.org/ posts/JvZhhzycHu2Yd57RN/causal-scrubbing-a-method-for-rigorously-testing</code> .</p>
+</li>
+<li>
+<p>Roi Cohen, Eden Biran, Ori Yoran, Amir Globerson, and Mor Geva. Evaluating the ripple effects of knowledge editing in language models. <em>arXiv preprint arXiv:2307.12976</em> , 2023.</p>
+</li>
+<li>
+<p>Arthur Conmy, Augustine N Mavor-Parker, Aengus Lynch, Stefan Heimersheim, and Adrià Garriga-Alonso. Towards automated circuit discovery for mechanistic interpretability. <em>arXiv preprint arXiv:2304.14997</em> , 2023.</p>
+</li>
+<li>
+<p>Alexis Conneau, German Kruszewski, Guillaume Lample, Loic Barrault, and Marco Baroni. What you can cram into a single $&amp;!#* vector: Probing sentence embeddings for linguistic properties. In <em>Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</em> , pp. 2126–2136, Melbourne, Australia, July 2018. Association for Computational Linguistics. doi: 10.18653/v1/P18-1198. URL <code>https://aclanthology.org/P18-1198</code> .</p>
+</li>
+<li>
+<p>Damai Dai, Li Dong, Yaru Hao, Zhifang Sui, Baobao Chang, and Furu Wei. Knowledge neurons in pretrained transformers. In <em>Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</em> , pp. 8493–8502, Dublin, Ireland, May 2022. Association for Computational Linguistics. doi: 10.18653/v1/2022.acl-long.581. URL <code>https://aclanthology.org/2022.acl-long.581</code> .</p>
+</li>
+<li>
+<p>Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. BERT: Pre-training of deep bidirectional transformers for language understanding. In <em>Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers)</em> , pp. 4171–4186, Minneapolis, Minnesota, 2019. Association for Computational Linguistics. doi: 10.18653/v1/N19-1423. URL <code>https://aclanthology.org/ N19-1423</code> .</p>
+</li>
+<li>
+<p>Nelson Elhage, Neel Nanda, Catherine Olsson, Tom Henighan, Nicholas Joseph, Ben Mann, Amanda Askell, Yuntao Bai, Anna Chen, Tom Conerly, Nova DasSarma, Dawn Drain, Deep Ganguli, Zac Hatfield-Dodds, Danny Hernandez, Andy Jones, Jackson Kernion, Liane Lovitt, Kamal Ndousse, Dario Amodei, Tom Brown, Jack Clark, Jared Kaplan, Sam McCandlish, and Chris Olah. A mathematical framework for transformer circuits. <em>Transformer Circuits Thread</em> , 2021. URL <code>https://transformer-circuits.pub/2021/framework/index.html</code> .</p>
+</li>
+<li>
+<p>Nelson Elhage, Tristan Hume, Catherine Olsson, Nicholas Schiefer, Tom Henighan, Shauna Kravec, Zac Hatfield-Dodds, Robert Lasenby, Dawn Drain, Carol Chen, Roger Grosse, Sam McCandlish, Jared Kaplan, Dario Amodei, Martin Wattenberg, and Christopher Olah. Toy models of superposition. <em>Transformer Circuits Thread</em> , 2022. URL <code>https://transformer-circuits.pub/2022/toy_ model/index.html</code> .</p>
+</li>
+<li>
+<p>Atticus Geiger, Kyle Richardson, and Christopher Potts. Neural natural language inference models partially embed theories of lexical entailment and negation. In <em>Proceedings of the Third BlackboxNLP Workshop on Analyzing and Interpreting Neural Networks for NLP</em> , pp. 163–173, Online, November 2020. Association for Computational Linguistics. doi: 10.18653/v1/2020.blackboxnlp-1.16. URL <code>https://www.aclweb.org/anthology/2020.blackboxnlp-1.16</code> .</p>
+</li>
+<li>
+<p>Atticus Geiger, Hanson Lu, Thomas Icard, and Christopher Potts. Causal abstractions of neural networks. <em>Advances in Neural Information Processing Systems</em> , 34:9574–9586, 2021.</p>
+</li>
+<li>
+<p>Atticus Geiger, Christopher Potts, and Thomas Icard. Causal abstraction for faithful model interpretation. Ms., Stanford University, 2023a. URL <code>https://arxiv.org/abs/2301.04709</code> .</p>
+</li>
+<li>
+<p>Atticus Geiger, Zhengxuan Wu, Christopher Potts, Thomas Icard, and Noah D Goodman. Finding alignments between interpretable causal variables and distributed neural representations. <em>arXiv preprint arXiv:2303.02536</em> , 2023b.</p>
+</li>
+<li>
+<p>Robert Geirhos, Roland S Zimmermann, Blair Bilodeau, Wieland Brendel, and Been Kim. Don’t trust your eyes: on the (un) reliability of feature visualizations. <em>arXiv preprint arXiv:2306.04719</em> , 2023.</p>
+</li>
+<li>
+<p>Mor Geva, Roei Schuster, Jonathan Berant, and Omer Levy. Transformer feed-forward layers are key-value memories. In <em>Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing</em> , pp. 5484–5495, Online and Punta Cana, Dominican Republic, 2021. Association for Computational Linguistics. doi: 10.18653/v1/2021.emnlp-main.446. URL <code>https://aclanthology.org/2021.emnlp-main.446</code> .</p>
+</li>
+<li>
+<p>Mor Geva, Jasmijn Bastings, Katja Filippova, and Amir Globerson. Dissecting recall of factual associations in auto-regressive language models. <em>arXiv preprint arXiv:2304.14767</em> , 2023.</p>
+</li>
+<li>
+<p>Aaron Gokaslan and Vanya Cohen. Openwebtextcorpus, 2019. URL <code>http://Skylion007.github. io/OpenWebTextCorpus</code> .</p>
+</li>
+<li>
+<p>Nicholas Goldowsky-Dill, Chris MacLeod, Lucas Sato, and Aryaman Arora. Localizing model behavior with path patching. <em>arXiv preprint arXiv:2304.05969</em> , 2023.</p>
+</li>
+<li>
+<p>G Grand, I Blank, F Pereira, and E Fedorenko. Semantic projection: Recovering human knowledge of multiple, distinct object features from word embeddings. arxiv. <em>arXiv preprint arXiv:1802.01241</em> , 2018.</p>
+</li>
+<li>
+<p>Wes Gurnee, Neel Nanda, Matthew Pauly, Katherine Harvey, Dmitrii Troitskii, and Dimitris Bertsimas. Finding neurons in a haystack: Case studies with sparse probing. <em>arXiv preprint arXiv:2305.01610</em> , 2023.</p>
+</li>
+<li>
+<p>Peter Hase, Mohit Bansal, Been Kim, and Asma Ghandeharioun. Does localization inform editing? surprising differences in causality-based localization vs. knowledge editing in language models. <em>arXiv preprint arXiv:2301.04213</em> , 2023.</p>
+</li>
+<li>
+<p>Stefan Heimersheim and Jett Janiak. A circuit for Python docstrings in a 4-layer attentiononly transformer. URL <code>https://www.alignmentforum.org/posts/u6KXXmKFbXfWzoAXn/ a-circuit-for-python-docstrings-in-a-4-layer-attention-only</code> .</p>
+</li>
+<li>
+<p>Evan Hernandez, Belinda Z. Li, and Jacob Andreas. Inspecting and editing knowledge representations in language models, 2023.</p>
+</li>
+<li>
+<p>John Hewitt and Christopher D Manning. A structural probe for finding syntax in word representations. In <em>Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers)</em> , pp. 4129–4138, 2019.</p>
+</li>
+<li>
+<p>Belinda Z Li, Maxwell Nye, and Jacob Andreas. Implicit representations of meaning in neural language models. <em>arXiv preprint arXiv:2106.00737</em> , 2021.</p>
+</li>
+<li>
+<p>Kenneth Li, Oam Patel, Fernanda Viégas, Hanspeter Pfister, and Martin Wattenberg. Inference-time intervention: Eliciting truthful answers from a language model. <em>arXiv preprint arXiv:2306.03341</em> , 2023a.</p>
+</li>
+<li>
+<p>Maximilian Li, Xander Davies, and Max Nadeau. Circuit breaking: Removing model behaviors with targeted ablation. <em>arXiv preprint arXiv:2309.05973</em> , 2023b.</p>
+</li>
+<li>
+<p>Tom Lieberum, Matthew Rahtz, János Kramár, Geoffrey Irving, Rohin Shah, and Vladimir Mikulik. Does circuit analysis interpretability scale? evidence from multiple choice capabilities in chinchilla. <em>arXiv preprint arXiv:2307.09458</em> , 2023.</p>
+</li>
+<li>
+<p>Zachary C. Lipton. The mythos of model interpretability, 2016. URL <code>https://arxiv.org/abs/ 1606.03490</code> .</p>
+</li>
+<li>
+<p>Callum McDougall, Arthur Conmy, Cody Rushing, Thomas McGrath, and Neel Nanda. Copy suppression: Comprehensively understanding an attention head. <em>arXiv preprint arXiv:2310.04625</em> , 2023.</p>
+</li>
+<li>
+<p>Thomas McGrath, Matthew Rahtz, Janos Kramar, Vladimir Mikulik, and Shane Legg. The hydra effect: Emergent self-repair in language model computations. <em>arXiv preprint arXiv:2307.15771</em> , 2023.</p>
+</li>
+<li>
+<p>Kevin Meng, David Bau, Alex J Andonian, and Yonatan Belinkov. Locating and editing factual associations in GPT. In <em>Advances in Neural Information Processing Systems</em> , 2022a.</p>
+</li>
+<li>
+<p>Kevin Meng, Arnab Sen Sharma, Alex Andonian, Yonatan Belinkov, and David Bau. Mass editing memory in a transformer. <em>arXiv preprint arXiv:2210.07229</em> , 2022b.</p>
+</li>
+<li>
+<p>Tomás Mikolov, Ilya Sutskever, Kai Chen, Gregory S. Corrado, and Jeffrey Dean. Distributed representations of words and phrases and their compositionality. In Christopher J. C. Burges, Léon Bottou, Zoubin Ghahramani, and Kilian Q. Weinberger (eds.), <em>Advances in Neural Information Processing Systems 26: 27th Annual Conference on Neural Information Processing Systems 2013. Proceedings of a meeting held December 5-8, 2013, Lake Tahoe, Nevada, United States</em> , pp. 3111–3119, 2013. URL <code>https://proceedings.neurips.cc/paper/2013/hash/ 9aa42b31882ec039965f3c4923ce901b-Abstract.html</code> .</p>
+</li>
+<li>
+<p>Neel Nanda. Actually, othello-gpt has a linear emergent world representation. 2023a.</p>
+</li>
+<li>
+<p>Neel Nanda. Attribution patching: Activation patching at industrial scale, 2023b. URL <code>https: //www.neelnanda.io/mechanistic-interpretability/attribution-patching</code> .</p>
+</li>
+<li>
+<p>Neel Nanda and Joseph Bloom. Transformerlens. <code>https://github.com/neelnanda-io/ TransformerLens</code> , 2022.</p>
+</li>
+<li>
+<p>Neel Nanda, Andrew Lee, and Martin Wattenberg. Emergent linear representations in world models of self-supervised sequence models. <em>arXiv preprint arXiv:2309.00941</em> , 2023.</p>
+</li>
+<li>
+<p>Chris Olah. Mechanistic interpretability, variables, and the importance of interpretable bases. <em>https://www.transformer-circuits.pub</em> , 2022. URL <code>https://www.transformer-circuits.pub/2022/ mech-interp-essay.</code></p>
+</li>
+<li>
+<p>Chris Olah, Nick Cammarata, Ludwig Schubert, Gabriel Goh, Michael Petrov, and Shan Carter. Zoom in: An introduction to circuits. <em>Distill</em> , 2020. doi: 10.23915/distill.00024.001.</p>
+</li>
+<li>
+<p>Catherine Olsson, Nelson Elhage, Neel Nanda, Nicholas Joseph, Nova DasSarma, Tom Henighan, Ben Mann, Amanda Askell, Yuntao Bai, Anna Chen, Tom Conerly, Dawn Drain, Deep Ganguli, Zac Hatfield-Dodds, Danny Hernandez, Scott Johnston, Andy Jones, Jackson Kernion, Liane Lovitt, Kamal Ndousse, Dario Amodei, Tom Brown, Jack Clark, Jared Kaplan, Sam McCandlish, and Chris Olah. In-context learning and induction heads. <em>Transformer Circuits Thread</em> , 2022. URL <code>https://transformer-circuits.pub/2022/ in-context-learning-and-induction-heads/index.html</code> .</p>
+</li>
+</ul>
+<p>OpenAI. Gpt-4 technical report, 2023.</p>
+<ul>
+<li>
+<p>Judea Pearl. Direct and indirect effects. In <em>Proceedings of the Seventeenth Conference on Uncertainty in Artificial Intelligence</em> , UAI’01, pp. 411–420, San Francisco, CA, USA, 2001. Morgan Kaufmann Publishers Inc. ISBN 1558608001.</p>
+</li>
+<li>
+<p>Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, Ilya Sutskever, et al. Language models are unsupervised multitask learners. <em>OpenAI blog</em> , 1(8):9, 2019.</p>
+</li>
+<li>
+<p>P. Smolensky. Neural and conceptual interpretation of PDP models. In <em>Parallel Distributed Processing: Explorations in the Microstructure, Vol. 2: Psychological and Biological Models</em> , pp. 390–431. MIT Press, Cambridge, MA, USA, 1986. ISBN 0262631105.</p>
+</li>
+<li>
+<p>Alessandro Stolfo, Yonatan Belinkov, and Mrinmaya Sachan. Understanding arithmetic reasoning in language models using causal mediation analysis. <em>arXiv preprint arXiv:2305.15054</em> , 2023.</p>
+</li>
+<li>
+<p>Ian Tenney, Dipanjan Das, and Ellie Pavlick. BERT rediscovers the classical NLP pipeline. In <em>Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics</em> , pp. 4593–4601,</p>
+</li>
+</ul>
+<p>Florence, Italy, July 2019. Association for Computational Linguistics. doi: 10.18653/v1/P19-1452. URL <code>https://aclanthology.org/P19-1452</code> .</p>
+<ul>
+<li>
+<p>Alex Turner, Lisa Thiergart, David Udell, Gavin Leech, Ulisse Mini, and Monte MacDiarmid. Activation addition: Steering language models without optimization. <em>arXiv preprint arXiv:2308.10248</em> , 2023.</p>
+</li>
+<li>
+<p>Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. Attention is all you need. In Isabelle Guyon, Ulrike von Luxburg, Samy Bengio, Hanna M. Wallach, Rob Fergus, S. V. N. Vishwanathan, and Roman Garnett (eds.), <em>Advances in Neural Information Processing Systems 30: Annual Conference on Neural Information Processing Systems 2017, December 4-9, 2017, Long Beach, CA, USA</em> , pp. 5998–6008, 2017. URL <code>https://proceedings.neurips.cc/paper/2017/hash/ 3f5ee243547dee91fbd053c1c4a845aa-Abstract.html</code> .</p>
+</li>
+<li>
+<p>Jesse Vig, Sebastian Gehrmann, Yonatan Belinkov, Sharon Qian, Daniel Nevo, Simas Sakenis, Jason Huang, Yaron Singer, and Stuart Shieber. Causal mediation analysis for interpreting neural nlp: The case of gender bias. URL <code>https://arxiv.org/abs/2004.12265</code> .</p>
+</li>
+<li>
+<p>Jesse Vig, Sebastian Gehrmann, Yonatan Belinkov, Sharon Qian, Daniel Nevo, Simas Sakenis, Jason Huang, Yaron Singer, and Stuart Shieber. Causal mediation analysis for interpreting neural nlp: The case of gender bias. <em>arXiv preprint arXiv:2004.12265</em> , 2020.</p>
+</li>
+<li>
+<p>Jonas Wallat, Jaspreet Singh, and Avishek Anand. BERTnesia: Investigating the capture and forgetting of knowledge in BERT. In <em>Proceedings of the Third BlackboxNLP Workshop on Analyzing and Interpreting Neural Networks for NLP</em> , pp. 174–183, Online, November 2020. Association for Computational Linguistics. doi: 10.18653/v1/2020.blackboxnlp-1.17. URL <code>https://aclanthology.org/2020.blackboxnlp-1.17</code> .</p>
+</li>
+<li>
+<p>Kevin Ro Wang, Alexandre Variengien, Arthur Conmy, Buck Shlegeris, and Jacob Steinhardt. Interpretability in the wild: a circuit for indirect object identification in GPT-2 small. In <em>The Eleventh International Conference on Learning Representations</em> , 2023. URL <code>https://openreview. net/forum?id=NpsVSN6o4ul</code> .</p>
+</li>
+<li>
+<p>Ziheng Wang, Jeremy Wohlwend, and Tao Lei. Structured pruning of large language models. In <em>Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP)</em> , pp. 6151–6162, Online, 2020. Association for Computational Linguistics. doi: 10.18653/v1/2020. emnlp-main.496. URL <code>https://aclanthology.org/2020.emnlp-main.496</code> .</p>
+</li>
+<li>
+<p>Jason Wei, Yi Tay, Rishi Bommasani, Colin Raffel, Barret Zoph, Sebastian Borgeaud, Dani Yogatama, Maarten Bosma, Denny Zhou, Donald Metzler, et al. Emergent abilities of large language models. <em>arXiv preprint arXiv:2206.07682</em> , 2022.</p>
+</li>
+<li>
+<p>Zhengxuan Wu, Atticus Geiger, Christopher Potts, and Noah D Goodman. Interpretability at scale: Identifying causal mechanisms in alpaca. <em>arXiv preprint arXiv:2305.08809</em> , 2023.</p>
+</li>
+<li>
+<p>Zexuan Zhong, Zhengxuan Wu, Christopher D. Manning, Christopher Potts, and Danqi Chen. Mquake: Assessing knowledge editing in language models via multi-hop questions, 2023.</p>
+</li>
+</ul>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0033-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>causally disconnected direction<br>dormant direction<br><!-- End of picture text --></p>
+<p>Figure 10: Consider a 2-dimensional subspace of model activations, with an orthogonal basis where the <em>x</em> -axis is <em>causally disconnected</em> (changing the activation along it makes no difference to model outputs) and values on the <em>y</em> axis are always zero for examples in the data distribution (a specical case of a <em>dormant</em> direction).</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0033-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>example to patch from example to patch into<br>causally disconnected direction<br>1 2<br>direction to patch along ( v )<br>orthogonal complement  v ⊥<br>dormant direction<br><!-- End of picture text --></p>
+<p>Figure 12: To patch along <strong>v</strong> from the left into the right example, we match the projection on <strong>v</strong> from the left one, and leave the projection on <strong>v</strong><sup><em>⊥</em></sup> unchanged. In other words, we take the component of the left example along <strong>v</strong> ( 1 <em>⃝</em> ) and sum it with the <strong>v</strong><sup><em>⊥</em></sup> component ( <em>⃝</em> 2 ) of the original activation.</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0033-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>example to patch from example to patch into<br>causally disconnected direction<br>direction to patch along ( v )<br>dormant direction<br><!-- End of picture text --></p>
+<p>Figure 11: Suppose we have two examples (green) which differ in their projection on the causally disconnected direction (and have zero projection on the dormant direction, by definition). Let’s consider what happens when we patch from the example on the left into the example on the right along the 1-dimensional subspace <strong>v</strong> spanned by the vector (1, 1) (red)</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0033-06.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>example to patch from example to patch into<br>causally disconnected direction<br>1 2<br>1 + 2<br>direction to patch along ( v )<br>orthogonal complement  v ⊥<br>dormant direction<br>presult of the atch<br><!-- End of picture text --></p>
+<p>Figure 13: This results in the patched activation <em>⃝</em> 1 + <em>⃝</em> 2 , which points completely along the dormant direction. In this way, activation patching makes the variation of activations along the causally disconnected <em>x</em> -axis result in activations along the previously dormant <em>y</em> -axis.</p>
+<p>Figure 14: A step-by-step illustration of the phenomenon shown in Figure 1.</p>
+<h2><strong>A Additional Notes on Section 3</strong></h2>
+<h3><strong>A.1 The Illusion for Higher-Dimensional Subspaces</strong></h3>
+<p>In the main text, we mostly discuss the illusion for activation patching of 1-dimensional subspaces for ease of exposition. Here, we develop a more complete picture of the mechanics of the illusion for higher-dimensional subspaces.</p>
+<p>Let <em>C</em> be a model component taking values in <strong>R</strong><sup><em>d</em></sup> , and let <em>U ⊂</em> <strong>R</strong><sup><em>d</em></sup> be a linear subspace. Let <em>V</em> be a matrix whose columns form an orthonormal basis for <em>U</em> . If the <em>C</em> activations for examples <em>A</em> and <em>B</em> are <strong>act</strong> <em>A</em> , <strong>act</strong> <em>B ∈</em> <strong>R</strong><sup><em>d</em></sup> respectively, patching <em>U</em> from <em>A</em> into <em>B</em> gives the patched activation</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0034-04.jpg" alt="" /></p>
+<p>For intuition, note that <em>VV</em><sup><em>⊤</em></sup> is the orthogonal projection on <em>U</em> , so this formula says to replace the orthogonal projection of <strong>act</strong> <em>B</em> on <em>U</em> with that of <strong>act</strong> <em>A</em> , and keep the rest of <strong>act</strong> <em>B</em> the same.</p>
+<p>Generalizing the discussion from Section 3, for the illusion to occur for subspace <em>S</em> , we need <em>S</em> to be sufficiently aligned with a causally disconnected subspace <em>V</em> disconnected that is correlated with the feature being patched, and a dormant but causal subspace <em>V</em> dormant which, when set to out of distribution values, can achieve the wanted causal effect.</p>
+<p>For example, a particularly simple way in which this could happen is if we let <em>V</em> disconnected, <em>V</em> dormant be 1-dimensional subspaces (like in the setup for the 1-dimensional illusion), and we form <em>S</em> by combining <em>V</em> disconnected <em>⊕ V</em> dormant with a number of orthogonal directions that are approximately constant on the data with respect to the feature we are patching. These extra directions effectively don’t matter for the patch (because they are cancelled by the <strong>act</strong> <em>A −</em> <strong>act</strong> <em>B</em> term). Given a specific feature, it is likely that such weakly-activating directions will exist in a high-dimensional activation space. Thus, if the 1-dimensional illusion exist, so will higher-dimensional ones.</p>
+<h3><strong>A.2 Optimal Illusory Patches are Equal Parts Causally Disconnected and Dormant</strong></h3>
+<p>In this subsection, we prove a quantitative corollary of the model of our illusion that suggests that we should expect optimal illusory patching directions to be of the form</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0034-10.jpg" alt="" /></p>
+<p>for unit vectors <strong>v</strong> disconnected <em>⊥</em> <strong>v</strong> dormant. In other words, we expect the strongest illusory patches to be formed by combining a disconnected and illusory direction with <em>equal</em> coefficients, like depicted in Figure 1:</p>
+<p><strong>Lemma A.1.</strong> <em>Suppose we have two distributions of input prompts DA</em> , <em>DB. In the terminology of Section 3, let</em> <strong>v</strong> <em>disconnected ⊥</em> <strong>v</strong> <em>dormant be unit vectors such that the subspace spanned by</em> <strong>v</strong> <em>disconnected is a causally disconnected subspace, and the subspace spanned by</em> <strong>v</strong> <em>dormant is</em> <strong><em>strongly</em></strong> <em>dormant, in the sense that the projections of the activations of all examples Dsource ∪Dbase onto</em> <strong>v</strong> <em>dormant are equal to some constant c.</em></p>
+<p><em>Let</em> <strong>v</strong> = <strong>v</strong> <em>disconnected</em> cos <em>α</em> + <strong>v</strong> <em>dormant</em> sin <em>α be a unit-norm linear combination of the two directions parametrized by an angle α. Then the magnitude of the expected change in projection along</em> <strong>v</strong> <em>dormant when patching from xA ∼DA into xB ∼DB is maximized when α</em> =<sup><em><u>π</u></em></sup> 4<sup><em>, i.e.<em>cos</sup><sup><em>α</em>= sin</sup><sup><em>α</em>=</sup> <em>~~√~~</em> <u>12</u><sup></em>.</em></sup></p>
+<p><em>Proof.</em> Recall that the patched activation from <em>xA</em> into <em>xB</em> along <strong>v</strong> is</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0034-15.jpg" alt="" /></p>
+<p>where <em>pA</em> = <strong>v</strong><sup><em>⊤</em></sup> <strong>act</strong> <em>A</em> , <em>pB</em> = <strong>v</strong><sup><em>⊤</em></sup> <strong>act</strong> <em>B</em> are the projections of the two examples’ activations on <em>v</em> . The change along <strong>v</strong> dormant is thus</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0035-01.jpg" alt="" /></p>
+<p>where we used the assumption that <strong>v</strong> dormant<sup><em>⊤</em></sup><sup><strong>act</strong></sup><sup><em>A</em>=</sup><sup><strong>v</strong></sup> disconnected<sup><em>⊤</em></sup><sup><strong>act</strong></sup><sup><em>B</em>.Hence, the expected change is</sup> cos <em>α</em> sin <em>α</em> <strong>v</strong> disconnected<sup><em>⊤</em></sup><sup><strong>E</strong></sup><sup><em>A∼D</em></sup> <em>A</em><sup>,</sup><sup><em>B∼D</em></sup> <em>B</em><sup>[</sup><sup><strong>act</strong></sup><sup><em>A −</em></sup><sup><strong>act</strong></sup><sup><em>B</em>] .</sup></p>
+<p>The function <em>f</em> ( <em>α</em> ) = cos <em>α</em> sin <em>α</em> for <em>α ∈</em> [0, <em>π</em> /2] is maximized for <em>α</em> = <em>π</em> /4, concluding the proof.</p>
+<h3><strong>A.3 The Toy Illusion in a Rotated Basis</strong></h3>
+<p>There is a subtlety in the toy example of the illusion from 3.3. Suppose we reparametrized the hidden layer of the network so that, instead of the standard basis ( <strong>e</strong> 1, <strong>e</strong> 2, <strong>e</strong> 3), we use a rotated basis where one of the directions is <strong>e</strong> 1 + <strong>e</strong> 2, the other direction is orthogonal to it and to <strong>w</strong> 2 (hence will be causally disconnected), and the last direction is the unique direction orthogonal to the first two. The unit basis vectors for this new basis are given by</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0035-06.jpg" alt="" /></p>
+<p>If we assemble these into the rows of a rotation matrix</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0035-08.jpg" alt="" /></p>
+<p>the re-parametrized network is then given by</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0035-10.jpg" alt="" /></p>
+<p>and a diagram of this new network is shown in Figure 15. From this point of view, <strong>d</strong> 1 takes the role that <strong>e</strong> 3 had before: the input is essentially copied to it (modulo scalar multiplication), and then read from it at the output. By contrast, <strong>d</strong> 2 is now a causally disconnected direction, and <strong>d</strong> 3 is a dormant direction.</p>
+<h2><strong>B Additional details for Section 4</strong></h2>
+<h3><strong>B.1 Dataset, Model and Evaluation Details for the IOI Task</strong></h3>
+<p>We use GPT2-Small for the IOI task, with a dataset that spans 216 single-token names, 144 singletoken objects and 75 single-token places, which are split 1 : 1 across a training and test set. Every example in the data distribution includes (i) an initial clause introducing the indirect object ( <strong>IO</strong> , here ‘Mary’) and the subject ( <strong>S</strong> , here ‘John’), and (ii) a main clause that refers to the subject a second time. Beyond that, the dataset varies in the two names, the initial clause content, and the main clause content. Specifically, use three templates as shown below:</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0036-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>h 1 ′ ← x / √ 2<br>×√ 2<br>× 1/ √ 2<br>× � −√ 3/2�<br>x h 2 ′ ←−√ 3/2 x y ← √ 2 h 1 ′ + √ 3 h 3 ′<br>×√ 3<br>h 3 ′ ← 0<br><!-- End of picture text --></p>
+<p>Figure 15</p>
+<p>Then, [ ] and [ ] had a long and really crazy argument. Afterwards, [ ] said to Then, [ ] and [ ] had lots of fun at the [place]. Afterwards, [ ] gave a [object] to Then, [ ] and [ ] were working at the [place]. [ ] decided to give a [object] to</p>
+<p>and we use the first two in training and the last in the test set. Thus, the test set relies on unseen templates, names, objects and places. We used fewer templates than the IOI paper Wang et al. (2020) in order to simplify tokenization (so that the token positions of our names always align), but our results also hold with shifted templates like in the IOI paper.</p>
+<p>On the test partition of this dataset, GPT2-Small achieves an accuracy of <em>≈</em> 91%. The average difference of logits between the correct and incorrect name is <em>≈</em> 3.3, and the logit of the correct name is greater than that of the incorrect name in <em>≈</em> 99% of examples. Note that, while the logit difference is closely related to the model’s correctness, it being <em>&gt;</em> 0 does not imply that the model makes the correct prediction, because there could be a third token with a greater logit than both names.</p>
+<h3><strong>B.2 Details for Computing the Gradient Direction vgrad</strong></h3>
+<p>For a given example from the test distribution and a given name mover head, we compute the gradient of the difference of attention scores from the final token position to the 3rd and 5th token in the sentence (where the two name tokens always are in our data). We then average these gradients over a large sample of the full test distribution and over the three name mover heads, and finally normalize the resulting vector to have unit <em>ℓ</em> 2 norm.</p>
+<p>We note that there is a ‘closed form’ way to compute approximately the same quantity that requires no optimization. Namely, for a single example we can collect the keys <em>kS</em> , <em>k IO</em> to the name mover heads at the first two names in the sentence (the <strong>S</strong> and <strong>IO</strong> name). Then, for a single name mover head with query matrix <em>WQ</em> , a maximally causal direction <em>v</em> in the residual stream at the last token position after layer 8 will be one such that <em>WQv</em> is in the direction of <em>kS − k IO</em> , because the attention score is simply the dot product between the keys and queries. We can use this to ‘backpropagate’ to <em>v</em> by multiplying with the pseudoinverse <em>WQ</em><sup>+.This is slightly complicated by the</sup> fact that we have been ignoring layer normalization, which can be approximately accounted for by estimating the scaling parameters (which tend to concentrate well) from the IOI data distribution. We note that this approach leads to broadly similar results.</p>
+<h3><strong>B.3 Training Details for DAS</strong></h3>
+<p>To train DAS, we always sample examples from the training IOI distribution. We sample equal amounts of pairs of base (which will be patched into) and source (where we take the activation to patch in from) prompts where the two names are the same between the prompts, and pairs of prompts where all four names are distinct. We optimize DAS to maximize the logit difference between the name that should be predicted if the position information from the source example is correct and the other name.</p>
+<p>For training, we use a learned rotation matrix as in the original DAS paper (Geiger et al., 2023b), parametrized with <code>torch.nn.utils.parametrizations.orthogonal</code> . We use the Adam optimizer and minibatch training over a training set of several hundred patching pairs. We note that results remain essentially the same when using a higher number of training examples.</p>
+<h3><strong>B.4 Discussion of the Magnitude of the Illusion</strong></h3>
+<p>While the contribution of the <strong>v</strong> MLP patch to logit difference may appear relatively small, we note that this is the result of patching a direction in a single model component at a single token position. Typical circuits found in real models (including the IOI circuit from Wang et al. (2023)) are often composed of multiple model components, each of which contribute. In particular, the position signal itself is written to by 4 heads, and chiefly read by 3 other heads. As computation tends to be distributed, when patching an individual component accuracy may be a misleading metric (eg patching 1 out of 3 heads is likely insufficient to change the output), and a fractional logit diff indicates a significant contribution. By contrast, patching in the residual stream is a more potent intervention, because it can affect <em>all</em> information accumulated in the model that is communicated to downstream components.</p>
+<h3><strong>B.5 Random ablation of MLP weights</strong></h3>
+<p>How certain are we that MLP8 doesn’t actually matter for the IOI task? While we find the IOI paper analysis convincing, to make our results more robust to the possibility that it does matter, we also design a further experiment.</p>
+<p>Given our conceptual picture of the illusion, the computation performed by the MLP layer where we find the illusory subspace does not matter as long as it propagates the correlational information about the position feature from the residual stream to the hidden activations, and as long as the output matrix <em>Wout</em> is full rank (also, see the discussion in 8). Thus, we expect that if we replace the MLP weights by randomly chosen ones with the same statistics, we should still be able to exhibit the illusion.</p>
+<p>Specifically, we randomly sampled MLP weights and biases such that the norm of the output activations matches those of MLP8. As random MLPs might lead to nonsensical text generation, we don’t replace the layer with the random weights, but rather train a subspace using DAS on the MLP activations, and add the difference between the patched and unpatched output of the random MLP to the real output of MLP8. This setup finds a subspace that reduces logit difference even more than the <strong>v</strong> MLP direction.</p>
+<p>This suggests that the existence of the <strong>v</strong> MLP subspace is less about <em>what</em> information MLP8 contains, and more about <em>where</em> MLP8 is in the network.</p>
+<h3><strong>B.6 Generalization to high-dimensional Subspaces</strong></h3>
+<p>In the main text, we focus on activation patching in one-dimensional subspaces for clarity. Here, we extend the discussion to higher-dimensional subspaces and show that the interpretability illusion generalizes to high-dimensional linear subspaces.</p>
+<p>We investigate two different 100-dimensional subspaces <em>U</em> MLP8 in MLP8 and <em>U</em> resid8 in the output of layer 8. Specifically, we used DAS to find orthonormal bases <em>V</em> MLP and <em>V</em> resid that align the position information in these two locations, as explained in A.1. We found that these subspaces performed slightly better compared to their 1-dimensional counterparts (for <em>V</em> resid: 190% FLDD and 89% interchange accuracy; for <em>V</em> MLP: 62% FLDD and 13% interchange accuracy). We hypothesize that the subspace trained on MLP8 is pathological while the subspace in the residual stream is not. To test this, we decompose every basis vector <strong>v</strong><sup>(</sup><sup><em>d</em>)</sup> <em>{</em> MLP8, resid8 <em>}</em><sup>into its projection</sup> <strong>v</strong><sup>nullspace</sup> <em>{</em> MLP8, resid8 <em>}</em><sup>on the nullspace ker</sup><sup>_{W_out,</sup><sup>_WQ}_and its orthogonal complement</sup><sup><strong>v</strong>rowspace</sup> <em>{</em> MLP8, resid8 <em>}</em><sup>such</sup> that</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0038-03.jpg" alt="" /></p>
+<p>Note that <em>WQ</em> denotes the query weight of name mover head 9.9. We then patched the 200dimensional subspace spanned by <em>V</em><sup>ˆ</sup> with</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0038-05.jpg" alt="" /></p>
+<p>composed out of the decomposed subspace vectors and orthonormalized using QR-decomposition (see Figure 16). For patching the output of layer 8, FLDD and interchange accuracy remained similarly high. (FLDD: 200%, interchange accuracy: 86%). However, patching on MLP8 mostly removes the effect of the patch (FLDD: 17%, interchange accuracy: 2%). Thus, the causally disconnected subspace is required for patching MLP8 which suggests that the interpretability illusion generalizes to higher-dimensional subspaces.</p>
+<h3><strong>B.7 Overfitting on Small Datasets</strong></h3>
+<p>How important is a large and diverse dataset for training DAS? We initially hypothesized that for very small datasets, it is possible to find working subspaces in all layers as there are only a few fixed activation vectors in each layer and we might be able to find subspaces that utilize this noise to overfit.</p>
+<p>To test this, we created a small IOI dataset containing only two names from a fixed template. We fitted a one-dimensional subspace using DAS for every layer on that dataset and the full dataset as a control (Figure 17). We repeated the experiment for subspaces in the MLP and residual stream and evaluated the subspaces on their train distribution and a test distribution containing all names and templates. FLDD was highest in layer 8, the component between S-inhibition heads and name movers, and also high in neighboring layers that still contain IOI information (e.g. some of the S-inhibition heads are in layer 7 and some of the name movers are in layer 10). Moreover, train FLDD was significantly higher than test FLDD when trained on only 2 names.</p>
+<p>Importantly, we also observe that subspaces optimized on the small dataset reached a FLDD bigger than zero in some of the other layers but contrary to our expectation, this was neither high in absolute terms nor compared to subspaces trained on the full distribution (see Figure 17).</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0039-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>2.0<br>1.5<br>1.0<br>0.5<br>0.0<br>S-Inhib S-inhib MLP8 MLP8<br>decomposed decomposed<br>FLDD<br><!-- End of picture text --></p>
+<p>Figure 16: Fractional logit difference decrease (FLDD) for patching a 100-dimensional subspace on the S-inhibition heads or on MLP8; &quot;decomposed&quot; patches the 200-dimensional subspace made out of the nullspace projection vectors into <em>WQ</em> of name mover or <em>Wout</em> of MLP8, respectively, and their orthogonal complements</p>
+<h2><strong>C Additional Details for Section 5</strong></h2>
+<p><strong>Which model components write to the vresid direction?</strong> To test how every attention head and MLP contributes to the value of projections on <strong>v</strong> MLP, we sampled activations from head and MLP outputs at the last token position of IOI prompts, and calculated their dot product with <strong>v</strong> <em>resid</em> (Figure 20). We found that the dot products of most heads and MLPs was low, and that the S-inhibition heads were the only heads whose dot product differed between different patterns ABB and BAB. This shows that only the S-inhibition heads write to the <strong>v</strong> resid direction (as one would hope). Importantly, this test separates <strong>v</strong> <em>resid</em> from the interpretability illusion <strong>v</strong> <em>MLP</em> . While patching <strong>v</strong> MLP8 also writes to <strong>v</strong> resid8 (i.e. <strong>v</strong> MLP8 <em>Wout ≈</em> <strong>v</strong> resid8), the MLP layer does not write this subspace on the IOI task (see Figure 4). This further supports the observation that the <strong>v</strong> MLP patch activates a dormant pathway in the model.</p>
+<p><strong>Generalization beyond the IOI distribution</strong> . We also investigate how the subspace generalizes. We sample prompts from OpenWebText-10k and look at those with particularly high and low activations in <strong>v</strong> sinhib. Representative examples are shown in Figure 21 together with the name movers attention at the position of interest, how the probability changes after subspace ablation, and how the name movers attention changes.</p>
+<p><strong>Stability of found solution</strong> . Finally, we note that solutions found by DAS in the residual stream are stable, including when trained on a subset of S-inhibition heads (see Figure 18).</p>
+<h2><strong>D Additional details for Section 6</strong></h2>
+<h3><strong>D.1 Dataset construction and training details</strong></h3>
+<p>We use the first 1000 examples from the COUNTERFACT dataset (Meng et al., 2022a). We filter the facts which GPT2-XL correctly recalls. Out of the remaining facts, for each relation we form all pairs</p>
+<p>of distinct facts, and we sample 5 such pairs from each relation with at least 5 facts. This results in a collection of 40 fact pairs spanning 8 different relations. We then use these facts as follows:</p>
+<ul>
+<li>
+<p>for the ROME experiments in Subsection 6.3, we define edits by requesting one of the facts in each pair to be rewritten with the object of the other fact;</p>
+</li>
+<li>
+<p>for the activation patching experiments in Subsection 6.1, we patch from the last token of <em>s</em><sup><em>′</em></sup> in <em>B</em> to the last token of <em>s</em> in <em>A</em> (prior work has shown that the fact is retrieved on <em>s</em> (Geva et al., 2023)), and we again use DAS Geiger et al. (2023b) to optimize for a direction that maximizes the logit difference between <em>o</em><sup><em>′</em></sup> and <em>o</em> .</p>
+</li>
+</ul>
+<h3><strong>D.2 Additional fact patching experiments</strong></h3>
+<p>In figure 24, we show the distribution of the fractional logit difference metric (see Subsection 4.2 for a definition) when patching between facts as described in Subsection 6.1. Like in the related Figure 7, we observe that, while patching along the directions found by DAS achieves strongly negative values (indicating that the facts are very often successfully changed by the patch), the interventions that replace the entire MLP layer or only the causally relevant component of the DAS directions have no such effect.</p>
+<p>Next, we observe that the nullspace component of the patching direction is the one similar to the variation in the inputs (difference of last-token activations at the two subjects). Specifically, in Figure 25, we plot the (absolute value of the) cosine similarity between the difference in activations for the two last subject tokens, and the nullspace component of the DAS direction. We note that this similarity is consistently significantly high (note that it can be at most 1, which would indicate perfect alignment).</p>
+<p>Finally, we observe that the nullspace component of the patching direction is a non-trivial part of the direction in Figure 26, where we plot the distribution of the <em>ℓ</em> 2 norm of this component.</p>
+<h3><strong>D.3 ROME implementation details</strong></h3>
+<p>ROME takes as input a vector <strong>k</strong> <em>∈</em> <strong>R</strong><sup><em>d_MLP</sup> representing the subject (e.g. an average of last-token representations of the subject) and a vector <strong>v</strong> <em>∈</em> <strong>R</strong><sup><em>d_resid</sup> which, when output by the MLP layer, will cause the model to predict a new object for the factual prompt, but at the same time won’t change other facts about the subject. ROME modifies the MLP weight by setting <em>Wout</em><sup></em>′</em>=</sup><sup><em>Wout</em>+</sup><sup><strong>ab</strong></sup><sup><em>⊤</em>, where</sup> <strong>a</strong> <em>∈</em> <strong>R</strong><sup><em>d_resid</sup> , <strong>b</strong> <em>∈</em> <strong>R</strong><sup><em>d_MLP</sup> are chosen so that <em>Wout</em><sup></em>′</em></sup><sup><strong>k</strong>=</sup><sup><strong>v</strong>, and the MLP’s output is otherwise minimally</sup> changed. Without loss of generality, the first condition implies that <strong>a</strong> = <strong>v</strong> <em>− Wout</em> <strong>k</strong> and <strong>b</strong><sup><em>⊤</em></sup> <strong>k</strong> = 1; the second condition is then modeled by minimizing the variance of <strong>b</strong><sup><em>⊤</em></sup> <strong>x</strong> when <strong>x</strong> <em>∼N</em> (0, Σ) for an empirical estimate Σ <em>∈</em> <strong>R</strong><sup><em>d_MLP</sup><sup></em>×d_MLP</sup> of the covariance of MLP activations (see Lemma D.1 in Appendix D for details and a proof). In all our experiments involving ROME, we use GPT2-XL (Radford et al., 2019), and we use the precomputed values of Σ from Meng et al. (2022a) accessible online here.</p>
+<h3><strong>D.4 ROME as an Optimization Problem</strong></h3>
+<p>We now review the ROME method from Meng et al. (2022a) and show how it can be characterized as the solution of a simple optimization problem. Following the terminology of 6.4, let us have an MLP layer with an output projection <em>Wout</em> , a key vector <strong>k</strong> <em>∈</em> <strong>R</strong><sup>_d_MLP</sup> and a value vector <strong>v</strong> <em>∈</em> <strong>R</strong><sup>_d_resid</sup> .</p>
+<p>In Meng et al. (2022a), equation 2, the formula for the rank-1 update to <em>Wout</em> is given by</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0041-01.jpg" alt="" /></p>
+<p>where Σ is an empirical estimate of the uncentered covariance of the pre- <em>Wout</em> activations. We derive the following equivalent characterization of this solution (which may be of independent interest):</p>
+<p><strong>Lemma D.1.</strong> <em>Given a matrix Wout ∈</em> <strong>R</strong><sup><em>dresid×dMLP</em></sup> <em>, a key vector</em> <strong>k</strong> <em>∈</em> <strong>R</strong><sup><em>dMLP</em></sup> <em>and a value vector</em> <strong>v</strong> <em>∈</em> <strong>R</strong><sup><em>dresid</em></sup> <em>, let</em> Σ <em>≻</em> 0, Σ <em>∈</em> <strong>R</strong><sup><em>dMLP×dMLP</em></sup> <em>be a positive definite matrix (specifically, the uncentered empirical covariance), and let</em> <strong>x</strong> <em>∼N</em> (0, Σ) <em>be a normally distributed random vector with mean</em> 0 <em>and covariance</em> Σ <em>. Then, the ROME weight update is Wout</em><sup><em>′</em>=</sup><sup><em>Wout</em>+</sup><sup><strong>ab</strong></sup><sup><em>⊤where</em></sup><sup><strong>a</strong></sup><sup><em>∈</em></sup><sup><strong>R</strong></sup><sup><em>dresid</em>,</sup><sup><strong>b</strong></sup><sup><em>∈</em></sup><sup><strong>R</strong></sup><sup><em>dMLPsolve the optimization problem</em></sup></p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0041-04.jpg" alt="" /></p>
+<p><em>In other words, the ROME update is the update that causes Wout to output</em> <strong>v</strong> <em>on input</em> <strong>k</strong> <em>, and minimizes the total variance of the extra contribution of the update in the output of the MLP layer under the assumption that the pre-Wout activations are normally distributed with covariance</em> Σ <em>.</em></p>
+<p><em>Proof.</em> We have <em>Wout</em><sup><em>′</em></sup><sup><strong>x</strong></sup><sup><em>−Wout</em></sup><sup><strong>x</strong>=</sup><sup><strong>ab</strong></sup><sup><em>⊤</em></sup><sup><strong>x</strong>.Next, Using</sup><sup><strong>Ex</strong>[</sup><sup><strong>xx</strong></sup><sup><em>⊤</em>]=Σ and the cyclic property of the</sup> trace, we see that</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0041-07.jpg" alt="" /></p>
+<p>We must have <strong>ab</strong><sup><em>⊤</em></sup> <strong>k</strong> = <strong>v</strong> <em>− Wout</em> <strong>k</strong> , so without loss of generality we can rescale <strong>a</strong> , <strong>b</strong> so that <strong>a</strong> = <strong>v</strong> <em>− Wout</em> <strong>k</strong> . Then, we want to solve the problem</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0041-09.jpg" alt="" /></p>
+<p>which we can solve using Lagrange multipliers. The Lagrangian is</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0041-11.jpg" alt="" /></p>
+<p>and the derivative w.r.t. <strong>b</strong> is Σ <strong>b</strong> <em>− λ</em> <strong>k</strong> = 0, which tells us that <strong>b</strong> is in the direction of Σ<sup><em>−<em>1</sup> <strong>k</strong> . Then the constraint <strong>b</strong><sup></em>⊤</em></sup> <strong>k</strong> = 1 forces the constant of proportionality, and we arrive at <strong>b</strong> = <strong>kk</strong><sup><em>⊤⊤</em></sup> ΣΣ<sup>_−−_11</sup> <strong>k</strong></p>
+<h3><strong>D.5 Connection between 1-dimensional activation patching and model editing</strong></h3>
+<p><strong>Lemma D.2.</strong> <em>Given prompts A and B, two token positions tA, tB, and an MLP layer with output projection weight Wout ∈</em> <strong>R</strong><sup><em>dresid×dMLP</em></sup> <em>, let uA</em> , <em>uB ∈</em> <strong>R</strong><sup><em>dMLP</em></sup> <em>be the respective (post-nonlinearity) activations at these token positions in this layer. If v is a direction in the activation space of the MLP layer, then there exists a ROME edit Wout</em><sup><em>′</em>=</sup><sup><em>Wout</em>+</sup><sup><em>ab⊤such that the activation patch from uBinto uAalong v and the edit result</em></sup> <em>in equal outputs of the MLP layer at token tA when run on prompt A. Moreover, the ROME edit is given by</em></p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0041-15.jpg" alt="" /></p>
+<p>Σ<sup>_−<em>1</sup> <em>uA Choosing b</em> = <em>u</em><sup><em>T</em></sup> <em>A</em><sup>Σ</sup><sup></em>−_1</sup><sup><em>uAminimizes the change to the model (in the sense of Meng et al. (2022a)) over all such</em></sup> <em>rank-1 edits.</em></p>
+<p><em>Proof.</em> The activation after patching from B into A along <em>v</em> is <em>u</em><sup><em>′</em></sup> <em>A</em><sup>=</sup><sup><em>uA</em>+ ((</sup><sup><em>uB −uA</em>)</sup><sup><em>⊤v</em>)</sup><sup><em>v</em>, which</sup> means that the change in the output of the MLP layer at this token will be</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0042-01.jpg" alt="" /></p>
+<p>The change introduced by a fact edit at this token is</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0042-03.jpg" alt="" /></p>
+<p>and the two are equal because <em>b</em><sup><em>⊤</em></sup> <em>uA</em> = 1.</p>
+<p>To find the <em>b</em> that minimizes the change to the model, we minimize the variance of <em>b</em><sup><em>⊤</em></sup> <em>x</em> when <em>x ∼N</em> (0, Σ) subject to <em>b</em><sup><em>⊤</em></sup> <em>uA</em> = 1. The variance is equal to <em>b</em><sup><em>⊤</em></sup> Σ <em>b</em> , so we have a constrained (convex) minimization problem</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0042-06.jpg" alt="" /></p>
+<p>The rest of the proof is the same as in Lemma D.1. Namely, we can solve this optimization problem using Lagrange multiplies. The Lagrangian is</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0042-08.jpg" alt="" /></p>
+<p>and the derivative w.r.t. <em>b</em> is Σ <em>b − λuA</em> = 0, which tells us that <em>b</em> is in the direction of Σ<sup><em>−<em>1</sup> <em>uA</em> . Then the constraint <em>b</em><sup></em>⊤</em></sup> <em>uA</em> = 1 forces the constant of proportionality.</p>
+<h3><strong>D.6 Additional experiments comparing fact patching and rank-1 editing</strong></h3>
+<p>In Figure 27, we plot the distributions of the logit difference between the correct object for a fact and the object we are trying to substitute when patching the 1-dimensional subspaces found by DAS, and performing the equivalent rank-1 weight edit according to Lemma D.2. We observe that the two metrics quite closely track each other, indicating that the additional effects of using a weight edit (as opposed to only intervening at a single token) are negligible.</p>
+<p>Similarly, in Figure 28, we show the success rate of the the two methods in terms of making the model output the object of the fact we are patching from. Again, we observe that they quite closely track each other.</p>
+<h3><strong>D.7 From Rank-1 Model Edits to Subspace Interventions</strong></h3>
+<p>In this section, we describe how, given a rank-1 edit <em>Wout</em><sup><em>′</em>=</sup><sup><em>Wout</em>+</sup><sup><em>abT</em>,toobtainadirection</sup> <em>v ∈</em> <strong>R</strong><sup><em>dMLP</em></sup> such that intervening on the model by setting the projection on <em>v</em> to some constant <em>c ∈</em> <strong>R</strong> (at each token) is approximately equivalent to intervening via the rank-1 edit.</p>
+<p>Specifically, given an activation <em>x ∈</em> <strong>R</strong><sup><em>dMLP</em></sup> , the patched activation is <em>x</em><sup><em>′</em></sup> = <em>x</em> + � <em>c − v</em><sup><em>T</em></sup> <em>x</em> � <em>v</em> and the extra contribution of the subspace intervention to the output of the MLP layer will be</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0042-16.jpg" alt="" /></p>
+<p>Similarly, the extra contribution of the rank-1 edit to the output of the MLP layer is</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0042-18.jpg" alt="" /></p>
+<p>Recall (see Appendix D.4) that the ROME method (Meng et al., 2022a) implicitly treats the activation <em>x</em> as a random vector sampled from <em>N</em> (0, Σ) where Σ is an empirical estimate of the covariance. In particular, this distribution is used to quantify the amount to which a rank-1 edit changes the model.</p>
+<p>Motivated by this, we formalize approximating the rank-1 edit by the subspace intervention using the following criteria analogous to the ROME method:</p>
+<ul>
+<li>
+<p><strong>E</strong> <em>x∼N</em> (0,Σ) �contribsubspace( <em>x</em> )� = <strong>E</strong> <em>x∼N</em> (0,Σ) [contribrank-1( <em>x</em> )], i.e. the interventions have the same expectation;</p>
+</li>
+<li>
+<p><em>Woutv ∥ a</em> , i.e. the interventions point in the same direciton;</p>
+</li>
+<li>
+<p>trace �Cov <em>x</em> �contribsubspace( <em>x</em> ) <em>−</em> contribrank-1( <em>x</em> )�� is minimized, i.e. the two interventions are maximally similar with respect to the activation distribution modeled as <em>x ∼N</em> (0, Σ) (this is the criterion used by ROME; recall D.4).</p>
+</li>
+</ul>
+<p>The expectation of contribrank-1( <em>x</em> ) is zero, while the expectation of contribsubspace( <em>x</em> ) is <em>cWoutv</em> , and since <em>Woutv</em> = 0 would lead to a trivial intervention, we must have</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0043-06.jpg" alt="" /></p>
+<p>Next, to ensure <em>Woutv ∥ a</em> , we have to pick <em>v</em> = <em>αWout</em><sup>+</sup><sup><em>a</em>+</sup><sup>_u_where</sup><sup>_u∈_ker</sup><sup><em>Wout</em>.Withthis,the</sup> covariance minimization can then be written as</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0043-08.jpg" alt="" /></p>
+<p>(this is a similar derivation to the one in Appendix D.4). After removing constant terms and setting <em>w</em> = <em>u</em> / <em>α</em> , we are left with</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0043-10.jpg" alt="" /></p>
+<p>subject to <em>Woutw</em> = 0. The Lagrangian is</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0043-12.jpg" alt="" /></p>
+<p>with the first-order conditions</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0043-14.jpg" alt="" /></p>
+<p>and <em>∂L</em> / <em>∂λ</em> = <em>Woutw</em> = 0. Multiplying the <em>w</em> derivative with <em>Wout</em> Σ<sup>_−_1</sup> on the left gives us a linear system for <em>λ</em> :</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0043-16.jpg" alt="" /></p>
+<p>which can be solved assuming we know <em>α</em> , and then substituting <em>λ</em> in <em>∂</em><sup><em><u>∂</u></em></sup> <em>w</em><sup><em><u>L</u></em>= 0 gives us</sup><sup><em>w</em>.In practice,</sup> we guess several values for <em>α</em> (typically, <em>α</em><sup>2</sup> = 0.05 performs best) and pick the one resulting in the best value for the objective.</p>
+<h2><strong>E Additional Details for Section 7</strong></h2>
+<h3><strong>E.1 Prevalence of Causal Directions in MLP Layers</strong></h3>
+<p>Given an MLP activation <strong>x</strong> and a vector <strong>u</strong> <em>∈</em> <strong>R</strong><sup><em>dMLP</em></sup> , changing the projection of <strong>x</strong> on <strong>u</strong> means replacing <strong>x</strong> with the new activation <strong>x</strong><sup><em>′</em></sup> = <strong>x</strong> + <em>α</em> <strong>u</strong> for some <em>α ∈</em> <strong>R</strong> . This translates to the new output of the MLP layer being</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0044-03.jpg" alt="" /></p>
+<p>Under our assumptions, the direction <strong>u</strong> will be causally relevant if the extra contribution to the residual stream <em>αWout</em> <strong>u</strong> points along <strong>v</strong> ; thus it suffices to find a <strong>u</strong> such that <em>Wout</em> <strong>u</strong> <em>∥</em> <strong>v</strong> .</p>
+<p>As it turns out, we can simply choose <strong>u</strong> = <em>Wout</em><sup>+</sup><sup><strong>v</strong>.Indeed, we empirically observe that</sup><sup><em>Wout∈</em></sup> <strong>R</strong><sup><em>dresid×dMLP</em></sup> is a full-rank matrix<sup>9</sup> , with almost all singular values bounded well away from 0 (see Appendix E.5). Since <em>dMLP &gt; dresid</em> , it follows that <em>WoutWout</em><sup>+</sup><sup><strong>v</strong>=</sup><sup><strong>v</strong>.This establishes that</sup><sup><strong>u</strong>is a causal</sup> direction.</p>
+<h3><strong>E.2 Prevalence of Directions Discriminating for</strong> <em>C</em> <strong>in MLP layers</strong></h3>
+<p>For a feature <strong>u</strong> <em>∈</em> <strong>R</strong><sup><em>dMLP</em></sup> to discriminate between values of <em>C</em> , we need projections of the postnonlinearity activations on <strong>u</strong> to linearly separate examples according to the values of <em>C</em> . By assumption, <strong>v</strong> is a good linear separator for the values of <em>C</em> in the residual stream. We can thus frame our goal as a more general question:</p>
+<p><em>If two sets of activations are linearly separable in the residual stream, are their images after the non-linearity also (approximately) linearly separable?</em></p>
+<p>The transformation from residual vectors <strong>x</strong> <em>∈</em> <strong>R</strong><sup><em>dresid</em></sup> to post-nonlinearity activations is given by the steps</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0044-10.jpg" alt="" /></p>
+<p>The composition of LayerNorm and <em>Win</em> is approximately a linear operation (Elhage et al., 2021), so the values of the concept <em>C</em> are also linearly separated in the pre-gelu activations. However, it is not a priori clear if the gelu operation (approximately) preserves linear separability.</p>
+<p>We show ample empirical evidence in Appendix E.4 that this transformation approximately preserves the Euclidean geometry of activations in a certain restricted sense; then, we prove that this preservation implies that points remain approximately linearly separable after this transformation. We further argue this empirically in Appendix E.6, where we show that linear separability is approximately preserved in MLP activations for random directions <strong>v</strong> in the residual stream.</p>
+<h3><strong>E.3 Empirical Analysis of Distortion Introduced by the Non-linearity</strong></h3>
+<p><strong>Methodology.</strong> We use the first 10K texts of OpenWebText dataset (Gokaslan &amp; Cohen, 2019). Each of these texts contains 1,024 tokens; we pass each text through GPT-2 Small, and for each layer</p>
+<blockquote>
+<p>9This is also heuristically plausible: models want to maximize their expressive capacity, and pre-training datasets are very complex, so making <em>Wout</em> low-rank would not be preferred by optimization.</p>
+</blockquote>
+<p>collect the pre-gelu activations <strong>x</strong> <em>i</em> of the MLP layer, as well as the values <strong>z</strong> <em>i</em> = projker <em>Wout</em> (gelu ( <strong>x</strong> <em>i</em> )). We sample 250 quadruples of distinct <em>i</em> , <em>j</em> , <em>k</em> , <em>l</em> per text, and compute the values</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0045-01.jpg" alt="" /></p>
+<p>We collect these numbers across the first 1000 texts out of the first 10K, resulting in 250K datapoints per layer, and perform linear regression of <em>bi</em> against <em>ai</em> .</p>
+<p>We note that there is some inherent linearity in the quantities <em>aijkl</em> , <em>bijkl</em> that could in principle skew the results of the linear regression towards a higher <em>r</em><sup>2</sup> statistic in the presence of enough samples. In particular, there are linear dependencies of the form</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0045-04.jpg" alt="" /></p>
+<p>for any <em>p</em> , and similarly for the <em>bijkl</em> quantities. This makes these quantities potentially misleading targets for linear regression. However, in our regime, we sample 250 4-element subsets from the set <em>{</em> 1, . . . , 1024 <em>}</em> , and the probability of sampling quadruples that are linearly related is quite small.</p>
+<p><strong>Results.</strong> We find that the coefficients of determination <em>r</em><sup>2</sup> for the linear regression are consistently high ( <em>≈</em> 0.8 or higher) for all layers except for layer 0, indicating a high degree of fit. The <em>r</em><sup>2</sup> values are given in Table TODO, and regression plots are shown in Figure TODO. We also remark that the intercept coefficients are <em>≈</em> 0 relative to the standard deviation in the dependent variable.</p>
+<h3><strong>E.4 Details for Subsection E.2</strong></h3>
+<p>We will show the stronger property that activations remain approximately linearly separable even after projecting on the kernel of <em>Wout</em> . Define the function</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0045-09.jpg" alt="" /></p>
+<p>where projker <em>Wout</em> is orthogonal projection on the kernel of <em>Wout</em> .</p>
+<p>To overcome the non-linearity of <em>f</em> , we establish an empirical property of <em>f</em> on activations from the model’s pre-training distribution. Specifically, we show that <em>f</em> approximately preserves the Euclidean geometry of activations in a certain restricted sense:</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0045-12.jpg" alt="" /></p>
+<p>for <em>λ &gt;</em> 0 and <em>η ≈</em> 0 (relative to the standard deviation of the expression on the left-hand side of the approximation). Specifically, we perform linear regression of � <em>f</em> ( <strong>x</strong> <em>i</em> ) <em>− f</em> ( <strong>x</strong> <em>j</em> )� <em>⊤</em> ( <em>f</em> ( <strong>x</strong> <em>k</em> ) <em>− f</em> ( <strong>x</strong> <em>l</em> )) using � <strong>x</strong> <em>i −</em> <strong>x</strong> <em>j</em> � <em>⊤</em> ( <strong>x</strong> <em>k −</em> <strong>x</strong> <em>l</em> ) as the predictor variable in Appendix E.3, and find very high coefficients of determination ( <em>r</em><sup>2</sup> <em>≈</em> 0.8) in all layers except for layer 0. To avoid relying solely on the coefficient of determination, we also generate regression plots for the data; see Figure 29 for regression lines over samples of 10<sup>4</sup> points from each layer of GPT2-Small.</p>
+<p>Finally, we prove that <em>f</em> maintains linear separability if we assume that Equation 7 holds exactly with <em>η</em> = 0:</p>
+<p><strong>Lemma E.1.</strong> <em>Let xi ∈</em> <strong>R</strong><sup><em>d</em></sup> , 1 <em>≤ i ≤ n be linearly separable with respect to binary labels yi ∈{−</em> 1, 1 <em>}. Let f</em> : <strong>R</strong><sup><em>d</em></sup> <em>→</em> <strong>R</strong><sup><em>d</em></sup> <em>be a transformation with the property that</em></p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0045-16.jpg" alt="" /></p>
+<p><em>for all distinct i</em> , <em>j</em> , <em>k</em> , <em>l and some λ &gt;</em> 0 <em>. Then, f</em> ( <em>xi</em> ) <em>are linearly separable with respect to the labels yi as well.</em></p>
+<p><em>Proof.</em> Consider the hard SVM objective for the points ( <em>xi</em> , <em>yi</em> ),</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0046-01.jpg" alt="" /></p>
+<p>Since the examples are linearly separable, we know that the minimizer ( <em>w</em><sup><em>∗</em></sup> , <em>b</em><sup><em>∗</em></sup> ) exists and satisfies all constraints. Furthermore, from the optimality conditions of the dual formulation of the objective we know that we can write <em>w</em><sup><em>∗</em></sup> = ∑ <em>i αixi</em> where ∑ <em>i αi</em> = 0 (see for example Awad et al. (2015)). Let <em>S</em> = <em>{s</em> 1, . . . , <em>st} ⊂{</em> 1, . . . , <em>n}</em> be the support of <em>α</em> , i.e. the indices <em>sj</em> such that <em>αsj̸</em> = 0. Since ∑ <em>i αi</em> = 0, we can rewrite <em>w</em><sup><em>∗</em></sup> as</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0046-03.jpg" alt="" /></p>
+<p>with indices modulo <em>|S|</em> . Since ( <em>w</em><sup><em>∗</em></sup> , <em>b</em><sup><em>∗</em></sup> ) is a separating hyperplane for ( <em>xi</em> , <em>yi</em> ), we have</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0046-05.jpg" alt="" /></p>
+<p>and thus</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0046-07.jpg" alt="" /></p>
+<p>Using the expansion of <em>w</em><sup><em>∗</em></sup> as a linear combination of differences between examples, this says</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0046-09.jpg" alt="" /></p>
+<p>and thus</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0046-11.jpg" alt="" /></p>
+<p>Now we claim that</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0046-13.jpg" alt="" /></p>
+<p>is a linear separator for ( <em>f</em> ( <em>xi</em> ), <em>yi</em> ) for some bias to be determined later. Indeed, let <em>M</em> = min <em>yi</em> =1 <em>w</em> �<sup><em>⊤</em></sup> <em>f</em> ( <em>xi</em> ) and <em>m</em> = max <em>yi</em> = <em>−</em> 1 <em>w</em> �<sup><em>⊤</em></sup> <em>f</em> ( <em>xi</em> ). Then we have <em>M − m ≥</em> 2 <em>λ &gt;</em> 0. Choosing any<sup>�</sup> <em>b ∈</em> ( <em>m</em> , <em>M</em> ), we have</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0046-15.jpg" alt="" /></p>
+<p>which shows that ( � <em>w</em> ,<sup>�</sup> <em>b</em> ) linearly separates the points ( <em>f</em> ( <em>xi</em> ), <em>yi</em> ).</p>
+<h3><strong>E.5 MLP weights are full-rank matrices</strong></h3>
+<p>In figure 30, we plot the 100 smallest singular values of the MLP weights in GPT2-Small for all 12 layers. We observe that they the vast majority are bounded well away from 0. This confirms that both MLP weights are full-rank transformations.</p>
+<h3><strong>E.6 Features in the residual stream propagate to hidden MLP activations</strong></h3>
+<p><strong>Intuition</strong> . Suppose we have two classes of examples that are linearly separable in the residual stream. The transformation from the residual stream to the hidden MLP activations is a linear map followed by a nonlinearity, specifically <em>x �→</em> gelu( <em>Winx</em> ). As we observed in E.5, the <em>Win</em> matrix is full-rank, meaning that all the information linearly present in <em>x</em> will also be so in <em>Winx</em> . Even better, since <em>Win</em> maps <em>x</em> from a <em>d</em> resid-dimensional space to a <em>d</em> MLP = 4 <em>d</em> resid-dimensional space, this should intuitively make it much easier to linearly separate the points, because in a higher-dimensional space there are many more linear separators. On the other hand, the non-linearity has an opposite effect: by compressing the space of activations, it makes it harder for points to be separable. So it is a priori unclear which intuition is decisive.</p>
+<p><strong>Empirical validation</strong> . However, it turns out that empirically this is not such a problem. To test this, we run the model GPT2-Small on random samples from its data distribution (we used OpenWebText-10k), and extract 2000 activations of an MLP-layer after the non-linearity. We train a linear regression with <em>ℓ</em> 2-regularization to recover the dot product of the residual stream immediately before the MLP-layer of interest and a randomly chosen direction. We repeat this experiment with different random vectors and for each layer. We observe that all regressions are better than chance and explain a significant amount of variance on the held-out test set ( <em>R</em><sup>2</sup> = 0.71 <em>±</em> 0.17, MSE = 0.31 <em>±</em> 0.18, <em>p &lt;</em> 0.005). Results are shown in Figure 31 (right) (every marker corresponds to one regression model using a different random direction).</p>
+<p>The position information in the IOI task is really a binary feature, so we are also interested in whether <em>binary</em> information in general is linearly recoverable from the MLP activations. To test this, we sample activations from the model run on randomly-sampled prompts. This time however, we add or subtract a multiple of a random direction <em>v</em> to the residual stream activation <em>u</em> , and calculate the MLP activations using this new residual stream vector <em>u</em><sup><em>′</em></sup> :</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0047-04.jpg" alt="" /></p>
+<p>where <em>y ∈{−</em> 1, 1 <em>}</em> is uniformly random, <em>z</em> is a scaling factor we manipulate, and <em>v</em> is a randomly chosen direction of unit norm. For each classifier, we randomly sample a direction <em>v</em> that we either add or subtract (using <em>y</em> ) from the residual stream. The classifier is trained to predict <em>y</em> . We rescale v to match the average norm of a residual vector and then scale it with a small scalar <em>z</em> .</p>
+<p>Then, a logistic classifier is trained on 1600 samples. Again, we repeat this experiment for different <em>v</em> and <em>z</em> , and for each layer. We observe that the classifier works quite well across layers even with very small values of <em>z</em> (still, accuracy drops for <em>z</em> = 0.0001). Results are shown in Figure 31 (right), and Table 2.</p>
+<p>Table 2: Mean Accuracy for Different Values of <em>z</em></p>
+<table>
+<thead>
+<tr>
+<th><em>z</em></th>
+<th>Mean Accuracy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.0001</td>
+<td>0.69</td>
+</tr>
+<tr>
+<td>0.001</td>
+<td>0.83</td>
+</tr>
+<tr>
+<td>0.01</td>
+<td>0.87</td>
+</tr>
+<tr>
+<td>0.1</td>
+<td>0.996</td>
+</tr>
+</tbody>
+</table>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0048-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>MLP patch Residual stream patch<br>2.00<br>1.75<br>1.50<br>1.25<br>1.00<br>0.75<br>0.50<br>0.25<br>0.00<br>2.00<br>1.75<br>1.50<br>1.25<br>1.00<br>0.75<br>0.50<br>0.25<br>0.00<br>0 1 2 3 4 5 6 7 8 9 10 11 0 1 2 3 4 5 6 7 8 9 10 11<br>Layer Layer<br>FLDD (small training set)<br>FLDD (full training set)<br><!-- End of picture text --></p>
+<p>Figure 17: FLDD for different IOI-position subspaces: Subspaces were fitted to either a small version of the IOI dataset that only contained 2 names (first row) or on the full dataset (second row) using activations from the MLP (first column) or the residual stream (second column). Subspace performance on the IOI task was evaluated on the training (blue) distribution and the full test dataset containing all names (orange)</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0049-00.jpg" alt="" /></p>
+<p>Figure 18: Cosine Similarity between learned position subspaces in the S-inhibition heads is high even when using only a subset of S-inhibition heads for training</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0049-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>20<br>ABB<br>ABA<br>10<br>0<br>10<br>20<br>30<br>&lt;|endoftext|&gt;Then , {S1 or IO} and {S1 or IO} had  lots  of  fun  at  the {place} . {S2}  gave  a {object}  to<br>Position<br>Subspace Activation<br><!-- End of picture text --></p>
+<p>Figure 19: The IOI position subspace activates at words that predict a repeated name. S-inhibition subspace activations for different IOI prompts per position</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0050-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Layer 5 Layer 6 Layer 7 Layer 8<br>4<br>2<br>0<br>2<br>4<br>ABB<br>6 BAB<br>S-Inhibition heads<br>0 1 2 3 4 5 6 7 8 9 10 11 0 1 2 3 4 5 6 7 8 9 10 11 0 1 2 3 4 5 6 7 8 9 10 11 0 1 2 3 4 5 6 7 8 9 10 11<br>Head Head Head Head<br>Dot Product<br>mlp mlp mlp mlp<br><!-- End of picture text --></p>
+<p>Figure 20: S-Inhibition heads but not MLP8 write to the position subspace in the residual stream that is causally connected to the name movers on the IOI task</p>
+<table>
+<thead>
+<tr>
+<th>OpenWebText-10k and<br>Subspace Activation</th>
+<th>Logit Difference<br>Attention of Name Movers<br>at 2nd last position</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><br>&lt;</td>
+<td>endoftext</td>
+</tr>
+<tr>
+<td>An</td>
+<td></td>
+</tr>
+<tr>
+<td>Oklahoma</td>
+<td></td>
+</tr>
+<tr>
+<td><br>senate</td>
+<td></td>
+</tr>
+<tr>
+<td><br>panel</td>
+<td></td>
+</tr>
+<tr>
+<td>approved</td>
+<td></td>
+</tr>
+<tr>
+<td>a<br></td>
+<td></td>
+</tr>
+<tr>
+<td>bill</td>
+<td></td>
+</tr>
+<tr>
+<td>Monday</td>
+<td></td>
+</tr>
+<tr>
+<td>to</td>
+<td></td>
+</tr>
+<tr>
+<td>prevent<br></td>
+<td></td>
+</tr>
+<tr>
+<td>city</td>
+<td></td>
+</tr>
+<tr>
+<td>and</td>
+<td></td>
+</tr>
+<tr>
+<td>county</td>
+<td></td>
+</tr>
+<tr>
+<td>governments</td>
+<td></td>
+</tr>
+<tr>
+<td>from</td>
+<td></td>
+</tr>
+<tr>
+<td>out</td>
+<td></td>
+</tr>
+<tr>
+<td>doing</td>
+<td></td>
+</tr>
+<tr>
+<td>state</td>
+<td></td>
+</tr>
+<tr>
+<td>laws</td>
+<td></td>
+</tr>
+<tr>
+<td><br>on</td>
+<td></td>
+</tr>
+<tr>
+<td><br>employment</td>
+<td></td>
+</tr>
+<tr>
+<td>and</td>
+<td></td>
+</tr>
+<tr>
+<td>accommodations<br>public<br>10</td>
+<td></td>
+</tr>
+<tr>
+<td>.<br>0</td>
+<td></td>
+</tr>
+<tr>
+<td><br>The<br>10</td>
+<td></td>
+</tr>
+<tr>
+<td>bill</td>
+<td></td>
+</tr>
+<tr>
+<td>d<br>initially</td>
+<td></td>
+</tr>
+<tr>
+<td>local<br>prevente</td>
+<td></td>
+</tr>
+<tr>
+<td>governments</td>
+<td></td>
+</tr>
+<tr>
+<td>from</td>
+<td></td>
+</tr>
+<tr>
+<td>going</td>
+<td></td>
+</tr>
+<tr>
+<td><br>further</td>
+<td></td>
+</tr>
+<tr>
+<td>than</td>
+<td></td>
+</tr>
+<tr>
+<td>any</td>
+<td></td>
+</tr>
+<tr>
+<td>state</td>
+<td></td>
+</tr>
+<tr>
+<td>law</td>
+<td></td>
+</tr>
+<tr>
+<td>A<br>.</td>
+<td></td>
+</tr>
+<tr>
+<td>committee</td>
+<td></td>
+</tr>
+<tr>
+<td>substitute<br></td>
+<td></td>
+</tr>
+<tr>
+<td>focused</td>
+<td></td>
+</tr>
+<tr>
+<td>it</td>
+<td></td>
+</tr>
+<tr>
+<td>employment<br>on</td>
+<td></td>
+</tr>
+<tr>
+<td>and</td>
+<td>Original</td>
+</tr>
+<tr>
+<td>public</td>
+<td></td>
+</tr>
+<tr>
+<td>accommodations<br></td>
+<td>Mean Ablated</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>OpenWebText-10k and<br>Subspace Activation<br>Logit Difference<br>Attention of Name Movers<br>at 2nd last position</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><br> <br>morning</td>
+</tr>
+<tr>
+<td><br>late</td>
+</tr>
+<tr>
+<td><br>last</td>
+</tr>
+<tr>
+<td>month</td>
+</tr>
+<tr>
+<td>h<br>Rays<br>,</td>
+</tr>
+<tr>
+<td>wn<br>a</td>
+</tr>
+<tr>
+<td>and<br>Chandler</td>
+</tr>
+<tr>
+<td>her</td>
+</tr>
+<tr>
+<td>wife</td>
+</tr>
+<tr>
+<td>Chandler<br>Avery</td>
+</tr>
+<tr>
+<td>pulled</td>
+</tr>
+<tr>
+<td><br>into<br></td>
+</tr>
+<tr>
+<td>the</td>
+</tr>
+<tr>
+<td>parking</td>
+</tr>
+<tr>
+<td>lot</td>
+</tr>
+<tr>
+<td>at</td>
+</tr>
+<tr>
+<td><br>the</td>
+</tr>
+<tr>
+<td>30<br>7<br>10</td>
+</tr>
+<tr>
+<td>Mid<br></td>
+</tr>
+<tr>
+<td>town<br>5</td>
+</tr>
+<tr>
+<td>building</td>
+</tr>
+<tr>
+<td><br>and<br>0</td>
+</tr>
+<tr>
+<td><br>began<br></td>
+</tr>
+<tr>
+<td><br>walking<br>5</td>
+</tr>
+<tr>
+<td>towards</td>
+</tr>
+<tr>
+<td>the<br>10</td>
+</tr>
+<tr>
+<td>.<br>entrance</td>
+</tr>
+<tr>
+<td>Baby</td>
+</tr>
+<tr>
+<td>you<br>,</td>
+</tr>
+<tr>
+<td><br>see</td>
+</tr>
+<tr>
+<td>the</td>
+</tr>
+<tr>
+<td>news</td>
+</tr>
+<tr>
+<td>trucks</td>
+</tr>
+<tr>
+<td>?</td>
+</tr>
+<tr>
+<td>Rays</td>
+</tr>
+<tr>
+<td>ha<br></td>
+</tr>
+<tr>
+<td>wn</td>
+</tr>
+<tr>
+<td>asked<br>Original</td>
+</tr>
+<tr>
+<td>Avery<br></td>
+</tr>
+<tr>
+<td>.<br> <br>Mean Ablated</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Op<br>S</th>
+<th>enWebText-10k and<br>ubspace Activation<br>Logit Difference<br>Attention of Name Movers<br>at 2nd last position</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td><br> <br>AB</td>
+</tr>
+<tr>
+<td></td>
+<td>key</td>
+</tr>
+<tr>
+<td></td>
+<td><br>two</td>
+</tr>
+<tr>
+<td></td>
+<td><br>times</td>
+</tr>
+<tr>
+<td></td>
+<td><br>you</td>
+</tr>
+<tr>
+<td></td>
+<td>will</td>
+</tr>
+<tr>
+<td></td>
+<td><br>see</td>
+</tr>
+<tr>
+<td></td>
+<td>that</td>
+</tr>
+<tr>
+<td></td>
+<td>will</td>
+</tr>
+<tr>
+<td></td>
+<td>appear</td>
+</tr>
+<tr>
+<td></td>
+<td>all</td>
+</tr>
+<tr>
+<td></td>
+<td>the</td>
+</tr>
+<tr>
+<td></td>
+<td>programs</td>
+</tr>
+<tr>
+<td></td>
+<td>/</td>
+</tr>
+<tr>
+<td></td>
+<td><br>scripts</td>
+</tr>
+<tr>
+<td></td>
+<td><br>that</td>
+</tr>
+<tr>
+<td></td>
+<td>begins</td>
+</tr>
+<tr>
+<td></td>
+<td>with</td>
+</tr>
+<tr>
+<td></td>
+<td>gn</td>
+</tr>
+<tr>
+<td></td>
+<td>-<br>ome</td>
+</tr>
+<tr>
+<td></td>
+<td><br>co</td>
+</tr>
+<tr>
+<td></td>
+<td>characters</td>
+</tr>
+<tr>
+<td>10</td>
+<td>that<br>and</td>
+</tr>
+<tr>
+<td></td>
+<td>are</td>
+</tr>
+<tr>
+<td>0</td>
+<td><br>on</td>
+</tr>
+<tr>
+<td></td>
+<td><br>synaptic</td>
+</tr>
+<tr>
+<td></td>
+<td>or</td>
+</tr>
+<tr>
+<td>10</td>
+<td>in</td>
+</tr>
+<tr>
+<td></td>
+<td>our</td>
+</tr>
+<tr>
+<td></td>
+<td>repositories</td>
+</tr>
+<tr>
+<td></td>
+<td>from</td>
+</tr>
+<tr>
+<td></td>
+<td>source</td>
+</tr>
+<tr>
+<td></td>
+<td>list<br>.</td>
+</tr>
+<tr>
+<td></td>
+<td>.</td>
+</tr>
+<tr>
+<td></td>
+<td>This</td>
+</tr>
+<tr>
+<td></td>
+<td><br>is</td>
+</tr>
+<tr>
+<td></td>
+<td>helpful</td>
+</tr>
+<tr>
+<td></td>
+<td>when</td>
+</tr>
+<tr>
+<td></td>
+<td>you</td>
+</tr>
+<tr>
+<td></td>
+<td>don</td>
+</tr>
+<tr>
+<td></td>
+<td>'t</td>
+</tr>
+<tr>
+<td></td>
+<td>remember</td>
+</tr>
+<tr>
+<td></td>
+<td>exactly<br></td>
+</tr>
+<tr>
+<td></td>
+<td>the<br></td>
+</tr>
+<tr>
+<td></td>
+<td>name</td>
+</tr>
+<tr>
+<td></td>
+<td>of</td>
+</tr>
+<tr>
+<td></td>
+<td>a</td>
+</tr>
+<tr>
+<td></td>
+<td>program<br>Original</td>
+</tr>
+<tr>
+<td></td>
+<td><br>or<br><br>Mean Ablated</td>
+</tr>
+<tr>
+<td></td>
+<td>maybe</td>
+</tr>
+</tbody>
+</table>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0054-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>0<br>5<br>10<br>15<br>Method<br>20<br>DAS<br>Full MLP patch<br>25 DAS rowspace component<br>0 5 10 15 20 25 30 35 40 45<br>Intervention layer<br>Fractional logit difference<br><!-- End of picture text --></p>
+<p>Figure 24: Fractional logit difference distributions under three interventions: patching along the direction found by DAS (blue), patching the component of the DAS direction in the rowspace of <em>Wout</em> (green), and patching the entire hidden MLP activation (orange).</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0054-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0<br>0.8<br>0.6<br>0.4<br>0.2<br>0.0<br>0 5 10 15 20 25 30 35 40 45<br>Intervention layer<br>Absolute cosine similarity<br><!-- End of picture text --></p>
+<p>Figure 25: Distribution of the absolute value of the cosine similarity between the nullspace component of the DAS fact patching directions and the difference in activations of the last tokens of the two subjects.</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0055-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0<br>0.8<br>0.6<br>0.4<br>0.2<br>0.0<br>0 5 10 15 20 25 30 35 40 45<br>Intervention layer<br>Norm of nullspace component<br><!-- End of picture text --></p>
+<p>Figure 26: Distribution of the norm of the nullspace component of the DAS direction across intervention layers.</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0055-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>10<br>0<br>10<br>20<br>30<br>40<br>50<br>Method<br>60 rank-1 model edit<br>1-dimensional patch<br>70<br>0 5 10 15 20 25 30 35 40 45<br>Intervention layer<br>Logit difference<br><!-- End of picture text --></p>
+<p>Figure 27: Comparison of logit difference between 1-dimensional fact patches and their derived rank-1 model edits</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0056-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0 Method<br>rank-1 model edit<br>1-dimensional patch<br>0.8<br>0.6<br>0.4<br>0.2<br>0.0<br>0 5 10 15 20 25 30 35 40 45<br>Intervention layer<br>Fact patch success rate<br><!-- End of picture text --></p>
+<p>Figure 28: Comparison of fact editing success rate between 1-dimensional fact patches and their derived rank-1 model edits</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0057-00.jpg" alt="" /></p>
+<p>Figure 29: Regression plots accompanying the experiments in Appendix E.4.</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0058-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>4.0 6<br>3.5<br>5<br>3.0<br>4<br>2.5<br>2.0 3<br>1.5<br>2<br>1.0<br>1<br>0.5<br>0.0 0<br>0 20 40 60 80 100 0 20 40 60 80 100<br>Singular value<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0058-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Index (decreasing) Index (decreasing)<br><!-- End of picture text --></p>
+<p>Figure 30: Smallest 100 singular values of the <em>Win</em> (left) and <em>Wout</em> (right) MLP weights by layer in in GPT2-Small</p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0058-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/subspace_illusion/24_subspace_illusion.pdf-0058-04.jpg" alt="" /></p>
+<p>Figure 31: Recovering residual stream features linearly from hidden MLP activations: classification (left) and regression (right).</p>
+
+</article>
+<nav class="pager"><a class="prev" href="23_distributed_alignment_search.html"><small>Previous · 23</small>Distributed Alignment Search (DAS)</a><a class="mid" href="index.html#section-C">Contents</a><a class="next" href="25_illusion_reply.html"><small>Next · 25</small>A Reply to the Interpretability Illusion</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

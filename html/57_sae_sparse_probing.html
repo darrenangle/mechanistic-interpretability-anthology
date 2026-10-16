@@ -1,0 +1,2103 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>57 · Are Sparse Autoencoders Useful? A Case Study in Sparse Probing — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 57 / 91 &nbsp;·&nbsp; Section F</span></div>
+<header class="cover">
+<div class="numeral">57</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>Are Sparse Autoencoders Useful? A Case Study in Sparse Probing</h1>
+<p class="cite">Kantamneni et al. — 2025</p>
+<p class="authors">Subhash Kantamneni, Joshua Engels, Senthooran Rajamanoharan, Max Tegmark, Neel Nanda</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Tests whether SAE latents give probes a useful inductive bias across 113 datasets and four hard regimes — scarce data, class imbalance, label noise, covariate shift — and finds no consistent gain over strong baselines.</p></div><div class="note"><div class="label">Reading focus</div><p>The ‘quiver of arrows’ protocol, results in each of the four regimes, the GLUE CoLA dataset-quality case, multi-token probing, the section on illusions of SAE probes, and the check on newer SAE architectures.</p></div><div class="note"><div class="label">In context</div><p>The systematic version of <a href="55_gdm_sae_negative_results.html">55</a>'s probing result, sharing authors with it. Its probes descend from <a href="37_neurons_in_haystack.html">37</a>'s sparse probing and inherit the cautions of <a href="30_probe_control_tasks.html">30</a> and <a href="31_probing_classifiers.html">31</a>; it credits <a href="50_sparse_feature_circuits.html">50</a>'s SHIFT among the few prior SAE wins. With <a href="56_axbench.html">56</a> it makes beating strong baselines the standard of evidence for interpretability tools.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>F — The reckoning</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2502.16681v1">https://arxiv.org/abs/2502.16681v1</a> &nbsp;·&nbsp; arXiv:2502.16681v1</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 2105–2135 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="56_axbench.html"><small>Previous · 56</small>AxBench</a><a class="mid" href="index.html#section-F">Contents</a><a class="next" href="58_sae_random_transformers.html"><small>Next · 58</small>SAEs on Random Transformers</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<p><strong>Subhash Kantamneni</strong><sup>* 1</sup> <strong>Joshua Engels</strong><sup>* 1</sup> <strong>Senthooran Rajamanoharan Max Tegmark</strong><sup>1</sup> <strong>Neel Nanda</strong></p>
+<h1><strong>Abstract</strong></h1>
+<p>Sparse autoencoders (SAEs) are a popular method for interpreting concepts represented in large language model (LLM) activations. However, there is a lack of evidence regarding the validity of their interpretations due to the lack of a ground truth for the concepts used by an LLM, and a growing number of works have presented problems with current SAEs. One alternative source of evidence would be demonstrating that SAEs improve performance on downstream tasks beyond existing baselines. We test this by applying SAEs to the real-world task of LLM activation probing in four regimes: data scarcity, class imbalance, label noise, and covariate shift<sup>1</sup> . Due to the difficulty of detecting concepts in these challenging settings, we hypothesize that SAEs’ basis of interpretable, concept-level latents should provide a useful inductive bias. However, although SAEs occasionally perform better than baselines on individual datasets, we are unable to design ensemble methods combining SAEs with baselines that consistently outperform ensemble methods solely using baselines. Additionally, although SAEs initially appear promising for identifying spurious correlations, detecting poor dataset quality, and training multi-token probes, we are able to achieve similar results with simple non-SAE baselines as well. Though we cannot discount SAEs’ utility on other tasks, our findings highlight the shortcomings of current SAEs and the need to rigorously evaluate interpretability methods on downstream tasks with strong baselines.</p>
+<h1><strong>1. Introduction</strong></h1>
+<p>Dictionary learning is a popular method for interpreting LLM activations (Arora et al., 2018; Yun et al., 2021); most</p>
+<blockquote>
+<p>*Equal contribution 1Massachusetts Institute of Technology. Correspondence to: Subhash Kantamneni <em>&lt;</em> subhashk@mit.edu <em>&gt;</em> , Joshua Engels <em>&lt;</em> jengels@mit.edu <em>&gt;</em> .</p>
+</blockquote>
+<p>1We make our code publicly available here.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0001-09.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>N/A<br>Standard  Data  Class  Label  OOD Interp.<br>Conditions Scarcity Imbalance Noise<br>Do SAE<br>Probes  ~<br>Help?<br><!-- End of picture text --></p>
+<p><em>Figure 1.</em> SAE probes underperform the baseline of logistic regression in each regime when taking the mean across <u>datasets.</u> Additionally, we find that baseline methods can provide many of the interpretability insights of SAE probes.</p>
+<p>notably, Bricken et al. (2023); Cunningham et al. (2023) demonstrated the promise of sparse autoencoders (SAEs) and sparked considerable follow-up work. This includes papers focused on improving the downstream cross entropy loss of SAE reconstructions (Gao et al., 2024; Braun et al., 2024; Rajamanoharan et al., 2024a;b), improving SAE training efficiency (Mudide et al., 2024; Gao et al., 2024), finding weaknesses in SAEs and proposing solutions (Chanin et al., 2024; Bussmann et al., 2024b), using SAEs to understand model representation structure (Engels et al., 2024a;b; Li et al., 2024), training large suites of SAEs (Lieberum et al., 2024; He et al., 2024), and developing benchmarks for SAEs (Huang et al., 2024; Karvonen et al.; 2024b).</p>
+<p>Unfortunately, we lack a “ground truth” to know whether SAEs truly extract the interpretable concepts used by language models. Prior work has largely avoided this limitation by evaluating SAEs with proxy metrics like reconstruction loss (Rajamanoharan et al., 2024a;b; Gao et al., 2024; Olmo et al., 2024; Braun et al., 2024). These metrics are tractable to optimize for, but do not necessarily align with mechanistic interpretability’s (MI) goal of better understanding neural networks (see Bereska &amp; Gavves (2024) and Sharkey et al. (2025) for surveys of MI). We argue that if SAEs truly advance MI’s goal, they should improve performance on a real, hard-to-fake model control or explainability task.</p>
+<p>However, despite the extensive body of work on SAEs, there are relatively few cases where SAEs have been shown to</p>
+<p>help on such a task: Marks et al. (2024) show that SAE feature circuits can help identify and remove bias from classifiers; Smith &amp; Brinkmann (2024) show that SAEs can identify misaligned features learned by a preference model; and Karvonen et al. (2024a) show that SAE feature ablations are better at preventing regex output than baselines in a setting with scarce supervised data. While these results are promising, they all study a single example in detail, and consider comparative baselines with varying levels of rigor.</p>
+<p>At the same time, there are also surprisingly few negative results finding that SAEs do <em>not</em> help on downstream tasks; in fact, we are only aware of Chaudhary &amp; Geiger (2024), which finds that SAE latents are worse than neurons at disentangling geographic data, and Farrell et al. (2024), which finds that pinning related SAE latents is less effective than baselines for unlearning bioweapon knowledge. Thus, it is not clear whether SAEs are just one result away from being differentially useful, or if MI should seek fundamentally different methods. We defer a thorough examination of related work to Appendix A.</p>
+<p>In this work, we attempt to fairly evaluate the utility of SAEs by examining their competitive advantage on a concrete task: training probes from language model activations to targets (Alain, 2016). Probing has two important qualities:</p>
+<ol>
+<li>
+<p><strong>Probing is practically useful:</strong> Probing has been used to investigate LLM representations (Gurnee &amp; Tegmark, 2023; Nanda et al., 2023; Heinzerling &amp; Inui, 2024), detect safety relevant quantities (Zou et al., 2023), remove knowledge from models (Elazar et al., 2021), and catch synthetic sleeper agents (MacDiarmid et al., 2024).</p>
+</li>
+<li>
+<p><strong>SAEs might reasonably improve probing:</strong> Theoretically, SAE latents are a more interpretable basis of model activations, and we hypothesize that this inductive bias will help train probes in difficult regimes. Recent work has also found some positive results for the utility of SAE probes (Bricken et al., 2024a; Gallifant et al., 2025).</p>
+</li>
+</ol>
+<p>Thus, we curate 113 linear probing datasets from a variety of settings and train linear probes on corresponding SAE latent activations (see Figure 2). We compare to a suite of baseline methods across 4 difficult probing regimes: 1) data scarcity, 2) class imbalance, 3) label noise, and 4) co-variate shift. Unfortunately, we find that <strong>SAE probes fail to offer a consistent overall advantage when added to a simulated practitioner’s toolkit</strong> .</p>
+<p>Further, we explore areas that Bricken et al. (2024a) suggest SAEs may be valuable for, including detecting attributes distributed over multiple tokens and identifying dataset issues. Although SAEs initially seemed promising in these settings, we were able to achieve the same results with improved baselines. Our results underscore the necessity for MI works to rigorously design baselines when evaluating the utility of interpretability techniques.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0002-08.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>SAE Probe<br>i<br>            Select top Train logistic regression<br>latent diff acrossk latents by avg. probe, L1 regularization<br>classes<br>KNN MLP<br>SAE Encoder<br>SAE<br>Probe LogReg<br>XGBoost PCA +<br>LogReg<br>Class 0  Activation Vectors Class 1  Activation Vectors<br><!-- End of picture text --></p>
+<p><em>Figure 2.</em> <strong>Left:</strong> An illustration of our SAE probing method. We pass in training activation vectors from each class and train an <em>L</em> 1 regularized logistic regression probe on the latents that differ the most between classes. <strong>Right:</strong> We ensure robustness of our results with the ”quiver of arrows” approach (see Section 2.4): we add SAE regression into a set of methods, and see if the test accuracy of the best method (chosen by validation accuracy) increases.</p>
+<h1><strong>2. Methodology</strong></h1>
+<p>We apply probes to the hidden states of two language models, Gemma-2-9B (Riviere et al., 2024) and Llama-3.1-8B (Grattafiori et al., 2024). Our main paper results use Gemma2-9B. We replicate core results on Llama-3.1-8B in Appendix F. We use JumpReLU (Rajamanoharan et al., 2024b) sparse autoencoders (SAEs) from Gemma Scope (Lieberum et al., 2024) for Gemma-2-9B and TopK (Gao et al., 2024) SAEs from Llama Scope (He et al., 2024) for Llama-3.1-8B. See Appendix A for further background on SAEs.</p>
+<h2><strong>2.1. Classification Datasets</strong></h2>
+<p>We collect a diverse set of 113 binary classification datasets listed in Table 3 (Appendix B), including datasets that we expect to be challenging for probes. For example, 26 ~~h~~ eadline ~~i~~ sfrontpage requires probes to identify front-page headlines and 136 ~~g~~ lue ~~m~~ nli ~~e~~ ntailment requires probes to identify logically entailment. For other example datasets, refer to Table 1. All datasets are titled in the form ID ~~d~~ escription. We originally collected datasets for other purposes and discarded some of them; thus, while we have 113 datasets, ID ranges from [5 <em>,</em> 163].</p>
+<p>All datasets contain prompts and targets. Probes are tasked with predicting the target from the model’s hidden activations when run on a prompt. We focus on binary classification, since SAEs are mostly thought of as representing binarized latents (see Bricken et al. (2023)). Thus, target is either 0 or 1. The prompts in our datasets range in length from 5 tokens to a (left-truncated) maximum of 1024 tokens.</p>
+<p><em>Table 1.</em> Example probing tasks. Only tasks with short prompts shown for conciseness.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Dataset Name</strong></th>
+<th><strong>Prompt</strong></th>
+<th><strong>Target</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>26<br>headline<br>~~i~~sfrontpage</td>
+<td>Sebelius’s Slow-Motion Resignation From the Cabinet.<br>MI5 References Emerge in Phone HackingLawsuit.</td>
+<td>1<br>0</td>
+</tr>
+<tr>
+<td>36<br>~~s~~ciq<br>~~t~~f</td>
+<td>Q: Binary fission is an example of which type of production? A: asexual<br>Q: What occurs when light interacts with our atmosphere? A: prism<br>effect</td>
+<td>1<br>0</td>
+</tr>
+<tr>
+<td>114<br>nyc<br>~~b~~orough<br>~~M~~anhattan</td>
+<td>INWOOD BASKETBALL COURTS<br>PS 18 JOHN G WHITTIER</td>
+<td>1<br>0</td>
+</tr>
+<tr>
+<td>149<br>~~t~~wt<br>~~e~~motion<br>~~h~~appiness</td>
+<td>All moved in to our new apartment. So exciting<br>is noow calmmm eating polvoron .. yuumm</td>
+<td>1<br>0</td>
+</tr>
+<tr>
+<td>155<br>~~a~~thlete<br>~~s~~port<br>~~b~~asketball</td>
+<td>Jimmy Butler<br>Steve Balboni</td>
+<td>1<br>0</td>
+</tr>
+</tbody>
+</table>
+<h2><strong>2.2. Probing Strategy</strong></h2>
+<p>To train a probe on a given dataset, we first run the model on all prompts from that dataset to generate model activations at each layer <em>l</em> on the last token, <em>X−</em><sup><em>l</em></sup> 1<sup>.</sup><sup><em>X</em></sup> <em>−</em><sup><em>l</em></sup> 1<sup>isofshape</sup> (len(prompts) <em>,</em> model ~~d~~ im). We probe the last token to ensure the target information was present in the preceding context. For activation probes, we then train a probe <em>p</em> to map from <em>X−</em><sup><em>l</em></sup> 1<sup><em>�→t</em>, where</sup><sup>_t_are the targets in our dataset.</sup></p>
+<p>Our SAE probe training technique is summarized in Figure 2. We first pass the training dataset <em>X−</em><sup><em>l</em></sup> 1<sup>through the</sup> SAE encoder, resulting in a batch of vectors in the SAE latent space <em>Z</em> = SAE( <em>X−</em><sup><em>l</em></sup> 1<sup>) of shape (len(prompts)</sup><sup><em>, W</em>),</sup> where <em>W</em> is the width of the SAE. We do not train probes directly on the SAE latent space because we hypothesize that a small number of SAE latents encodes the desired concept. Instead, we create a basis of latents with the highest average absolute difference between the set of training prompts <em>T</em> 1 with target = 1 and the set of training prompts <em>T</em> 0 with target = 0. More formally, if SAE( <em>X−</em><sup><em>l</em></sup> 1<sup>)</sup><sup>_∈_R</sup><sup><em>W</em>,where</sup> <em>W ≫ d</em> model, we choose <em>k ≪ W</em> and find indices <em>I</em> as follows:</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0003-06.jpg" alt="" /></p>
+<p>We then train a probe <em>p</em> SAE to map from <em>Z</em> [: <em>, I</em> ] <em>�→ t</em> .</p>
+<p>Note that previous work in SAE probing has aggregated SAE latents across tokens to provide a richer input space for SAE probes (Karvonen et al., 2024b; Bricken et al., 2024b). However, most probing studies operate on the final token, which we choose to emulate. In Section 5, we present results considering probes on multiple tokens.</p>
+<p>Throughout this study, we use the area under the ROC curve (AUC) to evaluate the quality of a probe. AUC is the likelihood that the classifier assigns a higher probability of target = 1 to a target = 1 example than to a target = 0</p>
+<p>example. Using AUC allows us to comprehensively assess probe performance agnostic to classification thresholds. For additional details on AUC, see Appendix C.1.</p>
+<p>Often, a probe <em>p</em> has hyperparameters <em>hp</em> we would like to optimize. We select <em>hp</em> that has the maximal validation AUC using the cross-validation strategy described in Table 4. We then test <em>p</em> with optimal <em>hp</em> on a held out test set to calculate AUC<sup>test</sup> <em>p</em> . All datasets have at least 100 testing examples, with most having more (the average test set size is 1945).</p>
+<h2><strong>2.3. Probing Methods</strong></h2>
+<p>We use the following 5 probing methods, with hyperparameters in parenthesis:</p>
+<ol>
+<li>
+<p>Logistic Regression (L1 regularization for SAE probes, L2 otherwise).</p>
+</li>
+<li>
+<p>PCA Regression (# of PCA components to reduce <em>X−</em><sup><em>l</em></sup> 1 to before using unregularized logistic regression).</p>
+</li>
+<li>
+<p>K-Nearest Neighbors (KNN) (# of nearest neighbors).</p>
+</li>
+<li>
+<p>XGBoost (Chen &amp; Guestrin, 2016) (n ~~e~~ stimators, max ~~d~~ epth, learning ~~r~~ ate, subsample, colsample ~~b~~ ytree, reg ~~a~~ lpha, reg ~~l~~ ambda, and min ~~c~~ hild ~~w~~ eight).</p>
+</li>
+<li>
+<p>Multilayer Perceptron (MLP) (network depth, hidden state width, learning rate, and weight decay).</p>
+</li>
+</ol>
+<p>We evaluate 10 hyperparameter values <em>hp</em> for each probing method <em>p</em> . For the first three probing methods, we use grid search, while for MLPs and XGBoost, we randomly sample from a hyperparameter grid to manage the larger search space. For additional details on hyperparameter ranges, see Appendix C.3. We use all five probing methods as baselines, but for SAE probes we only use logistic regression.</p>
+<h2><strong>2.4. Experimental Setup: Quiver of Arrows</strong></h2>
+<p>To evaluate whether SAE probes provide an advantage over baselines, we use an evaluation metric we call the “Quiver</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0004-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Layer 20, Width 16k<br>400<br>0.9<br>300<br>200<br>0.8<br>100<br>2 1 2 3 2 5 2 7 2 9<br>Number of Features Used in SAE Probe (k)<br>L0<br>Average Test AUC<br><!-- End of picture text --></p>
+<p><em>Figure 3.</em> For a given width, using higher L0 and constructing probes with a larger basis of latents ( <em>k</em> ) is more performant.</p>
+<p>of Arrows”: we ask whether adding SAE probes (a new “arrow”) to the set of existing probing methods available to a practitioner (the “quiver”) increases performance compared to a practitioner <em>without</em> access to SAE probes. In other words, over a collection of methods we choose the best method by validation AUC and then report the test AUC of that method. We can then compare the marginal improvement of adding SAE probes to a practitioner’s toolkit by comparing the Quiver of Arrows AUC of baeline methods with and without SAE probes. We describe the Quiver of Arrows more formally in Appendix C.4.</p>
+<p>The quiver of arrows approach is designed as a robustness check to fairly evaluate the benefit of adding SAE probes to a practioner’s toolkit. If we instead constructed probes from a large set of SAEs and chose the best one based on test AUC, we could be tricked into thinking SAEs outperform baselines because we accessed the held-out test set. With the quiver of arrows approach, we emulate the information a real practioner has access to, allowing us to make a robust recommendation on the usefulness of SAE probes.</p>
+<h1><strong>3. Comparing Probing Techniques in Different Regimes</strong></h1>
+<h2><strong>3.1. Standard Conditions</strong></h2>
+<p>We initially assess probes under standard conditions, characterized by sufficient data for probe convergence and balanced classes. We find that baseline methods perform the best on layer 20 (see Figure 13a, Appendix D.1), so we run experiments with this layer. We train baselines on 1024 data points (or the maximum number of points in the dataset).</p>
+<p>We first conduct a preliminary investigation to cut down the large space of Gemma Scope SAEs. We train probes for all SAEs using <em>k</em> latents (for logspaced values of <em>k</em> ) on all datasets using 1024 training examples. We calculate the average test AUC for each SAE probe across all datasets. We find that SAE width is relatively unimportant to probe success, while larger L0s lead to more performant probes (Appendix D.2). Additionally, as we might expect, using</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0004-09.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0<br>Mean : -0.003 ± 0.002<br>No Change<br>0.8<br>0.6<br>0.6 0.7 0.8 0.9 1.0<br>Test AUC (without SAE)<br>Test AUC (with SAE)<br><!-- End of picture text --></p>
+<p><em>Figure 4.</em> In standard conditions, when SAE probes are added to the quiver, we find a slight decrease in performance.</p>
+<p>a larger value of <em>k</em> leads to better probe performance, as shown in Figure 3.</p>
+<p>Thus, throughout the paper we train probes using the largest L0 for SAEs width = 16k <em>,</em> width = 131k, and width = 1M. We use <em>k</em> = 16 to construct easily interpretable probes that potentially overfit less and use <em>k</em> = 128 for performance.</p>
+<p>Using this set of probes, we consider our quiver of arrows approach in standard conditions. SAEs are chosen as the “arrow” for 14/113 tasks, however, we see a slight <em>decrease</em> in performance when they are added to the quiver in Figure 4.</p>
+<p>It is unsurprising that SAE probes underperform baselines in standard conditions, as their inductive bias is marginal given a large, balanced dataset. Thus, we now investigate more difficult settings to test if the inductive bias of SAEs translates into a competitive advantage for probing.</p>
+<h2><strong>3.2. Data Scarcity, Class Imbalance, and Label Noise</strong></h2>
+<p>In this section, we consider more difficult probing regimes: limiting the training data (Data Scarcity), changing the relative frequency of target = 1 examples (Class Imbalance), and randomly flipping a fraction of the targets (Label Noise). All of these settings are realistic workflows - for example, a researcher observing a rare model phenomena would like a probe that generalizes with few total examples or few examples of the desired class, while a researcher working with collected user data wants a generalizable probe even if some fraction of users respond randomly.</p>
+<p>Each regime is characterized by a parameter which we vary to compare SAEs and baselines.</p>
+<ul>
+<li>
+<p>Data Scarcity - We use 20 values of <em>n</em> logspaced in [2 <em>,</em> 1024], where <em>n</em> is the number of training examples. We use a standard test set.</p>
+</li>
+<li>
+<p>Class Imbalance - We use 19 values of ratio linearly spaced between [0 <em>.</em> 05 <em>,</em> 0 <em>.</em> 95], where ratio =<sup><em><u>n</u></em></sup> <em>n</em><sup><u>1</u>and</sup><sup>_n_1 is</sup> the number of target = 1 training examples. The test set uses the same ratio.</p>
+</li>
+<li>
+<p>Label Noise - We use 11 values of fraction linearly spaced between [0 <em>,</em> 0 <em>.</em> 5], where fraction =<sup>_n_corru</sup> <em>n</em><sup><u>pted</u></sup> . We</p>
+</li>
+</ul>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0005-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Data Scarcity Class Imbalance Label Noise<br>Figure 5.  For three of the datasets in Table 1, we visualize the performance when SAE probes are in the quiver (dashed) versus when they 1, we visualize the performance when SAE probes are in the quiver (dashed) versus when they, we visualize the performance when SAE probes are in the quiver (dashed) versus when they<br>are not (solid) for the regimes of data scarcity (left), class imbalance (middle), and label noise (right). In all three regimes, we see that on<br>average (bottom row), SAEs do not help.<br>0.05<br>0.00<br>0.05<br>Number of Training Examples Ratio of Positive Class Fraction Corrupted<br>2 3 45 7 101420283853741031431982753825317371024 0.050.10.150.20.250.30.350.40.450.50.550.60.650.70.750.80.850.90.95 0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5<br>SAE  (AUC)<br><!-- End of picture text --></p>
+<p><em>Figure 5.</em> For three of the datasets in Table 1, we visualize the performance when SAE probes are in the quiver (dashed) versus when they 1, we visualize the performance when SAE probes are in the quiver (dashed) versus when they, we visualize the performance when SAE probes are in the quiver (dashed) versus when they are not (solid) for the regimes of data scarcity (left), class imbalance (middle), and label noise (right). In all three regimes, we see that on average (bottom row), SAEs do not help.</p>
+<p><em>Figure 6.</em> For the regimes of data scarcity, class imbalance, and label noise, we see no average improvement across datasets when adding SAEs to the quiver. Shading represents 95% confidence intervals.</p>
+<h2>use a standard test set (uncorrupted).</h2>
+<p>We evaluate the first two regimes with the quiver of arrows method. However, the quiver of arrows method relies on the validation data being representative of the test data. This assumption fails for the label noise setting since the validation data is corrupted. Thus, a hypothetical practitioner would likely deploy their most performant method from other settings instead of allowing corrupted validation AUC to arbitrarily choose a method. To emulate this, we compare logistic regression and the width = 16k, <em>k</em> = 128 SAE probe head-to-head in the setting of label noise.</p>
+<p>In Figure 5, we visualize the SAE versus non-SAE quivers for a sample of datasets listed in Table 1 across the three regimes. Additionally, we visualize the average performance difference between the SAE and non-SAE quivers for each regime across all datasets in Figure 6. At all parameter values in each regime, SAEs show no meaningful improvement over baselines. This is not because SAEs are not chosen from the quiver; in Appendix E we see that SAEs</p>
+<p>are chosen for up to 40 datasets in each regime. SAEs simply underperform baselines in these settings. See Appendix E for results for individual datasets.</p>
+<h2><strong>3.3. Covariate Shift</strong></h2>
+<p>We now investigate if SAE probes are more resilient to distribution shifts in prompts. To model this covariate shift, we create or use 8 out-of-distribution (OOD) datasets: two preexisting GLUE-X datasets which are designed as “extreme” versions of tasks 87 and 90 to test grammaticality and logical entailment respectively; three datasets (tasks 66, 67, and 73) which we alter the language of; and three datasets (tasks 5, 6, and 7) where we use syntactical alterations to names or use cartoon characters instead of historical figures. We train probes on these datasets in standard settings and evaluate on 300 covariate shifted test examples.</p>
+<p>Like the label noise setting, our validation data is unfaithful to our test data. Thus, we compare logistic regression to a single SAE probe. We construct SAE probes from the</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0006-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0<br>0.8<br>0.6<br>0.4<br>0.2 Baseline AUC<br>SAE AUC<br>0.0<br>Dataset<br>66_living-room 87_glue_colaGLUE-X OOD90_glue_qnliGLUE-X OODAverage<br>Fictional Characters5_hist_fig_ismale6_hist_fig_isamericanRandom Letter Inserted7_hist_fig_ispoliticianReversed Name OrderTranslated to FrenchTranslated to Spanish67_social-securityTranslated to German73_control-group Mean across datasets<br>OOD Test AUC<br><!-- End of picture text --></p>
+<p><em>Figure 7.</em> SAE probes often generalize worse than baseline logistic regression with covariate shift.</p>
+<p>width = 131k <em>,</em> L0 = 114 SAE, as latent descriptions are available for this SAE on Neuronpedia (Lin, 2023). Our results (Figure 7) show that baselines outperform SAE probes when generalizing to covariate shifted data.</p>
+<h1><strong>4. Interpretability</strong></h1>
+<p>While we find that SAE probes are not helpful in traditional probing settings, one intrinsic advantage of SAE probes is that their input basis is interpretable. To leverage this, we use the technique of automatic interpretation, or autointerp, to create natural language descriptions of top latents for each dataset (see Bills et al. (2023)). We investigate three applications of labeled latents:</p>
+<ol>
+<li>
+<p><strong>Probe Interpretability</strong> : In Section 4.1, we investigate why SAE probes fail to perform well by pruning latents that o1 (OpenAI, 2024) ranks as spurious.</p>
+</li>
+<li>
+<p><strong>Latent Interpretability</strong> : In Section 4.2, we generate autointerp explanations of each dataset’s top latent to find spurious latents and latents that fit well to our probes in a way not explained by the autointerp label.</p>
+</li>
+<li>
+<p><strong>Detecting Dataset Quality Issues</strong> : In Section 4.3, we invesigate spurious dataset features and label errors using insights from the top latent descriptions and firing patterns.</p>
+</li>
+</ol>
+<h2><strong>4.1. Probe Intepretability: Pruning and Latent Generalization</strong></h2>
+<p>We first use autointerp to investigate why SAE probes fail to generalize to covariate shift. We have two initial hypotheses: 1) the latents SAE probes rely on leverage spurious correlations in the training data and 2) the latents are not spurious, but they are not robust to the distribution shift.</p>
+<p>First, we investigate hypothesis 1. Specifically, we attempt</p>
+<p>to improve SAE probes OOD performance by pruning latents deemed spurious by their autointerp description. We focus on three OOD tasks that SAE probes perform poorly on: 7 ~~h~~ ist ~~f~~ it ~~i~~ spolitician, 66 ~~l~~ iving-room, and 90 ~~g~~ lue ~~q~~ nli (Figure 7). We use the width = 131k <em>,</em> L0 = 114 SAE.</p>
+<p>For each task, we take the <em>k</em> = 8 top latents by mean difference and use Claude-3.5-Sonnet (Anthropic, 2024) to generate latent descriptions with autointerp. We then use OpenAI’s o1 model to rank the relevance of each latent’s description to the task. We also prompt o1 to downrank spurious latents given the OOD transformation. An example of this procedure for the task 66 ~~l~~ iving-room, which identifies if the phrase “living room” is in an English sentence, is shown in Table 5, Appendix G.1. For this task, o1 ranked latent 12274, which identifies “mentions of living rooms” first, while ranking latent 51330, which identifies “objects and materials related to scientific experiments,” last.</p>
+<p>We then construct a probe with the top <em>k</em> latents using o1’s relevance rank for <em>k ∈</em> [1 <em>,</em> 8]. If there are spurious latents in the <em>k</em> = 8 probe, we expect a probe with <em>k &lt;</em> 8 to have better OOD generalization. We visualize each task’s performance by <em>k</em> in Figure 20, Appendix G.1. For two of the datasets, 66 ~~l~~ iving-room and 90 ~~g~~ lue ~~q~~ nli, we see that pruning works, with a 0.024 and 0.052 increase in AUC between the <em>k</em> = 8 and <em>k</em> = 1 probe for each dataset. However, for 7 ~~h~~ ist ~~f~~ ig ~~i~~ spolitician, OOD test AUC <em>increases</em> by 0.077 after pruning. This indicates that the task 7 ~~h~~ ist ~~f~~ ig ~~i~~ spolitician requires <em>k</em> = 8 latents to represent.</p>
+<p>Our preliminary results show that pruning helps SAE probes generalize. However, the drop between in-distribution (ID) and OOD performance is much larger than the modest improvement from pruning. This indicates that spurious correlations are not the primary reason SAE probes fail to generalize. Thus, we consider the second hypothesis - that the underlying SAE latents do not generalize well OOD.</p>
+<p>On the task 66 ~~l~~ iving-room, latent 122774 has an ID test AUC of 0.99 while only having an OOD test AUC of 0.64. Since the OOD transformation involves translating the prompts to French, we hypothesize that this latent is active on the phrase “living room” in English but not other languages. We use GPT-4o to translate “living room” to 15 languages, and in Figure 8 we indeed observe that latent 122774 is more active on the English translation than all other languages, and it is not active on the French translation at all. Thus, latent 122774 does not generalize OOD, which explains why the SAE probe also failed to generalize.</p>
+<h2><strong>4.2. Latent Interpretability</strong></h2>
+<p>We next generate autointerp descriptions for the most determinative latent for each dataset, allowing us to identify interesting categories of latents. Specifically, we con-</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0007-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Latent 122774 on &quot;Living Room&quot; in Different Languages<br>40<br>20<br>0<br>Language<br>EnglishSpanishFrenchGermanItalianPortugueseRussianChineseJapaneseKoreanArabicHindiBengaliDutchTurkish<br>Latent Value<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0007-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0 1.00<br>0.81 0.77 0.72 0.78  0.80 0.80  0.78<br>0.56  0.63<br>0.5 Original Labels 0.46<br>Baseline<br>SAE (k=128)<br>Latent 369585<br>0.0 0.00<br>CoLA Labels Clean Labels Mislabeled CoLA<br>Test Accuracy<br><!-- End of picture text --></p>
+<p><em>Figure 9.</em> Latent 369585 outperforms a dense SAE probe and logistic regression when testing on mislabeled CoLA examples.</p>
+<p><em>Figure 8.</em> Latent 122774 is most active on the English translation of “living room,” and does not fire on French.</p>
+<p>sider each of the top 128 latents for each dataset for the width = 131k <em>,</em> L0 = 114 SAE, and evaluate each latent’s <em>k</em> = 1 SAE probe in standard settings. We then generate an autointerp explanation with GPT-4o for the best latent.</p>
+<p>Table 5 (Appendix G.2) contains a breakdown of a selection of interesting top latents that we find. We see that some latents’ descriptions fit their tasks, like latent 81210 for 5 ~~h~~ ist ~~f~~ ig ~~i~~ smale, which activates on “references to female individuals.” Another interesting category is incorrect autointerp labels (e.g. for 125 ~~w~~ old ~~c~~ ountry ~~I~~ taly, latent 50817 has 0.989 AUC, implying (correctly) that it fires on Italian concepts; however, the description reads “names of researchers and scientific authors”). However, some latents appear to be spurious and unrelated to the semantics of their dataset. For example, 22 ~~h~~ eadline ~~i~~ sobama, which targets headlines published during the Obama administration, is classified with 0 <em>.</em> 782 AUC by latent 10555, which activates on “strings of numbers, often with mathematical notations.”</p>
+<p>Note that these findings may be possible using baseline classifiers. For example, we could take a baseline classifier and apply it to model hidden states on tokens from the Pile (Gao et al., 2020) and then examine maximally activating examples. However, a practical advantage for SAEs is that the infrastructure to perform autointerp is pre-existing through platforms like Neuronpedia, and a theoretical advantage is that the baseline classifier can only identify the single most relevant coarse-grained feature, while the decomposability of SAE probes into latents allows for identifying many independent features of various importance.</p>
+<h2><strong>4.3. Detecting Dataset Quality Issues</strong></h2>
+<p>We now investigate the top latents of two datasets, 87 glue ~~c~~ ola and 110 ~~a~~ imade ~~h~~ umangpt3. We find that although the latents identify errors in each dataset, baseline methods are also able to identify these dataset errors.</p>
+<h2>4.3.1. GLUE COLA</h2>
+<p>We first examine 87 ~~g~~ lue ~~c~~ ola, an established linguistic acceptability dataset. CoLA prompts are standard English</p>
+<p>sentences with target = 1 if the sentence is grammatically correct and 0 otherwise. Latent 369585 from the width = 1M SAE has a test AUC of 0.76 and appears to fire on ungrammatical text. Surprisingly, when we look at prompts that latent 369585 fires on, those that it “disagrees” with the labels on (ones that are labeled grammatical), often appear to be ungrammatical. Although we first found this result with SAE probes, we later found that logistic regression was also capable of the same identification. In Table 7, we show the sentences that a baseline logistic regression classifier and latent 369585 mark as ungrammatical while the label is grammatical; most such sentences are truly ungrammatical. Thus, both SAE and baseline methods lead us to hypothesize that the CoLA dataset is partially mislabeled.</p>
+<p>To test our hypothesis, we choose 3 LLMs - GPT-4o (OpenAI), Claude-3.5-Sonnet-New, and Llama-3.1-405B Instruct (Grattafiori et al., 2024) - to judge the linguistic acceptability of 1000 random CoLA prompts. We take the LLM majority vote as the ensembled, clean label. This is analogous to the experiment performed in Warstadt et al. (2019) that validated the CoLA dataset by ensembling the predictions of native English speakers, but with LLM judges instead of English speakers. We find that 25% of CoLA la-<sup>˜</sup> bels are mislabeled by this metric (higher than the 13% disagreement rate from Warstadt et al. (2019)). Notably, the Table 7 sentences are identified as ungrammatical by the ensemble while being labeled as grammatical in CoLA.</p>
+<p>Next, we train a baseline logistic regression, a <em>k</em> = 128 dense SAE probe, and the latent 369585 classifier on the original CoLA labels. We then test on a held-out set with the clean, ensembled predictions. In Figure 9, we find that the original labels, the baseline classifier, the dense SAE probe, and latent 369585 all have about the same accuracy on the clean labels. Remarkably, when we test all classifiers on examples which were misclassified in CoLA (where the ensembled labels disagree with the original labels), we find that the latent 369585 classifier outperforms the dense SAE probe, which itself outperforms the baseline considerably.</p>
+<h2>4.3.2. AI VS HUMAN</h2>
+<p>We also investigate 110 ~~a~~ imade ~~h~~ umangpt3, which tests if probes can distinguish between human and ChatGPT-</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0008-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Human<br>1500 AI<br>20<br>1000<br>10<br>500<br>0 0<br>105150: 116246: 3764: period quest. space excl.<br>periods spaces spaces mark point<br>Latent Last Token<br>(AI - Human)<br>Total Activation<br>|Mean Act Difference|<br><!-- End of picture text --></p>
+<p><em>Figure 10.</em> <strong>Left:</strong> Top 3 latents (w/ descriptions) by mean activation difference between AI generated and human SAE latent activations. <strong>Right:</strong> Histograms of the identity of the 4 most common last tokens in AI generated and human text.</p>
+<p>3.5 generated text. Latent 105150 has an AUC of 0.82 on this task, yet appears to fire primarily on periods and punctuation.<sup>2</sup> Since this latent is syntactical and unrelated to the content of the dataset, we hypothesize it represents a spurious correlation in the dataset.</p>
+<p>We examine the final token of each prompt in the dataset and indeed find a spurious feature: AI text is more likely to end in a period while human text is more likely to end in a space (see Figure 10). Although we discovered this by investigating SAE latents, we could reach the same conclusion with baselines: in Table 8 (Appendix G.4), we apply the logistic regression classifier to 2.8 million tokens from the Pile, and find that it is most active on punctuation tokens.</p>
+<h1><strong>5. Why Didn’t This Work: Illusions of SAE Probes</strong></h1>
+<p>Bricken et al. (2024a) report that SAE probes outperform baselines slightly. A natural question is why our experiments fail to replicate this result. One possible explanation is that Bricken et al. (2024a)’s findings were based on a single dataset, whereas we evaluate across multiple datasets. We find that SAE probes outperform baselines on only a small subset of these datasets (2.2%, see Figure 11). It is possible that the dataset used by Bricken et al. (2024a) falls within this subset; however, without access to it, we cannot confirm this.</p>
+<p>A separate explanation involves a potential illusion due to insufficiently strong baselines. Unlike our work, Bricken et al. (2024a) uses multi-token SAE probing: they aggregate the maximum value for each latent across all prompt tokens, while we only use last token latents. Crucially, they similarly max-pool each model dimension across prompt tokens for their comparative baseline, even though activations are unlikely to have privileged dimensions (in Table 9 we show that pooling activations in this way works poorly). We implement multi-token SAE probing using max-aggregation</p>
+<p>2See Neuronpedia for examples.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0008-09.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>ILLUSION  FAIR<br>FAIR  Baseline = Last Both =<br>Both = Last SAE = Pool Quiver(Pool, Last)<br>60 56.5%<br>40 39.1% 34.8%<br>19.6%<br>20<br>8.7%<br>2.2%<br>0<br>Baseline &gt; SAE SAE &gt; Baseline<br>&gt; 0.005  AUC<br>Win Rate Percentage<br><!-- End of picture text --></p>
+<p><em>Figure 11.</em> Illustration of a potentially misleading result we find: when comparing activation probes to pooled SAE probes, SAE probe win rate increases considerably, but adding in a “pooled” attention-inspired probe brings down the SAE win-rate.</p>
+<p>on 60 random datasets from our list and <em>k</em> = 128; see Table 9 for full results on these datasets. We <em>also</em> implement a better baseline: we train attention-pooled probes of the form</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0008-12.jpg" alt="" /></p>
+<p>for <em>q, v ∈</em> R<sup><em>d</em></sup> . We find that when compared to the last-token baseline, max-pooled SAE probes win 19 <em>.</em> 6% of the time, a considerable improvement over win rate of last-token SAE probes (2.2%, see Figure 11). However, when implementing attention-pooled baselines and using the quiver of arrows approach to select between pooled and last-token strategies for SAE probes and baselines, the SAE probe win rate drops more than 50% to 8 <em>.</em> 7% (see Figure 11).</p>
+<h1><strong>6. Assessing Improvements in SAE Architectures</strong></h1>
+<p>While SAE probes do not robustly outperform baselines, a separate interesting question is whether recent SAE architectural developments have improved SAE probing performance. We investigate this question by examining the performance of eight different SAE architectures released in the last two years, as outlined in Table 2.</p>
+<p>We use width = 16k Gemma-2-2B layer 12 SAEs with a variety of L0 values trained by Karvonen et al. (2024b). We create <em>k</em> = 16 <em>,</em> 128 SAE probes on all regimes and datasets for each architecture, and additionally <em>k</em> = 1 for standard conditions. In Figure 12, we plot each SAE architecture’s <em>k</em> = 16 probe performance in standard conditions. We find the average test AUC of each SAE and then take the max across L0 for each SAE architecture (using a single L0 value is somewhat noisy, see Appendix I). This metric tests how expressive individual SAE latents are for different SAE architectures. While we see a slight positive trend for probing performance with more recently released SAE architectures, the effect is not statistically significant. For plots in all regimes, see Appendix I; in other regimes there</p>
+<p><em>Table 2.</em> Timeline of SAE Architecture Improvements.</p>
+<table>
+<thead>
+<tr>
+<th><strong>SAE Architecture</strong></th>
+<th><strong>Publication Date</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ReLU (original)<br>Bricken et al. (2023)</td>
+<td>October 4, 2023</td>
+</tr>
+<tr>
+<td>ReLU (updated)<br>Conerlyet al. (2024)</td>
+<td>April 26, 2024</td>
+</tr>
+<tr>
+<td>Gated</td>
+<td>May 1, 2024</td>
+</tr>
+<tr>
+<td>Rajamanoharan et al. (2024a)</td>
+<td></td>
+</tr>
+<tr>
+<td>TopK<br>Gao et al. (2024)</td>
+<td>June 6, 2024</td>
+</tr>
+<tr>
+<td>JumpReLU<br>Rajamanoharan et al. (2024b)</td>
+<td>July 19, 2024</td>
+</tr>
+<tr>
+<td>BatchTopK<br>Bussmann et al. (2024a)</td>
+<td>July 19, 2024</td>
+</tr>
+<tr>
+<td>p-annealing<br>Karvonen et al.</td>
+<td>July 31, 2024</td>
+</tr>
+<tr>
+<td>Matryoshka<br>Bussmann et al. (2024b)</td>
+<td>December 19, 2024</td>
+</tr>
+</tbody>
+</table>
+<p>seems to be a possible slight improvement with newer SAE architectures.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0009-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>AUC for SAE Architecture vs Baseline<br>k=16 at Best L0 in Standard Conditions<br>0.00<br>0.05<br>0.10<br>0.15<br>0.20<br>Architecture (In Order of Release)<br>ReLU (orig.)ReLU (new) Gated TopKJump ReLUBatch TopK p-annealMatryoshka<br>SAE - Baseline AUC<br><!-- End of picture text --></p>
+<p><em>Figure 12.</em> We see that there is a slight uptick in probing performance compared to baselines in standard conditions with more recent architectures. However, the spread of the data is considerably larger than this improvement.</p>
+<h1><strong>7. Conclusion</strong></h1>
+<p>Our evaluation of sparse autoencoders (SAEs) reveals fundamental limitations in current SAE methodologies. Despite expectations that interpretable SAE latents would provide a competitive advantage in probing, we found no improvement over traditional methods across multiple regimes and over 100 datasets. Some failures expose critical weaknesses – for instance, SAE latents struggle to be robust to distributional shifts and fail to represent complex concepts – while others are more mundane – lower L0 SAEs create worse sparse probes. More broadly, our findings highlight the need for the field of mechanistic interpretability to evaluate techniques with rigorous baselines. While prior work reported advantages for SAE probes, our robust quiver of arrows methodology, use of stronger baselines, and evaluation on a large set of datasets demonstrate these advantages to be illusory. Even in our own analysis, initial conclusions favoring SAE interpretability were later overturned when proper baselines were considered. We do not consider this work to be a wholesale critique of the SAE paradigm. Instead, we view it as a single rigorously evaluated datapoint to contextualize SAE utility and to motivate a more thorough examination of methods in mechanistic interpretability.</p>
+<p><strong>Limitations</strong> We study the performance of SAE probes as a proxy for SAE utility. While we believe that probing performance is a more effective measurement than typical SAE evaluations like downstream cross-entropy loss or reconstruction error, it is ultimately still a proxy metric. We chose to study difficult probing regimes to try to find cases where</p>
+<p>the inductive bias of SAE latents outweighed imperfect SAE reconstruction, but it is possible that even a basis of “true” model representations would offer only a mild inductive bias advantage over traditional linear probing. We are thus excited for future work studying probing on toy models (e.g. models trained on board games (Karvonen et al., 2024c)) where the “true” model features are known.</p>
+<p>Finally, it is possible that further optimization of the SAE probe baseline might increase performance such that it beats baseline methods. For example, Gallifant et al. (2025) find that SAE probing with a number of modifications (multitoken probes, binarization of latents, and probing with <em>k</em> = full SAE dimension) beats baseline methods on safetyrelevant datasets (albeit only comparing to single-token baseline probes). However, we believe a main takeaway of our paper is that equivalent effort should be put into optimizing baselines. Indeed, we examine the effect of binarizing latents in Appendix J and find that it does not significantly help.</p>
+<h1><strong>8. Acknowledgments</strong></h1>
+<p>This work was conducted as part of the ML Alignment &amp; Theory Scholars (MATS) Program. We would like to thank the members of the Tegmark group and Neel Nanda’s MATS stream for helpful comments and feedback. JE was supported by the NSF Graduate Research Fellowship (Grant No. 2141064).</p>
+<h1><strong>9. Author Contributions</strong></h1>
+<p>JE and SK jointly led the project and wrote the paper. JE came up with the Quiver of Arrows approach, ran the SAE methods, discovered the initial GLUE CoLA and AI vs. Human results, discovered Gemma Scope SAE latent reliance on language, and ran multi-token experiments. SK cleaned a majority of the datasets, ran baseline methods, did the probe interpretability experiments, ran the main text covariate shift experiments, did follow-up experiments on dataset errors and latent interpretability, and made most of the final main body plots. SR and MT provided advice, guidance, and general mentorship, and edited the paper. NN was the primary senior author of the project and provided leadership, direction, and advice throughout.</p>
+<h1><strong>References</strong></h1>
+<ul>
+<li>
+<p>Adebayo, J., Gilmer, J., Muelly, M., Goodfellow, I., Hardt, M., and Kim, B. Sanity checks for saliency maps. <em>Advances in neural information processing systems</em> , 31, 2018.</p>
+</li>
+<li>
+<p>AI, T. and Ishii, D. Spam Text Message —</p>
+</li>
+<li>
+<p>Classification kaggle.com. https: //www.kaggle.com/datasets/team-ai/ spam-text-message-classification. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Alain, G. Understanding intermediate layers using linear classifier probes. <em>arXiv preprint arXiv:1610.01644</em> , 2016.</p>
+</li>
+<li>
+<p>AllenAI. allenai/basic ~~a~~ rithmetic · Datasets at Hugging Face — huggingface.co. https://huggingface.co/ datasets/allenai/basic_arithmetic. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Anthropic. Introducing computer use, a new Claude 3.5 Sonnet, and Claude 3.5 Haiku, 2024. URL https://www.anthropic.com/news/ 3-5-models-and-computer-use. Accessed: 2025-01-30.</p>
+</li>
+<li>
+<p>Arora, S., Li, Y., Liang, Y., Ma, T., and Risteski, A. Linear algebraic structure of word senses, with applications to polysemy. <em>Transactions of the Association for Computational Linguistics</em> , 6:483–495, 2018.</p>
+</li>
+<li>
+<p>Ben Zhou, Daniel Khashabi, Q. N. and Roth, D. “going on a vacation” takes longer than “going for a walk”: A study of temporal commonsense understanding. In <em>EMNLP</em> , 2019.</p>
+</li>
+<li>
+<p>Bereska, L. and Gavves, E. Mechanistic interpretability for ai safety–a review. <em>arXiv preprint arXiv:2404.14082</em> , 2024.</p>
+</li>
+<li>
+<p>Bills, S., Cammarata, N., Mossing, D., Tillman, H., Gao, L., Goh, G., Sutskever, I., Leike, J., Wu, J., and Saunders, W. Language models can explain neurons in language models. https: //openaipublic.blob.core.windows.net/ neuron-explainer/paper/index.html, 2023.</p>
+</li>
+<li>
+<p>Bisk, Y., Zellers, R., Bras, R. L., Gao, J., and Choi, Y. Piqa: Reasoning about physical commonsense in natural language. In <em>Thirty-Fourth AAAI Conference on Artificial Intelligence</em> , 2020.</p>
+</li>
+<li>
+<p>Bolukbasi, T., Pearce, A., Yuan, A., Coenen, A., Reif, E., Viegas, F., and Wattenberg, M. An interpretability illusion´ for bert. <em>arXiv preprint arXiv:2104.07143</em> , 2021.</p>
+</li>
+<li>
+<p>Braun, D., Taylor, J., Goldowsky-Dill, N., and Sharkey, L. Identifying functionally important features with endto-end sparse dictionary learning, 2024. URL https: //arxiv.org/abs/2405.12241.</p>
+</li>
+<li>
+<p>Bricken, T., Templeton, A., Batson, J., Chen, B., Jermyn, A., Conerly, T., Turner, N., Anil, C., Denison, C., Askell, A., Lasenby, R., Wu, Y., Kravec, S., Schiefer, N., Maxwell, T., Joseph, N., Hatfield-Dodds, Z., Tamkin, A., Nguyen, K., McLean, B., Burke, J. E., Hume, T., Carter, S., Henighan, T., and Olah, C. Towards monosemanticity: Decomposing language models with dictionary learning. <em>Transformer Circuits Thread</em> , 2023. https://transformercircuits.pub/2023/monosemantic-features/index.html.</p>
+</li>
+<li>
+<p>Bricken, T., Marcus, J., Mishra-Sharma, S., Tong, M., Perez, E., Sharma, M., Rivoire, K., and Henighan, T. Using dictionary learning features as classifiers, October 2024a. URL https: //transformer-circuits.pub/2024/ features-as-classifiers/index.html. Accessed: 2025-01-23.</p>
+</li>
+<li>
+<p>Bricken, T., Marcus, J., Mishra-Sharma, S., Tong, M., Perez, E., Sharma, M., Rivoire, K., and Henighan, T. Using dictionary learning features as classifiers, October 2024b. URL https: //transformer-circuits.pub/2024/ features-as-classifiers/index.html. Transformer Circuits.</p>
+</li>
+<li>
+<p>Bussmann, B., Leask, P., and Nanda, N. Batchtopk sparse autoencoders, 2024a.</p>
+</li>
+<li>
+<p>Bussmann, B., Leask, P., and Nanda, N. Learning multi-level features with matryoshka saes. https://www.lesswrong. com/posts/rKM9b6B2LqwSB5ToN/</p>
+</li>
+</ul>
+<p>learning-multi-level-features-with-matryoshka-saes 2024b. Accessed: 2025-01-23.</p>
+<ul>
+<li>
+<p>Chalnev, S., Siu, M., and Conmy, A. Improving steering vectors by targeting sparse autoencoder features. <em>arXiv preprint arXiv:2411.02193</em> , 2024.</p>
+</li>
+<li>
+<p>Chanin, D., Wilken-Smith, J., Dulka, T., Bhatnagar, H., and Bloom, J. A is for absorption: Studying feature splitting and absorption in sparse autoencoders. <em>arXiv preprint arXiv:2409.14507</em> , 2024.</p>
+</li>
+<li>
+<p>Chaudhary, M. and Geiger, A. Evaluating open-source sparse autoencoders on disentangling factual knowledge in gpt-2 small. <em>arXiv preprint arXiv:2409.04478</em> , 2024.</p>
+</li>
+<li>
+<p>Chen, T. and Guestrin, C. Xgboost: A scalable tree boosting system. In <em>Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</em> , KDD ’16, pp. 785–794, New York, NY, USA, 2016. Association for Computing Machinery. ISBN 9781450342322. doi: 10.1145/ 2939672.2939785. URL https://doi.org/10. 1145/2939672.2939785.</p>
+</li>
+<li>
+<p>clmentbisaillon. fake-and-real-news-dataset — kaggle.com. https://www.kaggle.</p>
+</li>
+<li>
+<p>com/datasets/clmentbisaillon/ fake-and-real-news-dataset. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Conerly, T., Templeton, A., Bricken, T., Marcus, J., and Henighan, T. Circuits Updates - April 2024 — transformer-circuits.pub. https: //transformer-circuits.pub/2024/ april-update/index.html#training-saes, 2024. [Accessed 15-02-2025].</p>
+</li>
+<li>
+<p>Cunningham, H., Ewart, A., Riggs, L., Huben, R., and Sharkey, L. Sparse autoencoders find highly interpretable features in language models. <em>arXiv preprint arXiv:2309.08600</em> , 2023.</p>
+</li>
+<li>
+<p>Davidson, T., Warmsley, D., Macy, M., and Weber, I. Automated hate speech detection and the problem of offensive language. In <em>Proceedings of the 11th International AAAI Conference on Web and Social Media</em> , ICWSM ’17, pp. 512–515, 2017.</p>
+</li>
+<li>
+<p>Dublish, T. Text classification documentation — kaggle.com. https://www. kaggle.com/datasets/tanishqdublish/ text-classification-documentation. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Elazar, Y., Ravfogel, S., Jacovi, A., and Goldberg, Y. Amnesic probing: Behavioral explanation with amnesic counterfactuals. <em>Transactions of the Association for Computational Linguistics</em> , 9:160–175, March 2021. ISSN 2307-387X. doi: 10.1162/tacl ~~a 0~~ 0359. URL http: //dx.doi.org/10.1162/tacl_a_00359.</p>
+</li>
+<li>
+<p>Engels, J., Michaud, E. J., Liao, I., Gurnee, W., and Tegmark, M. Not all language model features are linear, 2024a. URL https://arxiv.org/abs/2405. 14860.</p>
+</li>
+<li>
+<p>Engels, J., Riggs, L., and Tegmark, M. Decomposing the dark matter of sparse autoencoders. <em>arXiv preprint arXiv:2410.14670</em> , 2024b.</p>
+</li>
+<li>
+<p>Falgunipatel19. Medical Text Dataset -Cancer Doc —</p>
+</li>
+<li>
+<p>Classification kaggle.com. https://www. kaggle.com/datasets/falgunipatel19/ biomedical-text-publication-classification. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Farrell, E., Lau, Y.-T., and Conmy, A. Applying sparse autoencoders to unlearn knowledge in language models, 2024.</p>
+</li>
+<li>
+<p>Gaggar, R., Bhagchandani, A., and Oza, H. Machinegenerated text detection using deep learning, 2023.</p>
+</li>
+<li>
+<p>Gallifant, J., Chen, S., Sasse, K., Aerts, H., Hartvigsen, T., and Bitterman, D. S. Sparse autoencoder features for classifications and transferability, 2025.</p>
+</li>
+<li>
+<p>Gao, L., Biderman, S., Black, S., Golding, L., Hoppe, T., Foster, C., Phang, J., He, H., Thite, A., Nabeshima, N., Presser, S., and Leahy, C. The Pile: An 800gb dataset of diverse text for language modeling. <em>arXiv preprint arXiv:2101.00027</em> , 2020.</p>
+</li>
+<li>
+<p>Gao, L., la Tour, T. D., Tillman, H., Goh, G., Troll, R., Radford, A., Sutskever, I., Leike, J., and Wu, J. Scaling and evaluating sparse autoencoders, 2024. URL https: //arxiv.org/abs/2406.04093.</p>
+</li>
+<li>
+<p>Gerami, S. AI Vs Human Text — kaggle.com. https://www.kaggle.com/datasets/ shanegerami/ai-vs-human-text/data. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Goh, A. IT Service Ticket Classification Dataset — kaggle.com. https://www. kaggle.com/datasets/adisongoh/</p>
+</li>
+<li>
+<p>it-service-ticket-classification-dataset. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Grattafiori, A., Dubey, A., Jauhri, A., Pandey, A., Kadian, A., et al. The llama 3 herd of models, 2024. URL https: //arxiv.org/abs/2407.21783.</p>
+</li>
+<li>
+<p>Gupta, P. Emotion Detection from Text — kaggle.com. https://www.kaggle.</p>
+</li>
+<li>
+<p>com/datasets/pashupatigupta/ emotion-detection-from-text. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Gurnee, W. and Tegmark, M. Language models represent space and time. <em>arXiv preprint arXiv:2310.02207</em> , 2023.</p>
+</li>
+<li>
+<p>Gurnee, W. and Tegmark, M. Language models represent space and time. In <em>The Twelfth International Conference on Learning Representations</em> , 2024. URL https:// openreview.net/forum?id=jE8xbmvFin.</p>
+</li>
+<li>
+<p>Gurnee, W., Nanda, N., Pauly, M., Harvey, K., Troitskii, D., and Bertsimas, D. Finding neurons in a haystack: Case studies with sparse probing. <em>Transactions on Machine Learning Research</em> , 2023. ISSN 28358856. URL https://openreview.net/forum? id=JYs1R9IMJr.</p>
+</li>
+<li>
+<p>He, Z., Shu, W., Ge, X., Chen, L., Wang, J., Zhou, Y., Liu, F., Guo, Q., Huang, X., Wu, Z., Jiang, Y.-G., and Qiu, X. Llama scope: Extracting millions of features from llama-3.1-8b with sparse autoencoders, 2024.</p>
+</li>
+<li>
+<p>Heap, T., Lawson, T., Farnik, L., and Aitchison, L. Sparse autoencoders can interpret randomly initialized transformers, 2025. URL https://arxiv.org/abs/2501. 17727.</p>
+</li>
+<li>
+<p>Heinzerling, B. and Inui, K. Monotonic representation of numeric properties in language models. <em>arXiv preprint arXiv:2403.10381</em> , 2024.</p>
+</li>
+<li>
+<p>Hendrycks, D., Burns, C., Basart, S., Critch, A., Li, J., Song, D., and Steinhardt, J. Aligning ai with shared human values. <em>Proceedings of the International Conference on Learning Representations (ICLR)</em> , 2021.</p>
+</li>
+<li>
+<p>Huang, J., Wu, Z., Potts, C., Geva, M., and Geiger, A. Ravel: Evaluating interpretability methods on disentangling language model representations. <em>arXiv preprint arXiv:2402.17700</em> , 2024.</p>
+</li>
+<li>
+<p>Johannes Welbl, Nelson F. Liu, M. G. Crowdsourcing multiple choice science questions. 2017.</p>
+</li>
+<li>
+<p>Karvonen, A., Wright, B., Rager, C., Angell, R., Brinkmann, J., Smith, L., Verdun, C. M., Bau, D., and Marks, S. Measuring progress in dictionary learning for language model interpretability with board game models, 2024. <em>URL https://arxiv. org/abs/2408.00113</em> , pp. 16.</p>
+</li>
+<li>
+<p>Karvonen, A., Pai, D., Wang, M., and Keigwin, B. Sieve: Saes beat baselines on a real-world task (a code generation case study). <em>Tilde Research Blog</em> , 12 2024a. URL https://www.tilderesearch. com/blog/sieve. Blog post.</p>
+</li>
+<li>
+<p>Karvonen, A., Rager, C., Lin, J., Tigges, C., Bloom, J., Chanin, D., Lau, Y.-T., Farrell, E., Conmy, A., McDougall, C., Ayonrinde, K., Wearden, M., Marks, S., and Nanda, N. Saebench: A comprehensive benchmark for</p>
+</li>
+<li>
+<p>sparse autoencoders, December 2024b. URL https:// www.neuronpedia.org/sae-bench/info. Accessed: 2025-01-20.</p>
+</li>
+<li>
+<p>Karvonen, A., Wright, B., Rager, C., Angell, R., Brinkmann, J., Smith, L., Verdun, C. M., Bau, D., and Marks, S. Measuring progress in dictionary learning for language model interpretability with board game models. <em>arXiv preprint arXiv:2408.00113</em> , 2024c.</p>
+</li>
+<li>
+<p>Kasaraneni, C. K. Medical Text — kaggle.com. https://www.kaggle.com/datasets/ chaitanyakck/medical-text. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Kotari, R. rkotari/clickbait · Datasets at Hugging Face — huggingface.co. https://huggingface.co/ datasets/rkotari/clickbait. [Accessed 2101-2025].</p>
+</li>
+<li>
+<p>Li, Y., Michaud, E. J., Baek, D. D., Engels, J., Sun, X., and Tegmark, M. The geometry of concepts: Sparse autoencoder feature structure. <em>arXiv preprint arXiv:2410.19750</em> , 2024.</p>
+</li>
+<li>
+<p>Lieberum, T., Rajamanoharan, S., Conmy, A., Smith, L., Sonnerat, N., Varma, V., Kramar, J., Dragan, A., Shah, R.,´ and Nanda, N. Gemma scope: Open sparse autoencoders everywhere all at once on gemma 2, 2024.</p>
+</li>
+<li>
+<p>Lin, J. Neuronpedia: Interactive reference and tooling for analyzing neural networks, 2023. URL https: //www.neuronpedia.org. Software available from neuronpedia.org.</p>
+</li>
+<li>
+<p>Lin, S., Hilton, J., and Evans, O. TruthfulQA: Measuring how models mimic human falsehoods. In Muresan, S., Nakov, P., and Villavicencio, A. (eds.), <em>Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</em> , pp. 3214– 3252, Dublin, Ireland, May 2022. Association for Computational Linguistics. doi: 10.18653/v1/2022.acl-long. 229. URL https://aclanthology.org/2022. acl-long.229/.</p>
+</li>
+<li>
+<p>Lin, Z., Wang, Z., Tong, Y., Wang, Y., Guo, Y., Wang, Y., and Shang, J. Toxicchat: Unveiling hidden challenges of toxicity detection in real-world user-ai conversation, 2023.</p>
+</li>
+<li>
+<p>MacDiarmid, M., Maxwell, T., Schiefer, N., Mu, J., Kaplan, J., Duvenaud, D., Bowman, S., Tamkin, A., Perez, E., Sharma, M., Denison, C., and Hubinger, E. Simple probes can catch sleeper agents, 2024. URL https://www.anthropic.com/ news/probes-catch-sleeper-agents.</p>
+</li>
+<li>
+<p>Marks, S. and Tegmark, M. The geometry of truth: Emergent linear structure in large language model representations of true/false datasets. <em>arXiv preprint arXiv:2310.06824</em> , 2023.</p>
+</li>
+<li>
+<p>Marks, S., Rager, C., Michaud, E. J., Belinkov, Y., Bau, D., and Mueller, A. Sparse feature circuits: Discovering and editing interpretable causal graphs in language models. <em>arXiv preprint arXiv:2403.19647</em> , 2024.</p>
+</li>
+<li>
+<p>Mudide, A., Engels, J., Michaud, E. J., Tegmark, M., and de Witt, C. S. Efficient dictionary learning with switch sparse autoencoders, 2024. URL https://arxiv. org/abs/2410.08201.</p>
+</li>
+<li>
+<p>Mur, M., Bandettini, P. A., and Kriegeskorte, N. Revealing representational content with pattern-information fmri—an introductory guide. <em>Social cognitive and affective neuroscience</em> , 4(1):101–109, 2009.</p>
+</li>
+<li>
+<p>Nanda, N., Lee, A., and Wattenberg, M. Emergent linear representations in world models of self-supervised sequence models. <em>arXiv preprint arXiv:2309.00941</em> , 2023.</p>
+</li>
+<li>
+<p>Olmo, J., Wilson, J., Forsey, M., Hepner, B., Howe, T. V., and Wingate, D. Features that make a difference: Leveraging gradients for improved dictionary learning, 2024. URL https://arxiv.org/abs/2411.10397.</p>
+</li>
+<li>
+<p>OpenAI. Hello GPT-4o. https://openai.com/ index/hello-gpt-4o/. [Accessed 27-01-2025].</p>
+</li>
+<li>
+<p>OpenAI. Introducing openai o1. https://openai. com/o1/, 2024. [Accessed 29-01-2025].</p>
+</li>
+<li>
+<p>Pang, B. and Lee, L. Seeing stars: Exploiting class relationships for sentiment categorization with respect to rating scales. In <em>Proceedings of the ACL</em> , 2005.</p>
+</li>
+<li>
+<p>Rajamanoharan, S., Conmy, A., Smith, L., Lieberum, T., Varma, V., Kramar, J., Shah, R., and Nanda, N. Improving´ dictionary learning with gated sparse autoencoders. <em>arXiv preprint arXiv:2404.16014</em> , 2024a.</p>
+</li>
+<li>
+<p>Rajamanoharan, S., Lieberum, T., Sonnerat, N., Conmy, A., Varma, V., Kramar,´ J., and Nanda, N. Jumping ahead: Improving reconstruction fidelity with jumprelu sparse autoencoders, 2024b. URL https://arxiv.org/ abs/2407.14435.</p>
+</li>
+<li>
+<p>Riviere, M., Pathak, S., Sessa, P. G., Hardin, C., Bhupatiraju, S., Hussenot, L., Mesnard, T., Shahriari, B., et al. Gemma 2: Improving open language models at a practical size, 2024.</p>
+</li>
+<li>
+<p>Rogers, A., Kovaleva, O., Downey, M., and Rumshisky, A. Getting closer to AI complete question answering: A set</p>
+</li>
+</ul>
+<p>of prerequisite real tasks. In <em>The Thirty-Fourth AAAI Conference on Artificial Intelligence, AAAI 2020, The ThirtySecond Innovative Applications of Artificial Intelligence Conference, IAAI 2020, The Tenth AAAI Symposium on Educational Advances in Artificial Intelligence, EAAI 2020, New York, NY, USA, February 7-12, 2020</em> , pp. 8722– 8731. AAAI Press, 2020. URL https://aaai.org/ ojs/index.php/AAAI/article/view/6398.</p>
+<ul>
+<li>
+<p>Sharkey, L., Chughtai, B., Batson, J., Lindsey, J., Wu, J., Bushnaq, L., Goldowsky-Dill, N., Heimersheim, S., Ortega, A., Bloom, J., Biderman, S., Garriga-Alonso, A., Conmy, A., Nanda, N., Rumbelow, J., Wattenberg, M., Schoots, N., Miller, J., Michaud, E. J., Casper, S., Tegmark, M., Saunders, W., Bau, D., Todd, E., Geiger, A., Geva, M., Hoogland, J., Murfet, D., and McGrath, T. Open problems in mechanistic interpretability, 2025. URL https://arxiv.org/abs/2501.16496.</p>
+</li>
+<li>
+<p>Smith, L. R. and Brinkmann, J. Interpreting preference models w/ sparse autoencoders, July 2024. URL https://www.alignmentforum. org/posts/5XmxmszdjzBQzqpmz/</p>
+</li>
+<li>
+<p>interpreting-preference-models-w-sparse-autoencoders Accessed: 2025-01-23.</p>
+</li>
+<li>
+<p>Stathead. Stathead: Your all-access ticket to the Sports Reference database. — Stathead.com — stathead.com. https://stathead.com/. [Accessed 21-01-2025].</p>
+</li>
+<li>
+<p>Tafjord, O., Gardner, M., Lin, K., and Clark, P. ”quartz: An open-domain dataset of qualitative relationship questions”. ”2019”.</p>
+</li>
+<li>
+<p>Talmor, A., Yoran, O., Bras, R. L., Bhagavatula, C., Goldberg, Y., Choi, Y., and Berant, J. Commonsenseqa 2.0: Exposing the limits of ai through gamification. <em>arXiv preprint arXiv:2201.05320</em> , 2022.</p>
+</li>
+<li>
+<p>Templeton, A., Conerly, T., Marcus, J., Lindsey, J., Bricken, T., Chen, B., Pearce, A., Citro, C., Ameisen, E., Jones, A., Cunningham, H., Turner, N. L., McDougall, C., MacDiarmid, M., Freeman, C. D., Sumers, T. R., Rees, E., Batson, J., Jermyn, A., Carter, S., Olah, C., and Henighan, T. Scaling monosemanticity: Extracting interpretable features from claude 3 sonnet. <em>Transformer Circuits Thread</em> , 2024. URL https: //transformer-circuits.pub/2024/ scaling-monosemanticity/index.html.</p>
+</li>
+<li>
+<p>Wang, A., Singh, A., Michael, J., Hill, F., Levy, O., and Bowman, S. R. GLUE: A multi-task benchmark and analysis platform for natural language understanding. In <em>International Conference on Learning Representations</em> , 2019. URL https://openreview.net/forum? id=rJ4km2R5t7.</p>
+</li>
+<li>
+<p>Warstadt, A., Singh, A., and Bowman, S. R. Neural network acceptability judgments. <em>Transactions of the Association for Computational Linguistics</em> , 7:625–641, 2019. doi: 10. 1162/tacl ~~a 0~~ 0290. URL https://aclanthology. org/Q19-1040/.</p>
+</li>
+<li>
+<p>Wu, Z., Arora, A., Geiger, A., Wang, Z., Huang, J., Jurafsky, D., Manning, C. D., and Potts, C. Axbench: Steering llms? even simple baselines outperform sparse autoencoders, 2025. URL https://arxiv.org/abs/ 2501.17148.</p>
+</li>
+<li>
+<p>Yun, Z., Chen, Y., Olshausen, B. A., and LeCun, Y. Transformer visualization via dictionary learning: contextualized embedding as a linear superposition of transformer factors. <em>arXiv preprint arXiv:2103.15949</em> , 2021.</p>
+</li>
+<li>
+<p>Zou, A., Phan, L., Chen, S., Campbell, J., Guo, P., Ren, R., Pan, A., Yin, X., Mazeika, M., Dombrowski, A.-K., et al. Representation engineering: A top-down approach to ai transparency. <em>arXiv preprint arXiv:2310.01405</em> , 2023.</p>
+</li>
+</ul>
+<h1><strong>A. Related Work</strong></h1>
+<h2><strong>A.1. Probing</strong></h2>
+<p>Probing has a rich history in computational neuroscience, where linear decoders were used to study information representation in biological neural networks (Mur et al., 2009). This technique was later adapted to study artificial neural networks by Alain (2016). Since then, probing has become a fundamental tool in neural network interpretability, revealing that many high-level concepts are linearly represented in model activations (Gurnee &amp; Tegmark, 2023; Heinzerling &amp; Inui, 2024; Nanda et al., 2023). Similar to our work studying sparse probing, Gurnee et al. (2023) study sparse probing of activations and identify individual monosemantic neurons by setting <em>k</em> = 1. Recent work has also used probing to study safety-relevant properties of language models, such as truthfulness (Marks &amp; Tegmark, 2023) and the presence of sleeper agents (MacDiarmid et al., 2024), without relying on potentially unreliable model outputs. Two recent works have investigated the utility of SAEs for probing. First, Bricken et al. (2024a) investigate a synthetic bioweapons dataset and show that SAE probes can sometimes offer an advantage against baseline probes when aggregated across multiple tokens; we discuss these results in our section on multi-token probing in Section 5. Second, Gallifant et al. (2025) use feature binarization, multi-token feature pooling, and probing on the entire SAE vector to report that SAE probes outperform baselines. We discuss Gallifant et al.’s (2025) results in our limitations section and in Appendix J.</p>
+<h2><strong>A.2. Challenges in Neural Network Interpretability</strong></h2>
+<p>Our work connects to broader concerns about the reliability of neural network interpretation methods. Adebayo et al. (2018) studied saliency methods, a classical technique for understanding models, and found that randomizing the model and dataset labels did not change many aspects of saliency maps; thus, while the method produced plausible-looking explanations, they were not faithful to the true model and dataset. Similarly, (Bolukbasi et al., 2021) demonstrated that seemingly interpretable neurons in BERT were artifacts of running on only a particular dataset rather than more general representations. For SAEs specifically, (Chanin et al., 2024) identified feature absorption and splitting as fundamental challenges, Gao et al. (2024) showed that SAEs have an irreducible error component, and in extremely recent work Heap et al. (2025) show that SAEs trained on random models also result in interpretable features. Our work extends these critiques by finding that many settings where SAE probes were thought to be helpful turn out not to be when compared to stronger baselines.</p>
+<h2><strong>A.3. SAE and SAE Applications</strong></h2>
+<p>Sparse autoencoders (SAEs) provide a map from model activations to a sparse, higher dimensional latent space (Bricken et al., 2023; Cunningham et al., 2023). Individual latents are hypothesized to represent mono-semantic concepts LLMs use for computation. An SAE is parameterized by its width, or the dimension of its latent space, and its L0, or how many latents are nonzero on average. While our work focuses on evaluating SAEs as probing tools, prior work has explored various downstream applications of SAEs. Templeton et al. (2024) first used SAE latents for steering, and in follow-up work Chalnev et al. (2024) found that SAEs can help find better steering vectors (although see (Wu et al., 2025) for a very recent work finding that SAEs are not competitive for steering). Karvonen et al. (2024b) implement a set of comprehensive benchmarks for evaluating SAE performance, including SHIFT (Marks et al., 2024), sparse probing, unlearning, and feature absorption. Recent work has also used SAEs to interpret preference models (Smith &amp; Brinkmann, 2024) and prevent unwanted behavior in model output (Karvonen et al., 2024a), both specific applications where SAEs seem to be state of the art.</p>
+<h1><strong>B. Classification Datasets</strong></h1>
+<p>Below we list in a (large) table all of the classification datasets we use, as well as their source.</p>
+<p>Table 3: Binary classification tasks used.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Citation</strong></th>
+<th><strong>Dataset Name</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gurnee &amp; Tegmark(2024)</td>
+<td>5<br>~~h~~ist<br>~~f~~ig<br>~~i~~smale</td>
+</tr>
+<tr>
+<td></td>
+<td>6<br>~~h~~ist<br>~~f~~ig<br>~~i~~samerican</td>
+</tr>
+<tr>
+<td></td>
+<td>7<br>~~h~~ist<br>~~f~~ig<br>~~i~~spolitician</td>
+</tr>
+<tr>
+<td></td>
+<td>21<br>~~h~~eadline<br>~~i~~strump</td>
+</tr>
+<tr>
+<td></td>
+<td>22<br>~~h~~eadline<br>~~i~~sobama</td>
+</tr>
+</tbody>
+</table>
+<p>Continued on next page</p>
+<table>
+<thead>
+<tr>
+<th><strong>Citation</strong></th>
+<th><strong>Dataset Name</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td>23<br>~~h~~eadline<br>~~i~~schina</td>
+</tr>
+<tr>
+<td></td>
+<td>24<br>~~h~~eadline<br>~~i~~siran</td>
+</tr>
+<tr>
+<td></td>
+<td>26<br>~~h~~eadline<br>~~i~~sfrontpage</td>
+</tr>
+<tr>
+<td></td>
+<td>114<br>~~n~~yc<br>~~b~~orough<br>~~M~~anhattan</td>
+</tr>
+<tr>
+<td></td>
+<td>115<br>~~n~~yc<br>~~b~~orough<br>~~B~~rooklyn<br><br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>116<br>~~n~~yc<br>~~b~~orough<br>~~B~~ronx<br></td>
+</tr>
+<tr>
+<td></td>
+<td>117<br>~~u~~s<br>~~s~~tate<br>~~F~~L<br><br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>118<br>~~u~~s<br>~~s~~tate<br>~~C~~A</td>
+</tr>
+<tr>
+<td></td>
+<td>119<br>~~u~~s<br>~~s~~tate<br>~~T~~X</td>
+</tr>
+<tr>
+<td></td>
+<td>120<br>~~u~~s<br>~~t~~imezone<br>~~C~~hicago</td>
+</tr>
+<tr>
+<td></td>
+<td>121<br>~~u~~s<br>~~t~~imezone<br>~~N~~ew<br>~~Y~~ork</td>
+</tr>
+<tr>
+<td></td>
+<td>122<br>~~u~~s<br>~~t~~imezone<br>~~L~~os<br>~~A~~ngeles</td>
+</tr>
+<tr>
+<td></td>
+<td>123<br>~~w~~orld<br>~~c~~ountry<br>~~U~~nited<br>~~K~~ingdom</td>
+</tr>
+<tr>
+<td></td>
+<td>124<br>~~w~~orld<br>~~c~~ountry<br>~~U~~nited<br>~~S~~tates<br><br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>125<br>~~w~~orld<br>~~c~~ountry<br>~~I~~taly</td>
+</tr>
+<tr>
+<td></td>
+<td>126<br>~~a~~rt<br>~~t~~ype<br>~~b~~ook</td>
+</tr>
+<tr>
+<td></td>
+<td>127<br>~~a~~rt<br>~~t~~ype<br>~~s~~ong<br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>128<br>~~a~~rt<br>~~t~~ype<br>~~m~~ovie</td>
+</tr>
+<tr>
+<td>Johannes Welbl(2017)</td>
+<td>36<br>~~s~~ciq<br>~~t~~f</td>
+</tr>
+<tr>
+<td>Lin et al.(2022)</td>
+<td>41<br>~~t~~ruthqa<br>~~t~~f</td>
+</tr>
+<tr>
+<td>Ben Zhou &amp; Roth(2019)</td>
+<td>42<br>~~t~~emp<br>~~s~~ense</td>
+</tr>
+<tr>
+<td></td>
+<td>130<br>~~t~~emp<br>~~c~~at<br>~~F~~requency</td>
+</tr>
+<tr>
+<td></td>
+<td>131<br>~~t~~emp<br>~~c~~at<br>~~T~~ypical Time</td>
+</tr>
+<tr>
+<td></td>
+<td>132<br>~~t~~emp<br>~~c~~at<br>~~E~~vent Ordering</td>
+</tr>
+<tr>
+<td>Bisk et al.(2020)</td>
+<td>44<br>~~p~~hys<br>~~t~~f</td>
+</tr>
+<tr>
+<td>Tafjord et al.(”2019”)<br></td>
+<td>47<br>~~r~~easoning<br>~~t~~f<br></td>
+</tr>
+<tr>
+<td>Hendrycks et al.(2021)</td>
+<td>48<br>~~c~~m<br>~~c~~orrect</td>
+</tr>
+<tr>
+<td></td>
+<td>49<br>~~c~~m<br>~~i~~sshort</td>
+</tr>
+<tr>
+<td></td>
+<td>50<br>~~d~~eon<br>~~i~~svalid</td>
+</tr>
+<tr>
+<td></td>
+<td>51<br>~~j~~ust<br>~~i~~s</td>
+</tr>
+<tr>
+<td></td>
+<td>52<br>~~v~~irtue<br>~~i~~s</td>
+</tr>
+<tr>
+<td>Talmor et al.(2022)</td>
+<td>54<br>~~c~~s<br>~~t~~f</td>
+</tr>
+<tr>
+<td>Gurnee et al.(2023)</td>
+<td>56<br>~~w~~ikidatasex<br>~~o~~r<br>~~g~~ender</td>
+</tr>
+<tr>
+<td></td>
+<td>57<br>~~w~~ikidatais<br>~~a~~live</td>
+</tr>
+<tr>
+<td></td>
+<td>58<br>~~w~~ikidatapolitical<br>~~p~~arty<br><br><br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>59<br>~~w~~ikidata<br>~~o~~ccupation<br>~~i~~sjournalist<br><br><br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>60<br>~~w~~ikidata<br>~~o~~ccupation<br>~~i~~sathlete</td>
+</tr>
+<tr>
+<td></td>
+<td>61<br>~~w~~ikidata<br>~~o~~ccupation<br>~~i~~sactor</td>
+</tr>
+<tr>
+<td></td>
+<td>62<br>~~w~~ikidata<br>~~o~~ccupation<br>~~i~~spolitician</td>
+</tr>
+<tr>
+<td></td>
+<td>63<br>~~w~~ikidata<br>~~o~~ccupation<br>~~i~~ssinger</td>
+</tr>
+<tr>
+<td></td>
+<td>64<br>~~w~~ikidata<br>~~o~~ccupation<br>~~i~~sresearcher<br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>65<br>~~h~~igh-school<br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>66<br>~~l~~iving-room</td>
+</tr>
+<tr>
+<td></td>
+<td>67<br>~~s~~ocial-security</td>
+</tr>
+<tr>
+<td></td>
+<td>68<br>~~c~~redit-card</td>
+</tr>
+<tr>
+<td></td>
+<td>69<br>~~b~~lood-pressure</td>
+</tr>
+<tr>
+<td></td>
+<td>70<br>~~p~~rime-factors</td>
+</tr>
+<tr>
+<td></td>
+<td>71<br>~~s~~ocial-media</td>
+</tr>
+<tr>
+<td></td>
+<td>72<br>~~g~~ene-expression</td>
+</tr>
+<tr>
+<td></td>
+<td>73<br>~~c~~ontrol-group</td>
+</tr>
+<tr>
+<td></td>
+<td>74<br>~~m~~agnetic-field</td>
+</tr>
+<tr>
+<td></td>
+<td>i<br>75<br>~~c~~ell-lines</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th><strong>Citation</strong></th>
+<th><strong>Dataset Name</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td>76<br>~~t~~rial-court</td>
+</tr>
+<tr>
+<td></td>
+<td>77<br>~~s~~econd-derivative<br>78<br>~~n~~orth-america<br>79<br>~~h~~uman-rights<br>80<br>~~s~~ide-effects<br>81<br>~~p~~ublic-health</td>
+</tr>
+<tr>
+<td></td>
+<td>82<br>~~f~~ederal-government<br>83<br>~~t~~hird-party<br>84<br>~~c~~linical-trials<br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>85<br>~~m~~ental-health</td>
+</tr>
+<tr>
+<td>Wang et al.(2019)</td>
+<td>87<br>~~g~~lue<br>~~c~~ola</td>
+</tr>
+<tr>
+<td></td>
+<td>89<br>~~g~~lue<br>~~m~~rpc<br>90<br>~~g~~lue<br>~~q~~nli<br>91<br>~~g~~lue<br>~~q~~qp</td>
+</tr>
+<tr>
+<td></td>
+<td>92<br>~~g~~lue<br>~~s~~st2</td>
+</tr>
+<tr>
+<td></td>
+<td>136<br>~~g~~lue<br>~~m~~nli<br>~~e~~ntailment<br>137<br>~~g~~lue<br>~~m~~nli<br>~~n~~eutral</td>
+</tr>
+<tr>
+<td></td>
+<td>138<br>~~g~~lue<br>~~m~~nli<br>~~c~~ontradiction</td>
+</tr>
+<tr>
+<td>Gerami</td>
+<td>94<br>~~a~~i<br>~~g~~en</td>
+</tr>
+<tr>
+<td>Lin et al.(2023)</td>
+<td>95<br>~~t~~oxic<br>~~i~~s</td>
+</tr>
+<tr>
+<td>AI &amp; Ishii</td>
+<td>96<br>~~s~~pam<br>~~i~~s</td>
+</tr>
+<tr>
+<td>clmentbisaillon</td>
+<td>100<br>~~n~~ews<br>~~f~~ake</td>
+</tr>
+<tr>
+<td>Kotari</td>
+<td>105<br>~~c~~lick<br>~~b~~ait</td>
+</tr>
+<tr>
+<td>Davidson et al.(2017)</td>
+<td>106<br>~~h~~ate<br>~~h~~ate</td>
+</tr>
+<tr>
+<td></td>
+<td>107<br>~~h~~ate<br>~~o~~ffensive</td>
+</tr>
+<tr>
+<td>Gaggar et al.(2023)</td>
+<td>110<br>~~a~~imade<br>~~h~~umangpt3</td>
+</tr>
+<tr>
+<td>Pang &amp; Lee(2005)</td>
+<td>113<br>~~m~~ovie<br>~~s~~ent</td>
+</tr>
+<tr>
+<td>AllenAI</td>
+<td>129<br>~~a~~rith<br>~~m~~c<br>~~A~~</td>
+</tr>
+<tr>
+<td>Rogers et al.(2020)</td>
+<td>133<br>~~c~~ontext<br>~~t~~ype<br>~~C~~ausality</td>
+</tr>
+<tr>
+<td></td>
+<td>134<br>~~c~~ontext<br>~~t~~ype<br>~~B~~elief<br>~~s~~tates</td>
+</tr>
+<tr>
+<td></td>
+<td>135<br>~~c~~ontext<br>~~t~~ype<br>~~E~~vent<br>~~d~~uration</td>
+</tr>
+<tr>
+<td>Dublish</td>
+<td>139<br>~~n~~ews<br>~~c~~lass<br>~~P~~olitics</td>
+</tr>
+<tr>
+<td></td>
+<td>140<br>~~n~~ews<br>~~c~~lass<br>~~T~~echnology</td>
+</tr>
+<tr>
+<td></td>
+<td>141<br>~~n~~ews<br>~~c~~lass<br>~~E~~ntertainment</td>
+</tr>
+<tr>
+<td>Falgunipatel19</td>
+<td>142<br>~~c~~ancer<br>~~c~~at<br>~~T~~hyroid<br>~~C~~ancer</td>
+</tr>
+<tr>
+<td></td>
+<td>143<br>~~c~~ancer<br>~~c~~at<br>~~L~~ung<br>~~C~~ancer</td>
+</tr>
+<tr>
+<td></td>
+<td>144<br>~~c~~ancer<br>~~c~~at<br>~~C~~olon<br>~~C~~ancer</td>
+</tr>
+<tr>
+<td>Kasaraneni</td>
+<td>145<br>~~d~~isease<br>~~c~~lass<br>~~d~~igestive system diseases<br>146<br>~~d~~isease<br>~~c~~lass<br>~~c~~ardiovascular diseases<br><br><br><br></td>
+</tr>
+<tr>
+<td></td>
+<td>147<br>~~d~~isease<br>~~c~~lass<br>~~n~~ervous system diseases</td>
+</tr>
+<tr>
+<td>Gupta</td>
+<td><br>148<br>~~t~~wt<br>~~e~~motion<br>~~w~~orry</td>
+</tr>
+<tr>
+<td></td>
+<td>149<br>~~t~~wt<br>~~e~~motion<br>~~h~~appiness</td>
+</tr>
+<tr>
+<td></td>
+<td>150<br>~~t~~wt<br>~~e~~motion<br>~~s~~adness</td>
+</tr>
+<tr>
+<td>Goh</td>
+<td>151<br>~~i~~t<br>~~t~~ick<br>~~H~~R Support</td>
+</tr>
+<tr>
+<td></td>
+<td><br>152<br>~~i~~t<br>~~t~~ick<br>~~H~~ardware</td>
+</tr>
+<tr>
+<td></td>
+<td>153<br>~~i~~t<br>~~t~~ick<br>~~A~~dministrative rights</td>
+</tr>
+<tr>
+<td>Stathead</td>
+<td>154<br>~~a~~thlete<br>~~s~~port<br>~~f~~ootball</td>
+</tr>
+<tr>
+<td></td>
+<td>155<br>~~a~~thlete<br>~~s~~port<br>~~b~~asketball</td>
+</tr>
+<tr>
+<td></td>
+<td>156<br>~~a~~thlete<br>~~s~~port<br>~~b~~aseball</td>
+</tr>
+<tr>
+<td>Karvonen et al.(2024b)</td>
+<td>157<br>~~a~~mazon<br>~~5~~star</td>
+</tr>
+<tr>
+<td></td>
+<td>158<br>~~c~~ode<br>~~C~~</td>
+</tr>
+<tr>
+<td></td>
+<td>159<br>~~c~~ode<br>~~P~~ython</td>
+</tr>
+</tbody>
+</table>
+<p>Continued on next page</p>
+<table>
+<thead>
+<tr>
+<th><strong>Citation</strong></th>
+<th><strong>Dataset Name</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td>160<br>~~c~~ode<br>~~H~~TML</td>
+</tr>
+<tr>
+<td></td>
+<td>161<br>~~a~~gnews<br>~~0~~</td>
+</tr>
+<tr>
+<td></td>
+<td>162<br>~~a~~gnews<br>~~1~~</td>
+</tr>
+<tr>
+<td></td>
+<td>163<br>~~a~~gnews<br>~~2~~</td>
+</tr>
+</tbody>
+</table>
+<h1><strong>C. Probing Setup</strong></h1>
+<h2><strong>C.1. AUC</strong></h2>
+<p>The Area Under the Curve (AUC) quantifies the overall performance of a binary classifier using the Receiver Operating Characteristic (ROC) curve. An ROC curve plots the True Positive Rate (TPR) against the False Positive Rate (FPR) at various threshold levels, illustrating the trade-offs between correctly predicting positives and incorrectly predicting negatives. The AUC, ranging from 0 to 1, measures the entire two-dimensional area beneath this curve. An AUC of 1.0 signifies perfect classification, 0.5 indicates performance no better than random chance, and closer to 0 implies poor classification. This metric provides a single, aggregate measure of performance across all possible classification thresholds, making it particularly useful for comparing different classifiers.</p>
+<p>Technically, when choosing <em>k</em> and the baseline SAE to use for the other section, we use test AUC on normal datasets, which constitutes a slight leakage of test data. However, we used trends observed over a large number of datasets, in the same way we might provide heuristics for constructing SAE probes to a future practitioner.</p>
+<h2><strong>C.2. Probing Method Validation Details</strong></h2>
+<p>For each strategy, we use <em>hp</em> that has the maximal average AUC across held out validation sets, AUC<sup>val</sup> <em>p</em><sup>.We choose a</sup> validation method from Table 4 based on the dataset size <em>n</em> (most of the time this is the last row in the table for large <em>n</em> , except for the low data regime tests).</p>
+<p><em>Table 4.</em> Selection methods to choose hyperparameters <em>hp</em> when training on different dataset sizes</p>
+<table>
+<thead>
+<tr>
+<th>Data Size(<em>n</em>)</th>
+<th>Selection method forprobe <em>p</em></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>_n ≤_3</td>
+<td>Train_p_with each_hp_ on all_n_points;<br>choose_hp_which maximizes AUC on<br>trainingset.</td>
+</tr>
+<tr>
+<td>3_&lt; n ≤_12</td>
+<td>Use leave-two-out cross validation;<br>train <em>p</em> with each <em>hp</em> on all training<br>splits of size_n −_2and evaluate on the<br>last 2 held outpoints</td>
+</tr>
+<tr>
+<td>12_&lt; n ≤_128</td>
+<td>Use 6-fold cross validation; split_n_in<br>sixths, train_p_with each_hp_on all sets<br>of 5 splits, and evaluate on the remain-<br>ingfold</td>
+</tr>
+<tr>
+<td>_n &gt;_128</td>
+<td>Use 80%/20% training/validation split</td>
+</tr>
+</tbody>
+</table>
+<h2><strong>C.3. Probing Method Hyperparameter Details</strong></h2>
+<p>In this section, we list each baseline method and the hyperparameters that we search over for that method.</p>
+<ul>
+<li><strong>Logistic Regression</strong> :</li>
+</ul>
+<p><strong>–</strong> <em>C</em> : Ranges logarithmically from 10<sup>5</sup> to 10<sup>_−_5</sup> . The <em>L</em> 2/ <em>L</em> 1 regularization is 1 <em>/C</em> .</p>
+<ul>
+<li>
+<p><strong>PCA Regression</strong> :</p>
+<ul>
+<li>Number of PCA Components: Varies logarithmically from 1 up to the minimum of the number of samples, latents, or 100.</li>
+</ul>
+</li>
+</ul>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0019-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Performance by Method Across Layers<br>0.95<br>0.90<br>0.85<br>Logistic Reg.<br>0.80<br>PCA<br>0.75 KNN<br>XGBoost<br>0.70 MLP<br>Combined Mean<br>0.65<br>embed 9 20 31 41<br>Layer<br>Test AUC<br><!-- End of picture text --></p>
+<p>(a) Layer 20 is best for baselines.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0019-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Best Performing Method by Layer with Test AUC<br>Logistic Reg.<br>100 PCA<br>KNN<br>80 XGBoost<br>MLP<br>60<br>40<br>20<br>0<br>embed 9 20 31 41<br>Layer<br>Number of Datasets<br><!-- End of picture text --></p>
+<p>(b) Logistic regression is often the most performant across datasets.</p>
+<p><em>Figure 13.</em> Analysis of layer performance and methods. (a) Shows the optimal layer for baseline performance. (b) Demonstrates the effectiveness of different methods across layers.</p>
+<h2>• <strong>K-Nearest Neighbors (KNN)</strong> :</h2>
+<ul>
+<li>Number of Neighbors: Logarithmically spaced values up to the smaller of 100 or the number of samples minus one.</li>
+</ul>
+<h2>• <strong>XGBoost</strong> :</h2>
+<ul>
+<li>
+<p>n estimators: Ranges from 50 to 250 in steps of 50.</p>
+</li>
+<li>
+<p>max ~~d~~ epth: Ranges from 2 to 5.</p>
+</li>
+<li>
+<p>learning ~~r~~ ate: Ranges logarithmically from 0.001 to 0.1.</p>
+</li>
+<li>
+<p>subsample and colsample ~~b~~ ytree: Range from 0.7 to 1.0.</p>
+</li>
+<li>
+<p>reg alpha and reg ~~l~~ ambda: Range logarithmically from 0.001 to 10.</p>
+</li>
+<li>
+<p>min child ~~w~~ eight: Ranges from 1 to 9.</p>
+</li>
+</ul>
+<h2>• <strong>Multilayer Perceptron (MLP)</strong> :</h2>
+<ul>
+<li>
+<p>Network depth: 1 to 3 hidden layers</p>
+</li>
+<li>
+<p>Hidden layer width: 16,32, or 64.</p>
+</li>
+<li>
+<p>learning ~~r~~ ate ~~i~~ nit: Five values ranging logarithmically from 10<sup>_−<em>4</sup> to 10<sup></em>−_2</sup> .</p>
+</li>
+<li>
+<p>alpha: Weight decay parameter, with 5 values ranging logarithmically from 10<sup>_−<em>5</sup> to 10<sup></em>−_2</sup> .</p>
+</li>
+<li>
+<p>Activation function: ReLU.</p>
+</li>
+<li>
+<p>Optimizer: Adam.</p>
+</li>
+</ul>
+<h2><strong>C.4. Formal Discussion of Quiver of Arrows</strong></h2>
+<p>The quiver of arrows can be defined formally as follows. Given a set of probing methods <em>P</em> = <em>p</em> 1 <em>, . . . , pn</em> (listed in Section 2.3), we find AUC<sup>val</sup> <em>pi</em><sup>for each method using the procedure described in Section 2.2.We then choose the probing method</sup><sup><em>p∗</em></sup> with maximal AUC<sup>val</sup> <em>pi</em><sup>and record its AUC</sup> <em>P</em><sup>test</sup> = AUC<sup>test</sup> <em>p∗</em><sup>.We can then compare AUC</sup> <em>P</em><sup>test</sup> to AUC<sup>test</sup> <em>P</em><sup><em>′<em>for a different set of</sup> methods <em>P</em><sup></em>′</em></sup> = <em>p</em><sup><em>′</em></sup> 1<sup><em>, . . . , p′</em></sup> <em>n</em><sup>.If we let</sup><sup><em>P_be a set of baseline methods, and</sup><sup><em>P ′</em>=</sup><sup><em>P ∪{<em>SAE probes</sup><sup></em>}</em>, then AUC</sup> <em>P</em><sup>test</sup><sup></em>′−<em>AUCtest</sup> <em>P</em> directly represents the increase in test performance when adding SAE probes to a practitioner’s toolbox. We then aggregate AUC<sup>test</sup> <em>P −</em> AUC<sup>test</sup> <em>P</em><sup></em>′_across many different datasets and testing regimes (e.g., dataset size) to give an overall sense of the</sup> improvement due to SAE probing. We note that adding a batch of SAE probes as additional arrows to the quiver is potentially disadvantageous for SAE probes. This is because using multiple SAE probes presents additional opportunities for these probes to overfit to the training data and be chosen by the quiver of arrows approach without properly generalizing to the test data. Regardless, we see the quiver of arrows as a proper counterfactual for a practitioner without SAE probes. Additionally, the quiver of arrows approach is not the reason we find negative results for SAE probes. For instance, in Figure 1, we directly compare the test AUC of the most performant SAE probe and baseline in standard conditions across all regimes. Without using the quiver of arrows approach, we still find SAEs underperform baselines.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0020-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>SAE Performance by Width and Sparsity<br>Layer 20<br>10 6<br>0.88<br>0.86<br>0.84<br>SAE Probe Performance as a Function of Width<br>10 5<br>0.865 y = -0.00log2(x) + 0.91<br>0.82 R² = 0.966<br>0.860<br>0.855<br>0.80<br>0.850<br>0.845<br>10 1 10 2 0.840<br>L0 Sparsity 16 32 64 128 256 512 1024<br>Width (thousands)<br>Width<br>Test AUC<br>Average Test AUC<br><!-- End of picture text --></p>
+<p>(a) We find that L0 is important in creating effective probes, while width plays a minimal role. Test AUC averaged over all values of <em>k</em> and datasets.</p>
+<p>(b) When averaging over other factors, smaller width SAEs perform best as probes. However, the relationship is minimal.</p>
+<p><em>Figure 14.</em> Analysis of SAE width and L0 regularization effects on probe performance. (a) Shows the Pareto frontier of L0 vs width trade-offs. (b) Illustrates the relationship between SAE width and probe performance.</p>
+<h1><strong>D. Normal Conditions</strong></h1>
+<h2><strong>D.1. Evaluating Baselines</strong></h2>
+<p>We see that layer 20 is best for baselines, so we choose to use that layer moving forward (Figure 13a). Logistic regression most often has the highest test AUC across datasets in these conditions at layer 20 (Figure 13b).</p>
+<h2><strong>D.2. Choosing which SAEs to Test</strong></h2>
+<p>When constructing a pareto curve based on the width and L0 of all available SAEs at layer 20 of Gemma-2-9B, we find that width is unimportant, while constructing probes from a higher L0 seems to improve probe performance (Figure 22a).</p>
+<p>To ensure that width plays a minimal role, we average over all datasets, <em>k</em> , and L0s in Figure 22b. There is a clear negative trend indicating that smaller SAE widths are better, but with almost 0 slope. Because we aim to make as few decisions based off the test data as possible, we consider three widths throughout our experiments, 16 <em>,</em> 000, 131 <em>,</em> 000, and 1 <em>,</em> 000 <em>,</em> 000.</p>
+<h2><strong>D.3. Plotting Dataset Performance vs. K</strong></h2>
+<p>In Figure 15, we show the performance on all datasets vs. the number of latents we train the sparse probe on. Almost all datasets are monotonically increasing in <em>k</em> ; some have a sharp increase at some <em>k</em> value, but most increase relatively smooththly.</p>
+<h1><strong>E. Additional Results for Various Regimes</strong></h1>
+<h2><strong>E.1. Data Scarcity</strong></h2>
+<p>In the data scarce setting, we see that we choose mostly the SAE method from the quiver at smaller training fractions (Figure 17a). This is because we break ties by explicitly preferring the SAE method, and most methods have perfect validation AUC at small training fractions. Specifically, we first prefer the smallest width SAE, and then the SAE with the largest value of <em>k</em> . In Figure 16, we visualize the improvement by using the quiver of arrows approach with SAE probes across all datasets.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0021-00.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Are Sparse Autoencoders Useful? A Case Study in Sparse Probing<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0021-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>5 hist fig 6 hist fig 7 hist fig 21 headline 22 headline 23 headline 24 headline 26 headline 41 truthqa<br>ismale isamerican ispolitician istrump isobama ischina isiran isfrontpage 36 sciq tf tf<br>56<br>42 temp 47 reasoning 48 cm 49 cm 50 deon wikidatasex<br>sense 44 phys tf tf correct isshort isvalid 51 just is 52 virtue is 54 cs tf or gender<br>57 58 59 wikidata 60 wikidata 61 wikidata 62 wikidata 63 wikidata 64 wikidata<br>wikidatais wikidatapolitical occupation occupation occupation occupation occupation occupation 65 high 66 living<br>alive party isjourn isathle isactor ispolit issinge isresea school room<br>67 social 68 credit 69 blood 70 prime 71 social 72 gene 73 control 74 magnetic 75 cell 76 trial<br>security card pressure factors media expression group field lines court<br>77 second 78 north 79 human 80 side 81 public 82 federal 83 third 84 clinical 85 mental<br>derivative america rights effects health government party trials health 87 glue cola<br>100 news 105 click 106 hate<br>89 glue mrpc 90 glue qnli 91 glue qqp 92 glue sst2 94 ai gen 95 toxic is 96 spam is fake bait hate<br>114 nyc 115 nyc 120 us<br>107 hate 110 aimade 113 movie borough borough 116 nyc 117 us state 118 us state 119 us state timezone<br>offensive humangpt3 sent Manhattan Brooklyn borough Bronx FL CA TX Chicago<br>121 us 122 us 123 world 124 world<br>timezone New timezone Los country country 125 world 126 art type 127 art type 128 art type 129 arith mc 130 temp cat<br>York Angeles United Kingd United State country Italy book song movie A Frequency<br>133 context 134 context 135 context 136 glue 138 glue 139 news 140 news<br>131 temp cat 132 temp cat type type Belief type Event mnli 137 glue mnli class class<br>Typical Time Event Ordering Causality states duratio entailment mnli neutral contradiction Politics Technology<br>141 news 142 cancer 143 cancer 144 cancer 145 disease 146 disease 147 disease 149 twt 150 twt<br>class cat Thyroid cat Lung cat Colon class class class 148 twt emotion emotion<br>Entertainment Cancer Cancer Cancer digestive sy cardiovascul nervous syst emotion worry happiness sadness<br>154 athlete 155 athlete 156 athlete<br>151 it tick 152 it tick 153 it tick sport sport sport 157 amazon 159 code 160 code<br>HR Support Hardware Administrative rig football basketball baseball 5star 158 code C Python HTML<br>161 agnews 0 162 agnews 1 163 agnews 2<br>Number of Features in  (1, 2, 4, 8, 16, 32, 64, 128, 256, 512)<br>Test AUC (0.5 - 1.0)<br><!-- End of picture text --></p>
+<p><em>Figure 15.</em> Test AUC on all datasets vs. <em>k</em> = <em>|I|</em> using the Gemma Scope layer 20 SAE with width 131k and <em>L</em> 0 = 193.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0022-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>AUC Improvement AUC Improvement AUC Improvement<br>0.2 0.0 0.2 0.2 0.1 0.0 0.1 0.2 0.50 0.25 0.00 0.25 0.50<br>5_hist_fig_ismale<br>6_hist_fig_isamerican<br>7_hist_fig_ispolitician<br>21_headline_istrump<br>22_headline_isobama<br>23_headline_ischina<br>24_headline_isiran<br>26_headline_isfrontpage<br>36_sciq_tf<br>41_truthqa_tf<br>42_temp_sense<br>44_phys_tf<br>47_reasoning_tf<br>48_cm_correct<br>49_cm_isshort<br>50_deon_isvalid<br>51_just_is<br>52_virtue_is<br>54_cs_tf<br>56_wikidatasex_or_gender<br>57_wikidatais_alive<br>58_wikidatapolitical_party<br>59_wikidata_occupation_isjournalist<br>60_wikidata_occupation_isathlete<br>61_wikidata_occupation_isactor<br>62_wikidata_occupation_ispolitician<br>63_wikidata_occupation_issinger<br>64_wikidata_occupation_isresearcher<br>65_high-school<br>66_living-room<br>67_social-security<br>68_credit-card<br>69_blood-pressure<br>70_prime-factors<br>71_social-media<br>72_gene-expression<br>73_control-group<br>74_magnetic-field<br>75_cell-lines<br>76_trial-court<br>77_second-derivative<br>78_north-america<br>79_human-rights<br>80_side-effects<br>81_public-health<br>82_federal-government<br>83_third-party<br>84_clinical-trials<br>85_mental-health<br>87_glue_cola<br>89_glue_mrpc<br>90_glue_qnli<br>91_glue_qqp<br>92_glue_sst2<br>94_ai_gen<br>95_toxic_is<br>96_spam_is<br>100_news_fake<br>105_click_bait<br>106_hate_hate<br>107_hate_offensive<br>110_aimade_humangpt3<br>113_movie_sent<br>114_nyc_borough_Manhattan<br>115_nyc_borough_Brooklyn<br>116_nyc_borough_Bronx<br>117_us_state_FL<br>118_us_state_CA<br>119_us_state_TX<br>120_us_timezone_Chicago<br>121_us_timezone_New_York<br>122_us_timezone_Los_Angeles<br>123_world_country_United_Kingdom<br>124_world_country_United_States<br>125_world_country_Italy<br>126_art_type_book<br>127_art_type_song<br>128_art_type_movie<br>129_arith_mc_A<br>130_temp_cat_Frequency<br>131_temp_cat_Typical Time<br>132_temp_cat_Event Ordering<br>133_context_type_Causality<br>134_context_type_Belief_states<br>135_context_type_Event_duration<br>136_glue_mnli_entailment<br>137_glue_mnli_neutral<br>138_glue_mnli_contradiction<br>139_news_class_Politics<br>140_news_class_Technology<br>141_news_class_Entertainment<br>142_cancer_cat_Thyroid_Cancer<br>143_cancer_cat_Lung_Cancer<br>144_cancer_cat_Colon_Cancer<br>145_disease_class_digestive system diseases<br>146_disease_class_cardiovascular diseases<br>147_disease_class_nervous system diseases<br>148_twt_emotion_worry<br>149_twt_emotion_happiness<br>150_twt_emotion_sadness<br>151_it_tick_HR Support<br>152_it_tick_Hardware<br>153_it_tick_Administrative rights<br>154_athlete_sport_football<br>155_athlete_sport_basketball<br>156_athlete_sport_baseball<br>157_amazon_5star<br>158_code_C<br>159_code_Python<br>160_code_HTML<br>161_agnews_0<br>162_agnews_1<br>163_agnews_2<br>Fraction Corrupted Ratio of Positive Class Number of Training Examples<br>0.00.050.10.150.20.250.30.350.40.450.5 0.050.10.150.20.250.30.350.40.450.50.550.60.650.70.750.80.850.90.95 23457101420283853741031431982753825317371024<br>Dataset<br><!-- End of picture text --></p>
+<p><em>Figure 16.</em> Improvement from using SAE methods in the quiver across all datasets for various corruption ratios, ratios of positive classes, and number of training examples</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0023-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>100<br>100 100<br>80<br>80 80<br>60 Non SAE ChosenSAE Chosen 60 60<br>40 40 40<br>20 20 Non SAE ChosenSAE Chosen 20 Logistic Regression BetterSAE Better<br>0 0 0<br>Number of Training Examples Ratio of Positive Class Fraction Corrupted<br>2 3 4 5 7 10 14 20 28 38 53 74 1031431982753825317371024 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5 0.55 0.6 0.65 0.7 0.75 0.8 0.85 0.9 0.95 0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5<br>% of Datasets<br>Number of Datasets Number of Datasets<br><!-- End of picture text --></p>
+<p>(a) SAE probes are chosen by our method at small training fractions because multiple methods have perfect validation AUC and we break ties by choosing an SAE probe.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0023-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(b) SAE probes are generally chosen at<br>more extreme imbalances.<br><!-- End of picture text --></p>
+<p>(c) Corruption fraction has a minor influence on the percent of time SAE probes or logistic regression probes are chosen.</p>
+<p><em>Figure 17.</em> Method selection analysis under different data conditions. (a) Selection under data scarcity. (b) Selection under class imbalance. (c) Selection under data corruption.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0023-06.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Performance by Method Across Layers<br>0.95<br>0.90<br>0.85<br>Logistic Reg. 1.0<br>0.80 PCA Mean : -0.000 ± 0.001<br>KNN No Change<br>0.75<br>XGBoost 0.8<br>MLP<br>0.70<br>Combined Mean<br>0.6<br>embed 8 16 24 31 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95 1.00<br>Layer Test AUC (without SAE)<br>Test AUC<br>Test AUC (with SAE)<br><!-- End of picture text --></p>
+<p>(a) When testing baseline methods at different layers of Llama3.1-8b, we find the middle layer 16 works best by a slim margin.</p>
+<p>(b) In standard conditions, we see that SAE probes are not statistically more performant than baselines for Llama-3.1-8b</p>
+<p><em>Figure 18.</em> Analysis of Llama-3.1-8b probe performance. (a) Layer-wise performance of baseline methods. (b) Comparison between SAE and baseline probes under standard conditions.</p>
+<h2><strong>E.2. Class Imbalance</strong></h2>
+<p>We show the improvement for all datasets in Figure 16 across all class imbalances. Generally, the SAE method is chosen at more extreme imbalance ratios (Figure 17b)</p>
+<h2><strong>E.3. Label Corruption</strong></h2>
+<p>We show the performance of the SAE across datasets with all values of label corruption. Interestingly, the SAE still has highest test AUC at many places (Figure 17c shows the percent of time that the SAE test AUC is larger). However, it is clear from the per dataset imshow (Figure 16) that it struggles with more label noise.</p>
+<h1><strong>F. Reproducing Core Results on Llama-3.1-8b</strong></h1>
+<p>We use SAEs provided by Llama Scope to replicate our core results, namely, that SAEs underperform baseline probes in normal, data scarce, class imbalance, and label noise settings when testing on Llama-3.1-8B. In Figure 18a, we show the results for baseline probes applied to various layers of Llama-3.1-8b in standard settings. We see that the layer roughly halfway through the model, layer 16, is best for probing experiments. In Figure 18b, we show that SAE probes in normal settings on layer 16 of Llama-3.1-8b are not more performant than baselines, although there are a few positive outliers we did not observe in Gemma-2-9b. Lastly, we use the quiver of arrows approach to show that SAE probes are not more performant in the conditions of data scarcity, class imbalance, and label noise (Figure 19). Because of the increased effort of testing OOD and interpretability, we do not replicate those results. Note that in all experiments, we use the provided width 128k, L0 55 SAE.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0024-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>0.0<br>0.1<br>Number of Training Examples Ratio of Positive Class Fraction Corrupted<br>2 3 45 7 101420283853741031431982753825317371024 0.050.10.150.20.250.30.350.40.450.50.550.60.650.70.750.80.850.90.95 0.0 0.05 0.1 0.15 0.2 0.25 0.3 0.35 0.4 0.45 0.5<br>SAE  (AUC)<br><!-- End of picture text --></p>
+<p><em>Figure 19.</em> We find that Llama-3.1-8b SAE probes do not improve on baselines in the settings of data scarcity, class imbalance, and label noise.</p>
+<h1><strong>G. Interpretability</strong></h1>
+<h2><strong>G.1. Pruning</strong></h2>
+<p>We demonstrate the latent ranking procedure for the task 66 ~~l~~ iving-room in Table 5. We see that pruning works, for two of the tasks, 66 ~~l~~ iving-room and 90 ~~g~~ lue ~~q~~ nli, while failing for 7 ~~h~~ ist ~~f~~ ig ~~i~~ spolitician (Figure 20). However, even when pruning works, the improvement is marginal compared to the decrease in performance when moving from an in-distribution test set to an OOD test set. Thus, we hypothesize that the underlying latents are not sufficiently expressive. For example, latent 122774 is most active on the English translation of “living room,” and not activate at all for the French translation (Figure 8). This indicates this latent does not sufficiently represent the concept of “living room” to be robust to OOD transformations.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0024-06.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>0.65<br>0.60<br>66_living-room<br>0.55 90_glue_qnli<br>7_hist_fig_ispolitician<br>0.50<br>0.45<br>1 2 3 4 5 6 7 8<br>Number of Features in Pruned Probe<br>OOD Test AUC<br><!-- End of picture text --></p>
+<p><em>Figure 20.</em> Two datasets improve with pruning, but one does not. Indicates that it needs more latents to construct answer.</p>
+<h2><strong>G.2. Latent Investigation</strong></h2>
+<p>We generate natural language descriptions of all the latents with GPT-4o. We find that most are either relevant to the task or visibly spurious. We hypothesize that some latents have incomplete descriptions given their performance on the task. We list a selection of the most interesting of these latents from each category in Table 6.</p>
+<h2><strong>G.3. Glue CoLA</strong></h2>
+<p>In Table 7, we show the top 5 examples where latent 369585 and the activation probe have the highest confidence that a prompt is ungrammatical, but it is (incorrectly) labeled as grammatical in the CoLA ground truth.</p>
+<h2><strong>G.4. AI Made</strong></h2>
+<p>In Table 8, we show the tokens that the 110 ~~a~~ imade ~~h~~ umangpt3 classifier activates on across the pile with the highest average activation. Like the SAE feature, the baseline classifier has top activations on punctuation tokens.</p>
+<h1><strong>H. Multiple tokens results</strong></h1>
+<p>In Table 9, we show a comparison of all methods (including the attention based probes and multi-token SAE methods discussed in Section 5) on a random sample of 60 datasets.</p>
+<p><em>Table 5.</em> Description of Latent Variables for Out-of-Distribution Detection. We find that this procedure ranks latents roughly according to their OOD test AUC, even though o1 did not have access to this information. However, the system is not perfect. For example, latent 51330’s natural language description is ranked last and seems unreleated to the task at hand. However, its OOD test AUC is the highest of all latents. We do not investigate this further, but hypothesize that either the latent descriptions require additional tuning, or the test set truly has some spurious quality that this latent identifies.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Latent</strong></th>
+<th><strong>o1</strong><br><strong>rank</strong></th>
+<th><strong>Latent</strong><br><strong>Description</strong></th>
+<th><strong>Val ID</strong><br><strong>AUC</strong></th>
+<th><strong>Test OOD</strong><br><strong>AUC</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>122774</td>
+<td>1</td>
+<td>mentions of living rooms or parlors<br>in houses or apartments.</td>
+<td>1.0</td>
+<td>0.6402</td>
+</tr>
+<tr>
+<td>98707</td>
+<td>2</td>
+<td>phrases and words related to loca-<br>tions or settings, particularly indoor<br>spaces like rooms, parlors, or living<br>areas, as well as time references like<br>afternoon or specific times.</td>
+<td>0.8698</td>
+<td>0.6177</td>
+</tr>
+<tr>
+<td>100016</td>
+<td>3</td>
+<td>mentions of rooms or enclosed<br>spaces, particularly when discussing<br>physical locations or settings.</td>
+<td>0.6895</td>
+<td>0.4736</td>
+</tr>
+<tr>
+<td>7498</td>
+<td>4</td>
+<td>locations within a house, particu-<br>larly upstairs, downstairs, basement,<br>bathroom, and kitchen areas.</td>
+<td>0.7524</td>
+<td>0.6206</td>
+</tr>
+<tr>
+<td>78823</td>
+<td>5</td>
+<td>words and phrases related to specific<br>places, attractions, and experiences,<br>particularly in the context of travel<br>and tourism.</td>
+<td>0.6697</td>
+<td>0.4526</td>
+</tr>
+<tr>
+<td>116246</td>
+<td>6</td>
+<td>numbers, dates, and numerical mea-<br>surements, particularly in scientific<br>or technical contexts.</td>
+<td>0.7470</td>
+<td>0.5398</td>
+</tr>
+<tr>
+<td>40168</td>
+<td>7</td>
+<td>technical terms and components re-<br>lated to computer systems, engineer-<br>ing, and scientific analysis.</td>
+<td>0.9219</td>
+<td>0.4513</td>
+</tr>
+<tr>
+<td>51330</td>
+<td>8</td>
+<td>objects and materials related to sci-<br>entific experiments and laboratory<br>equipment, particularly those involv-<br>ing fluids, particles, or microscopic<br>samples.</td>
+<td>0.7320</td>
+<td>0.6483</td>
+</tr>
+</tbody>
+</table>
+<h1><strong>I. SAE Architectural Improvements</strong></h1>
+<p>We test if improvements in SAE architectures have led to improvements in probing performance. We test eight SAE architectures on Gemma-2-2B in all regimes with <em>k</em> = 16 <em>,</em> 128 SAE probes. We plot the performance of SAE probes for all architectures in Figure 21 when averaging over all datasets. While there seems to be some improvement with later architectures, we note that there is significant variance in the average across datasets that is not visualized.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0026-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Normal Setting (k=16) Normal Setting (k=128)<br>Baseline Test AUC = 0.927 Baseline Test AUC = 0.927<br>0.905<br>0.880<br>0.900<br>0.875<br>0.895<br>0.870<br>0.890<br>0.865<br>0.885<br>0.860 0.880<br>Scarcity Setting (k=16) Scarcity Setting (k=128)<br>Baseline Test AUC = 0.821 Baseline Test AUC = 0.821<br>0.795<br>0.805<br>0.790 0.800<br>0.785 0.795<br>0.780 0.790<br>0.775 0.785<br>0.780<br>Imbalance Setting (k=16) Imbalance Setting (k=128)<br>Baseline Test AUC = 0.912 Baseline Test AUC = 0.912<br>0.875<br>0.89<br>0.870<br>0.865<br>0.88<br>0.860<br>0.855 0.87<br>0.850<br>Corrupt Setting (k=16) Corrupt Setting (k=128)<br>Baseline Test AUC = 0.815 Baseline Test AUC = 0.815<br>0.805 0.79<br>0.800<br>0.795 0.78<br>0.790<br>0.77<br>0.785<br>50 100 150 200 250 300 350 400 50 100 150 200 250 300 350 400<br>SAE L0 SAE L0<br>Ood Setting (k=16) Ood Setting (k=128)<br>Baseline Test AUC = 0.795 Baseline Test AUC = 0.795<br>0.78 0.78<br>0.76<br>0.76<br>0.74<br>0.74<br>0.72<br>0.70 0.72<br>50 100 150 200 250 300 350 400 50 100 150 200 250 300 350 400<br>SAE L0 SAE L0<br>ReLU (orig.) ReLU (new) Gated TopK Jump ReLU Batch TopK p-anneal Matryoshka<br>Average Test AUC Average Test AUC<br>Average Test AUC Average Test AUC<br>Average Test AUC Average Test AUC<br>Average Test AUC Average Test AUC<br>Average Test AUC Average Test AUC<br><!-- End of picture text --></p>
+<p><em>Figure 21.</em> Across regimes, we see a slight positive trend in probing performance with more recent SAE architectures.</p>
+<p><img src="../markdown/images/sae_sparse_probing/57_sae_sparse_probing.pdf-0027-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>ILLUSION  FAIR  ILLUSION  FAIR<br>FAIR  Baseline = Last Both = FAIR  Baseline = Last Both =<br>Both = Last SAE = Pool Quiver(Pool, Last) Both = Last SAE = Pool Quiver(Pool, Last)<br>60.9%<br>60 56.5% 60 56.5%<br>50.0%<br>40 40 39.1% 34.8%<br>19.6%<br>20 20<br>13.0%<br>4.3% 6.5% 2.2% 8.7%<br>0 0<br>Baseline &gt; SAE SAE &gt; Baseline Baseline &gt; SAE SAE &gt; Baseline<br>(a) Multi-token non-binarized experiments (the same as Fig- (b) Multi-token  binzarized  experiments.<br>ure 11).<br>&gt; 0.005  AUC &gt; 0.005  AUC<br>Win Rate Percentage  Win Rate Percentage<br><!-- End of picture text --></p>
+<p><em>Figure 22.</em> We run the multi-token experiments from Section 5 with and without binarizing aggregated latents.</p>
+<h1><strong>J. Assessing SAE Probe Binarization</strong></h1>
+<p>Gallifant et al. (2025) find that binarizing latents with a threshold improves probe performance. Binarization entails setting a latent equal to 1 if its firing value is greater than a threshold, and setting it equal to 0 otherwise. Gallifant et al. (2025) use a threshold equal to 1.</p>
+<p>Gallifant et al. (2025) performs probing in the multi-token pooled setting, so to use as similar of a setup as possible we repeat our multi-token experiment with binarization and a threshold equal to 1. Following Gallifant et al. (2025), we binarize after the max-pooling aggregation. As shown in in Figure 22, we find that binarizing results in worse performance than not-binarizing.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Latent Cate-</strong><br><strong>gory</strong></th>
+<th><em>Table 6.</em> Latent categorizatio<br><strong>Dataset</strong></th>
+<th>n, character<br><strong>Latent</strong><br><strong>Num-</strong><br><strong>ber</strong></th>
+<th>istics, and<br><strong>Test</strong><br><strong>AUC</strong></th>
+<th>performance.<br><strong>Latent Description</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Description<br>Fits Task</td>
+<td>5<br>~~h~~ist<br>~~f~~ig<br>~~i~~smale</td>
+<td>81210</td>
+<td>0.892</td>
+<td>references to female individuals, espe-<br>cially focusing on pronouns and names.</td>
+</tr>
+<tr>
+<td></td>
+<td>61<br>wikidata<br>~~o~~ccupation<br>~~i~~sactor<br>66<br>~~l~~iving-room<br>155<br>~~a~~thlete<br>~~s~~port<br>~~b~~asketball</td>
+<td>91505<br>122774<br>83267</td>
+<td>0.830<br>0.999<br>0.943</td>
+<td>names of well-known actors and film<br>industry personalities.<br>references to specific rooms in a house,<br>particularly living rooms and parlors.<br>references to basketball teams, players,<br>and related sports terms.</td>
+</tr>
+<tr>
+<td>Clever Latents</td>
+<td>96<br>~~s~~pam<br>~~i~~s<br>100<br>~~n~~ews<br>~~f~~ake</td>
+<td>35460<br>31726</td>
+<td>0.907<br>0.968</td>
+<td>keywords and phrases related to text<br>messaging and SMS communications.<br>references to conspiracy theories and<br>secretive organizations.</td>
+</tr>
+<tr>
+<td>Potentially<br>Spurious</td>
+<td>21<br>headline<br>~~i~~strump<br>22<br>~~h~~eadline<br>~~i~~sobama<br>110<br>~~a~~imade<br>~~h~~umangpt3</td>
+<td>22915<br>10555<br>105150</td>
+<td>0.812<br>0.782<br>0.816</td>
+<td>numerical dates and percentages within<br>a political or historical context.<br>strings of numbers, often with mathe-<br>matical notations or identifiers.<br>statistical or numerical data and mea-<br>surements.</td>
+</tr>
+<tr>
+<td></td>
+<td>133<br>~~c~~ontext<br>~~t~~ype<br>Causality<br>134<br>~~c~~ontext<br>type<br>~~B~~elief<br>~~s~~tates<br>135<br>~~c~~ontext<br>~~t~~ype<br>~~E~~vent<br>duration</td>
+<td>89524<br>113152<br>18897</td>
+<td>0.947<br>0.638<br>0.876</td>
+<td>questions or questioning phrases, partic-<br>ularly those beginning with ”Why?”.<br>words related to status or condition in<br>technical or medical contexts.<br>questions and phrases related to cost or<br>quantity.</td>
+</tr>
+<tr>
+<td>Classified<br>by<br>Context<br>Length (Spuri-<br>ous)</td>
+<td>49<br>~~c~~m<br>~~i~~sshort</td>
+<td>106376</td>
+<td>1.000</td>
+<td>sections of text related to mathematical<br>or programming notation and expres-<br>sions.</td>
+</tr>
+<tr>
+<td></td>
+<td>161<br>~~a~~gnews<br>0<br>162<br>~~a~~gnews<br>1</td>
+<td>106376<br>106376</td>
+<td>0.990<br>0.988</td>
+<td>sections of text related to mathematical<br>or programming notation and expres-<br>sions.<br>sections of text related to mathematical<br>or programming notation and expres-<br>sions.</td>
+</tr>
+<tr>
+<td></td>
+<td>163<br>~~a~~gnews<br>2</td>
+<td>106376</td>
+<td>0.991</td>
+<td>sections of text related to mathematical<br>or programming notation and expres-<br>sions.</td>
+</tr>
+<tr>
+<td>Task<br>Shows<br>Latent<br>De-<br>scription<br>is<br>Imperfect</td>
+<td>105<br>~~c~~lick<br>bait</td>
+<td>78823</td>
+<td>0.967</td>
+<td>mentions of specific events, activities, or<br>items in particular locations or settings.</td>
+</tr>
+<tr>
+<td></td>
+<td>123<br>~~w~~orld<br>~~c~~ountry<br>~~U~~nited<br>~~K~~ingdom<br>125<br>~~w~~orld<br>~~c~~ountry<br>~~I~~taly</td>
+<td>100153<br>50817</td>
+<td>0.978<br>0.989</td>
+<td>information related to professional roles,<br>locations, and organizations.<br>names of researchers and scientific au-<br>thors.</td>
+</tr>
+</tbody>
+</table>
+<p><em>Table 7.</em> <strong>Left</strong> We show the top 5 examples where latent 369585 is active while the CoLA prompt is labeled as grammatical. Most of these sentences are clearly ungrammatical, which illustrates that the CoLA data is corrupted. <strong>Right</strong> We then look at sentences a baseline classifier trained on CoLA marks as ungrammatical when the label is grammatical. We reach the same conclusion - the CoLA data is <u>mislabeled.</u></p>
+<table>
+<thead>
+<tr>
+<th><strong>Prompt (Labeled Grammatical)</strong></th>
+<th><strong>Latent 369585</strong></th>
+<th><strong>Prompt (Labeled Grammatical)</strong></th>
+<th><strong>P(y=0)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>I don’t remember what all I said?</td>
+<td>23.09</td>
+<td>Rub the cloth on the baby torn.</td>
+<td>0.933</td>
+</tr>
+<tr>
+<td>Aphrodite said he would free the animals and</td>
+<td>15.87</td>
+<td>In front of them happen.</td>
+<td>0.926</td>
+</tr>
+<tr>
+<td>free the animals he will</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Gilgamesh wanted to seduce Ishtar, and se-</td>
+<td>14.92</td>
+<td>Who did you give pictures of to friends of?</td>
+<td>0.911</td>
+</tr>
+<tr>
+<td>duce Ishtar he did.</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>An example of these substances be tobacco.</td>
+<td>14.85</td>
+<td>An example of these substances be tobacco.</td>
+<td>0.893</td>
+</tr>
+<tr>
+<td>He will can go</td>
+<td>14.43</td>
+<td>Susan hopes herself to sleep.</td>
+<td>0.890</td>
+</tr>
+</tbody>
+</table>
+<p><em>Table 8.</em> Logistic regression classifier for 110 ~~a~~ imade ~~h~~ umangpt3’s top activating tokens when run on more than 2.5 million tokens from the Pile. The classifier predominantly activates on punctuation. Only tokens with at least 10 occurences shown.</p>
+<table>
+<thead>
+<tr>
+<th><strong>Token</strong></th>
+<th><strong>Mean Activation</strong></th>
+<th><strong>Occurrences</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><em>&lt;<em>bos</em>&gt;</em></td>
+<td>6.8863</td>
+<td>7625</td>
+</tr>
+<tr>
+<td>!).</td>
+<td>6.2529</td>
+<td>10</td>
+</tr>
+<tr>
+<td>Q</td>
+<td>6.2271</td>
+<td>1436</td>
+</tr>
+<tr>
+<td>”.</td>
+<td>6.0338</td>
+<td>144</td>
+</tr>
+<tr>
+<td>.”</td>
+<td>5.9111</td>
+<td>975</td>
+</tr>
+<tr>
+<td>.).</td>
+<td>5.7334</td>
+<td>24</td>
+</tr>
+<tr>
+<td></td>
+<td>5.5035</td>
+<td>17</td>
+</tr>
+<tr>
+<td>.”</td>
+<td>5.4455</td>
+<td>1057</td>
+</tr>
+<tr>
+<td>“.</td>
+<td>5.4132</td>
+<td>319</td>
+</tr>
+<tr>
+<td><em>}</em>$.</td>
+<td>5.3990</td>
+<td>24</td>
+</tr>
+</tbody>
+</table>
+<p><em>Table 9.</em> Comparison of different logistic regression (“base”) and SAE probing methods on a selection of 60 random datasets. Last is last token probing as in the rest of our paper, concat is concatenating the top 20 PCA dimensions of all tokens, mean is taking the mean across activation dimensions across the context, max is taking the max across activation dimensions across the context, and Attn-like probe is described in Section 5.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Base</th>
+<th>Base</th>
+<th>SAE<br></th>
+<th>SAE</th>
+<th>SAE</th>
+<th>SAE<br></th>
+<th>SAE</th>
+<th>SAE</th>
+<th>Attn<br></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dataset</td>
+<td>(last)</td>
+<td>(concat)</td>
+<td>(last)<br>l0=68</td>
+<td>(mean)<br>l0=68</td>
+<td>(max)<br>l0=68</td>
+<td>(last)<br>l0=408</td>
+<td>(mean)<br>l0=408</td>
+<td>(max)<br>l0=408</td>
+<td>-Like<br>Probe</td>
+</tr>
+<tr>
+<td>6<br>~~h~~ist<br>~~f~~ig</td>
+<td><strong>0.990</strong></td>
+<td>0.977</td>
+<td>0.982</td>
+<td>0.914</td>
+<td>0.984</td>
+<td>0.983</td>
+<td>0.883</td>
+<td>0.985</td>
+<td>0.987</td>
+</tr>
+<tr>
+<td>7<br>~~h~~ist<br>~~f~~ig</td>
+<td>0.750</td>
+<td>0.698</td>
+<td>0.738</td>
+<td>0.661</td>
+<td>0.739</td>
+<td>0.746</td>
+<td>0.613</td>
+<td>0.738</td>
+<td><strong>0.760</strong></td>
+</tr>
+<tr>
+<td>21<br>~~h~~eadlin</td>
+<td>0.987</td>
+<td>0.986</td>
+<td>0.950</td>
+<td>0.993</td>
+<td><strong>1.000</strong></td>
+<td>0.964</td>
+<td>0.990</td>
+<td>1.000</td>
+<td>1.000</td>
+</tr>
+<tr>
+<td>24<br>~~h~~eadlin</td>
+<td>0.991</td>
+<td>0.979</td>
+<td>0.892</td>
+<td>0.995</td>
+<td>0.997</td>
+<td>0.947</td>
+<td>0.994</td>
+<td><strong>0.998</strong></td>
+<td>0.996</td>
+</tr>
+<tr>
+<td>44<br>~~p~~hys<br>~~t~~f</td>
+<td>0.885</td>
+<td>0.541</td>
+<td>0.836</td>
+<td>0.657</td>
+<td>0.760</td>
+<td>0.854</td>
+<td>0.656</td>
+<td>0.790</td>
+<td><strong>0.903</strong></td>
+</tr>
+<tr>
+<td>48<br>~~c~~m<br>~~c~~orr</td>
+<td>0.833</td>
+<td>0.659</td>
+<td>0.788</td>
+<td>0.699</td>
+<td>0.779</td>
+<td>0.794</td>
+<td>0.708</td>
+<td>0.784</td>
+<td><strong>0.860</strong></td>
+</tr>
+<tr>
+<td>54<br>~~c~~s<br>~~t~~f</td>
+<td>0.695</td>
+<td>0.554</td>
+<td>0.689</td>
+<td>0.588</td>
+<td>0.680</td>
+<td><strong>0.708</strong></td>
+<td>0.580</td>
+<td>0.697</td>
+<td>0.697</td>
+</tr>
+<tr>
+<td>59<br>~~w~~ikidat</td>
+<td><strong>0.961</strong></td>
+<td>0.787</td>
+<td>0.933</td>
+<td>0.809</td>
+<td>0.864</td>
+<td>0.939</td>
+<td>0.809</td>
+<td>0.875</td>
+<td>0.935</td>
+</tr>
+<tr>
+<td>62<br>~~w~~ikidat</td>
+<td><strong>0.981</strong></td>
+<td>0.878</td>
+<td>0.948</td>
+<td>0.892</td>
+<td>0.923</td>
+<td>0.959</td>
+<td>0.898</td>
+<td>0.925</td>
+<td>0.954</td>
+</tr>
+<tr>
+<td>63<br>~~w~~ikidat</td>
+<td><strong>0.959</strong></td>
+<td>0.840</td>
+<td>0.925</td>
+<td>0.869</td>
+<td>0.893</td>
+<td>0.946</td>
+<td>0.848</td>
+<td>0.862</td>
+<td>0.928</td>
+</tr>
+<tr>
+<td>66<br>~~l~~iving-</td>
+<td><strong>1.000</strong></td>
+<td>0.985</td>
+<td>1.000</td>
+<td>0.968</td>
+<td>0.999</td>
+<td>1.000</td>
+<td>0.950</td>
+<td>0.998</td>
+<td>0.998</td>
+</tr>
+<tr>
+<td>67<br>~~s~~ocial-</td>
+<td><strong>1.000</strong></td>
+<td>0.992</td>
+<td>0.999</td>
+<td>0.985</td>
+<td>0.999</td>
+<td>1.000</td>
+<td>0.971</td>
+<td>0.998</td>
+<td>0.999</td>
+</tr>
+<tr>
+<td>68<br>~~c~~redit-</td>
+<td><strong>1.000</strong></td>
+<td>0.959</td>
+<td>0.998</td>
+<td>0.942</td>
+<td>0.986</td>
+<td>0.998</td>
+<td>0.920</td>
+<td>0.981</td>
+<td>0.993</td>
+</tr>
+<tr>
+<td>71<br>~~s~~ocial-</td>
+<td>0.998</td>
+<td>0.985</td>
+<td><strong>0.998</strong></td>
+<td>0.969</td>
+<td>0.993</td>
+<td>0.998</td>
+<td>0.950</td>
+<td>0.989</td>
+<td>0.995</td>
+</tr>
+<tr>
+<td>73<br>~~c~~ontrol</td>
+<td><strong>0.998</strong></td>
+<td>0.970</td>
+<td>0.995</td>
+<td>0.945</td>
+<td>0.984</td>
+<td>0.998</td>
+<td>0.935</td>
+<td>0.986</td>
+<td>0.982</td>
+</tr>
+<tr>
+<td>78<br>~~n~~orth-a</td>
+<td><strong>1.000</strong></td>
+<td>0.933</td>
+<td>0.998</td>
+<td>0.907</td>
+<td>0.990</td>
+<td>0.999</td>
+<td>0.883</td>
+<td>0.976</td>
+<td>0.995</td>
+</tr>
+<tr>
+<td>79<br>~~h~~uman-r</td>
+<td><strong>0.999</strong></td>
+<td>0.974</td>
+<td>0.995</td>
+<td>0.964</td>
+<td>0.988</td>
+<td>0.996</td>
+<td>0.947</td>
+<td>0.990</td>
+<td>0.992</td>
+</tr>
+<tr>
+<td>89<br>~~g~~lue<br>~~m~~r</td>
+<td><strong>0.891</strong></td>
+<td>0.761</td>
+<td>0.785</td>
+<td>0.784</td>
+<td>0.796</td>
+<td>0.823</td>
+<td>0.796</td>
+<td>0.777</td>
+<td>0.867</td>
+</tr>
+<tr>
+<td>90<br>~~g~~lue<br>~~q~~n</td>
+<td>0.926</td>
+<td>0.729</td>
+<td>0.886</td>
+<td>0.830</td>
+<td>0.909</td>
+<td>0.910</td>
+<td>0.859</td>
+<td>0.909</td>
+<td><strong>0.931</strong></td>
+</tr>
+<tr>
+<td>94<br>~~a~~i<br>~~g~~en</td>
+<td><strong>0.998</strong></td>
+<td>0.996</td>
+<td>0.993</td>
+<td>0.997</td>
+<td>0.996</td>
+<td>0.996</td>
+<td>0.996</td>
+<td>0.997</td>
+<td>0.996</td>
+</tr>
+<tr>
+<td>96<br>~~s~~pam<br>~~i~~s</td>
+<td><strong>0.999</strong></td>
+<td>0.999</td>
+<td>0.997</td>
+<td>0.996</td>
+<td>0.997</td>
+<td>0.998</td>
+<td>0.995</td>
+<td>0.999</td>
+<td>0.999</td>
+</tr>
+<tr>
+<td>100<br>~~n~~ews<br>~~f~~</td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+<td>1.000</td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+<td>1.000</td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+</tr>
+<tr>
+<td>105<br>~~c~~lick</td>
+<td>1.000</td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+<td>0.999</td>
+<td>1.000</td>
+<td>0.999</td>
+<td>1.000</td>
+<td>1.000</td>
+<td>1.000</td>
+</tr>
+<tr>
+<td>106<br>~~h~~ate<br>~~h~~</td>
+<td>0.722</td>
+<td>0.612</td>
+<td>0.661</td>
+<td>0.742</td>
+<td>0.785</td>
+<td>0.674</td>
+<td>0.735</td>
+<td>0.788</td>
+<td><strong>0.812</strong></td>
+</tr>
+<tr>
+<td>110<br>~~a~~imade</td>
+<td>0.975</td>
+<td>0.865</td>
+<td>0.953</td>
+<td>0.919</td>
+<td>0.970</td>
+<td>0.953</td>
+<td>0.916</td>
+<td>0.960</td>
+<td><strong>0.979</strong></td>
+</tr>
+<tr>
+<td>114<br>~~n~~yc<br>~~b~~o</td>
+<td>0.780</td>
+<td>0.755</td>
+<td>0.740</td>
+<td>0.716</td>
+<td>0.797</td>
+<td>0.745</td>
+<td>0.733</td>
+<td>0.805</td>
+<td><strong>0.872</strong></td>
+</tr>
+<tr>
+<td>119<br>~~u~~s<br>~~s~~ta</td>
+<td><strong>0.997</strong></td>
+<td>0.957</td>
+<td>0.994</td>
+<td>0.982</td>
+<td>0.990</td>
+<td>0.994</td>
+<td>0.952</td>
+<td>0.992</td>
+<td>0.995</td>
+</tr>
+<tr>
+<td>120<br>~~u~~s<br>~~t~~im</td>
+<td>0.944</td>
+<td>0.803</td>
+<td>0.942</td>
+<td>0.785</td>
+<td><strong>0.946</strong></td>
+<td>0.936</td>
+<td>0.751</td>
+<td>0.940</td>
+<td>0.941</td>
+</tr>
+<tr>
+<td>121<br>~~u~~s<br>~~t~~im</td>
+<td>0.952</td>
+<td>0.815</td>
+<td>0.948</td>
+<td>0.776</td>
+<td>0.954</td>
+<td>0.950</td>
+<td>0.754</td>
+<td><strong>0.957</strong></td>
+<td>0.951</td>
+</tr>
+<tr>
+<td>124<br>~~w~~orld</td>
+<td>0.999</td>
+<td>0.999</td>
+<td><strong>0.999</strong></td>
+<td>0.965</td>
+<td>0.999</td>
+<td>0.998</td>
+<td>0.968</td>
+<td>0.999</td>
+<td>0.999</td>
+</tr>
+<tr>
+<td>127<br>~~a~~rt<br>~~t~~y</td>
+<td>0.913</td>
+<td>0.872</td>
+<td>0.894</td>
+<td>0.834</td>
+<td>0.889</td>
+<td>0.905</td>
+<td>0.845</td>
+<td>0.900</td>
+<td><strong>0.916</strong></td>
+</tr>
+<tr>
+<td>129<br>~~a~~rith</td>
+<td><strong>0.979</strong></td>
+<td>0.903</td>
+<td>0.880</td>
+<td>0.867</td>
+<td>0.951</td>
+<td>0.938</td>
+<td>0.861</td>
+<td>0.975</td>
+<td>0.977</td>
+</tr>
+<tr>
+<td>132<br>~~t~~emp<br>~~c~~</td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td>0.991</td>
+</tr>
+<tr>
+<td>133<br>~~c~~ontex</td>
+<td>0.984</td>
+<td>0.982</td>
+<td>0.975</td>
+<td>0.973</td>
+<td>0.979</td>
+<td>0.968</td>
+<td>0.973</td>
+<td>0.980</td>
+<td><strong>0.986</strong></td>
+</tr>
+<tr>
+<td>134<br>~~c~~ontex</td>
+<td>0.985</td>
+<td>0.977</td>
+<td>0.953</td>
+<td>0.966</td>
+<td>0.989</td>
+<td>0.966</td>
+<td>0.963</td>
+<td><strong>0.994</strong></td>
+<td>0.987</td>
+</tr>
+<tr>
+<td>137<br>~~g~~lue<br>~~m~~</td>
+<td><strong>0.856</strong></td>
+<td>0.551</td>
+<td>0.788</td>
+<td>0.632</td>
+<td>0.734</td>
+<td>0.807</td>
+<td>0.658</td>
+<td>0.742</td>
+<td>0.844</td>
+</tr>
+<tr>
+<td>139<br>~~n~~ews<br>~~c~~</td>
+<td><strong>0.978</strong></td>
+<td>0.950</td>
+<td>0.944</td>
+<td>0.972</td>
+<td>0.953</td>
+<td>0.962</td>
+<td>0.967</td>
+<td>0.973</td>
+<td>0.965</td>
+</tr>
+<tr>
+<td>141<br>~~n~~ews<br>~~c~~</td>
+<td>0.951</td>
+<td>0.942</td>
+<td>0.917</td>
+<td>0.967</td>
+<td>0.968</td>
+<td>0.933</td>
+<td>0.965</td>
+<td><strong>0.973</strong></td>
+<td>0.965</td>
+</tr>
+<tr>
+<td>144<br>~~c~~ancer</td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+<td>0.981</td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td>0.991</td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+</tr>
+<tr>
+<td>145<br>~~d~~iseas</td>
+<td>0.618</td>
+<td>0.677</td>
+<td>0.501</td>
+<td>0.618</td>
+<td>0.678</td>
+<td>0.563</td>
+<td>0.606</td>
+<td><strong>0.686</strong></td>
+<td>0.655</td>
+</tr>
+<tr>
+<td>149<br>~~t~~wt<br>~~e~~m</td>
+<td>0.787</td>
+<td>0.756</td>
+<td>0.730</td>
+<td>0.780</td>
+<td>0.843</td>
+<td>0.759</td>
+<td>0.813</td>
+<td><strong>0.853</strong></td>
+<td>0.851</td>
+</tr>
+<tr>
+<td>150<br>~~t~~wt<br>~~e~~m</td>
+<td>0.710</td>
+<td>0.612</td>
+<td>0.652</td>
+<td>0.700</td>
+<td>0.730</td>
+<td>0.672</td>
+<td>0.717</td>
+<td>0.746</td>
+<td><strong>0.777</strong></td>
+</tr>
+<tr>
+<td>155<br>~~a~~thlet</td>
+<td>0.995</td>
+<td>0.988</td>
+<td>0.990</td>
+<td>0.970</td>
+<td>0.988</td>
+<td>0.988</td>
+<td>0.960</td>
+<td>0.985</td>
+<td><strong>0.996</strong></td>
+</tr>
+<tr>
+<td>158<br>~~c~~ode<br>~~C~~</td>
+<td><strong>1.000</strong></td>
+<td>0.998</td>
+<td>1.000</td>
+<td>0.999</td>
+<td>1.000</td>
+<td>1.000</td>
+<td>0.999</td>
+<td>1.000</td>
+<td>0.997</td>
+</tr>
+<tr>
+<td>162<br>~~a~~gnews</td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+</tr>
+<tr>
+<td>163<br>~~a~~gnews</td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+<td>1.000</td>
+<td>1.000</td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td><strong>1.000</strong></td>
+<td>1.000</td>
+</tr>
+</tbody>
+</table>
+
+</article>
+<nav class="pager"><a class="prev" href="56_axbench.html"><small>Previous · 56</small>AxBench</a><a class="mid" href="index.html#section-F">Contents</a><a class="next" href="58_sae_random_transformers.html"><small>Next · 58</small>SAEs on Random Transformers</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

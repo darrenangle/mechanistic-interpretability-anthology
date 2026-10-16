@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>90 · A Pragmatic Vision for Interpretability — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 90 / 91 &nbsp;·&nbsp; Section I</span></div>
+<header class="cover">
+<div class="numeral">90</div>
+<div class="tag"><span class="pri P0" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P0 — ESSENTIAL</span>
+</div>
+<h1>A Pragmatic Vision for Interpretability</h1>
+<p class="cite">Nanda et al. — 2025</p>
+<p class="authors">Neel Nanda, Josh Engels, Arthur Conmy, Senthooran Rajamanoharan, Bilal Chughtai, Callum McDougall, János Kramár, Lewis Smith</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Announces the Google DeepMind mechanistic interpretability team's pivot from ambitious reverse-engineering to pragmatic work: safety-relevant problems, chosen by comparative advantage and measured on proxy tasks.</p></div><div class="note"><div class="label">Reading focus</div><p>The evaluation-awareness steering example, North Stars and proxy tasks, focused versus exploratory projects, method minimalism, the SAE case study, and the frank list of what still blocks reverse-engineering.</p></div><div class="note"><div class="label">In context</div><p>The programme behind <a href="55_gdm_sae_negative_results.html">55</a> and <a href="57_sae_sparse_probing.html">57</a>, and a counterweight to <a href="91_urgency_of_interpretability.html">91</a>'s bet on deep understanding. It credits <a href="77_auditing_hidden_objectives.html">77</a>, <a href="54_biology_of_llm.html">54</a> and <a href="81_introspective_awareness.html">81</a> as real progress while listing superposition, <a href="29_hydra_effect.html">29</a>'s self-repair and dictionary error as blockers; the programmes of Section G are the ambitious bets it calls one option among several.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>I — Is this worth doing?</dd>
+<dt>Source</dt><dd><a href="https://www.alignmentforum.org/posts/StENzDcD3kpfGJssR/a-pragmatic-vision-for-interpretability">https://www.alignmentforum.org/posts/StENzDcD3kpfGJssR/a-pragmatic-vision-for-interpretability</a> &nbsp;·&nbsp; AI Alignment Forum</dd>
+<dt>Licence</dt><dd>No explicit licence (LessWrong / AI Alignment Forum terms leave copyright with the author)</dd>
+<dt>In print</dt><dd>PDF pages 3685–3711 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="89_not_reliably_find_deception.html"><small>Previous · 89</small>Will Not Reliably Find Deceptive AI</a><a class="mid" href="index.html#section-I">Contents</a><a class="next" href="91_urgency_of_interpretability.html"><small>Next · 91</small>The Urgency of Interpretability</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1>A Pragmatic Vision for Interpretability</h1>
+<p>by <strong>Neel Nanda, Josh Engels, Arthur Conmy, Senthooran Rajamanoharan, bilalchughtai, CallumMcDougall, J</strong> á <strong>nos Kram</strong> á <strong>r, lewis smith</strong></p>
+<p>1st Dec 2025</p>
+<h2>Executive Summary</h2>
+<ul>
+<li>
+<p>The Google DeepMind mechanistic interpretability team has made a strategic pivot over the past year, from ambitious reverse-engineering to a focus on <strong>pragmatic interpretability:</strong></p>
+<ul>
+<li>
+<p>Trying to <strong>directly solve problems</strong> on the critical path to AGI going well [[1]]</p>
+</li>
+<li>
+<p>Carefully choosing problems according to our <strong>comparative advantage</strong></p>
+</li>
+<li>
+<p>Measuring progress with empirical feedback on <strong>proxy tasks</strong></p>
+</li>
+</ul>
+</li>
+<li>
+<p>We believe that, on the margin, more researchers who share our goals <strong>should take a pragmatic approach</strong> to interpretability, both in industry and academia, and we <strong>call on people to join us</strong> Our proposed scope is broad and includes much non-mech interp work , but we see this as the</p>
+<ul>
+<li>
+<p><strong>natural approach for mech interp</strong> <strong><em>researchers</em> to have impact</strong></p>
+</li>
+<li>
+<p>Specifically, we’ve found that <strong>the skills, tools and tastes</strong> of mech interp researchers <strong>transfer well</strong> to important and neglected problems outside “classic” mech interp</p>
+</li>
+<li>
+<p>See our <strong>companion piece</strong> for more on which research areas and theories of change we think are promising</p>
+</li>
+</ul>
+</li>
+<li>
+<p>Why pivot now? We think that <strong>times have changed</strong> .</p>
+<ul>
+<li>
+<p><strong>Models are far more capable</strong> , bringing new questions within empirical reach</p>
+</li>
+<li>
+<p>We have been <strong>disappointed by the amount of progress</strong> made by ambitious mech interp work, from both us and others [[2]]</p>
+</li>
+<li>
+<p>Most existing interpretability techniques struggle on today’s important behaviours, e.g. they involve large models, complex environments, agentic behaviour and long chains of thought</p>
+</li>
+</ul>
+</li>
+</ul>
+<h4>Problem: <strong>It is easy to do research that doesn't make real progress.</strong></h4>
+<ul>
+<li>
+<p>Our approach: ground your work with a <strong>North Star</strong> - a meaningful stepping-stone goal towards AGI going well - and a <strong>proxy task</strong> - empirical feedback that stops you fooling yourself and that tracks progress toward the North Star.</p>
+</li>
+<li>
+<p>“Proxy tasks” <strong>doesn't mean boring benchmarks</strong> . Examples include: interpret the hidden goal of a model organism; stop emergent misalignment without changing training data; predict what prompt changes will stop an undesired behavior .</p>
+</li>
+<li>
+<p>We see two main approaches to research projects: <strong>focused projects</strong> (proxy task driven), and <strong>exploratory projects</strong> (curiosity-driven, proxy task validated)</p>
+<ul>
+<li>Curiosity-driven work can be very effective, but can also get caught in rabbit holes. We recommend starting in a <strong>robustly useful setting</strong> , <strong>time box</strong> your exploration [[3]] , and finding a <strong>proxy task as a validation step</strong> [[4]]</li>
+</ul>
+</li>
+<li>
+<p>We advocate <strong>method minimalism</strong> : start solving your proxy task with the simplest methods (e.g. prompting, steering, probing, reading chain-of-thought). Introduce complexity or design new methods only once baselines have failed.</p>
+</li>
+</ul>
+<h2>Introduction</h2>
+<p>The DeepMind mech interp team has pivoted from chasing the ambitious goal of complete reverse-engineering of neural networks, to a focus on pragmatically making as much progress as we can on the critical path to preparing for AGI to go well, and choosing the most important problems according to our comparative advantage. We believe that this pragmatic approach has already shown itself to be more promising .</p>
+<p>We don’t claim that these ideas are unique, indeed we’ve been helped to these conclusions by the thoughts of many others both in academia (1 2 3) and the safety community (1 2 3). But we have found this framework helpful for accelerating our progress, and hope to distill and communicate it to help other have more impact. We close with recommendations for how interested researchers can proceed .</p>
+<p>Motivating Example: Steering Against Evaluation Awareness</p>
+<p>Consider the recent work by Jack Lindsey's team at Anthropic on steering Sonnet 4.5 against evaluation awareness, to help with a pre-deployment audit.</p>
+<p>When Anthropic evaluated Sonnet 4.5 on their existing alignment tests [[5]] , they found that the rate of misalignment had unexpectedly dropped to 0%. Had they solved alignment?! Unfortunately not. Sonnet 4.5 was instead much better at recognizing when it was being evaluated, and deliberately choosing the most ethical action to pass. The tests weren't measuring alignment; they were measuring evaluation awareness.</p>
+<p>Jack’s team subtracted an evaluation-awareness steering vector, partially mitigating the problem and revealing that Sonnet 4.5 did in fact show “misalignment” at a rate of roughly 8%. That is, our ability to evaluate a frontier model for alignment broke, and interpretability researchers were able to fix it.</p>
+<p>This case study illustrates [[6]] several principles central to our current thinking:</p>
+<ol>
+<li>
+<p><strong>Models are far more interesting</strong> : A critical part of this project was having a model exhibiting severe eval aware behaviour in practice [[7]]</p>
+</li>
+<li>
+<p><strong>The value of proxy tasks</strong> : The ultimate goal is to be able to suppress eval awareness on highly capable future models. We can’t study these directly, but Sonnet 4.5 was one of the best proxies available.</p>
+<ul>
+<li>a. This is one of the best ways we can think of to predict which methods will work for suppressing eval awareness in future models. [[8]]</li>
+</ul>
+</li>
+<li>
+<p><strong>Pursue comparative advantage</strong> : This was a well-chosen problem. Often baselines like fine-tuning or improving our data suffice. But it is very difficult to construct sufficiently realistic data for eval-awareness, at least long-term [[9]] , while steering has complementary strengths</p>
+<ul>
+<li>a. Further, this was a project best done by mech interp researchers, despite not being mech interp - the key result was an application, not about understanding, but “working with model internals” is a skill we have built</li>
+</ul>
+</li>
+<li>
+<p><strong>Method minimalism</strong> : Despite the enormous research effort the field has invested into sparse autoencoders [[10]] , the best method was a steering vector derived from a single contrastive pair of [[11]]</p>
+</li>
+</ol>
+<p>prompts .</p>
+<ol start="5">
+<li><strong>Partial understanding sufficed</strong> : The researchers had a highly incomplete understanding of what was happening with Sonnet, yet steering vectors were highly effective. We do not need to achieve deep understanding to do impactful work</li>
+</ol>
+<h2>Our Core Process</h2>
+<p>How can we make research progress without fooling ourselves?</p>
+<p>Our solution: ground your work with a <strong>proxy task [[12]]</strong> : an objective task that gives empirical feedback, and tracks progress toward a <strong>North Star</strong> , the real goal that directly connects to helping AGI go well</p>
+<p>How you find your proxy task depends on your project. Some archetypical approaches are proxy task-driven <strong>focused projects</strong> and curiosity-driven <strong>exploratory projects</strong> . We advocate <strong>method minimalism</strong> throughout.</p>
+<h4><strong>Worked Example of a focused project:</strong> Suppressing eval awareness</h4>
+<ul>
+<li>
+<p>This starts with a <strong>theory of change</strong> for helping AGI go well</p>
+<ul>
+<li>We want to be able to evaluate future models for how aligned they are</li>
+</ul>
+</li>
+<li>
+<p>We identify a more tractable <strong>North Star</strong> : Stop models acting differently when tested [[13]]</p>
+</li>
+<li>
+<p>We find an empirical <strong>proxy task</strong> to track progress towards the North Star: Take an eval aware behaviour in a model today, and see if we suppress it</p>
+<ul>
+<li>A core difficulty is verifying that the behaviour is actually eval aware, and not just side effects from your intervention! [[14]]</li>
+</ul>
+</li>
+</ul>
+<p><strong>How to approach exploratory projects</strong> : Curiosity-driven research can be a promising way to develop important insights, but being intellectually satisfying isn't the same as being important. The key is to ground yourself enough to avoid getting caught in an endless rabbit hole that goes nowhere:</p>
+<ol>
+<li>
+<p>Think strategically, and start in a <strong>robustly useful setting</strong> where interesting phenomena are likely to surface</p>
+</li>
+<li>
+<p><strong>Time-box</strong> your exploration: set a bounded period (we aim for an aggressive two weeks, but the ideal time for you will vary)</p>
+</li>
+<li>
+<p>At the end, zoom out, and look for a proxy task to validate your insights.</p>
+<ul>
+<li>a. If you can’t find one, move on to another approach or project.</li>
+</ul>
+</li>
+</ol>
+<h3>Which Beliefs Are Load-Bearing?</h3>
+<p>Why have we settled on this process? We'll go through many of the arguments for why we think this is a good way to achieve our research goals (and yours, if you share them!). But many readers will disagree with at least some of our worldview, so it's worth unpacking what beliefs are and are not load-bearing</p>
+<p><strong>Premise</strong> : Our main priority is ensuring AGI goes well</p>
+<ul>
+<li>
+<p>This is a central part of our framing and examples. But we would still follow this rough approach if we had different goals, we think the emphasis on pragmatism and feedback loops is good for many long-term, real-world goals.</p>
+</li>
+<li>
+<p>If you have a more abstract goal, like &quot;further scientific understanding of networks,&quot; then North Stars and theories of change are likely less relevant. But we do think the general idea of validating your insights with objective tasks is vital. Contact with reality is important!</p>
+</li>
+<li>
+<p><strong>Premise</strong> : We want our work to pay off within ~ 10 years</p>
+<ul>
+<li>
+<p>Note that this is not just a point about AGI timelines - even if AGI is 20 years away, we believe that tighter feedback loops still matter</p>
+<ul>
+<li>
+<p>We believe that long-term progress generally breaks down into shorter-term stepping stones, and that research with feedback loops makes faster progress per unit effort than research without them.</p>
+</li>
+<li>
+<p>We're skeptical of ungrounded long-term bets. Basic science without clear milestones feels like fumbling in the dark.</p>
+<ul>
+<li>See more of our thoughts on basic science in the appendix</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p>Though, while we're uncertain about AGI timelines, we put enough probability on short timelines (2-5 years) that we particularly value work that pays off in that window, since those are the most [[15]] .</p>
+</li>
+<li>
+<p>important possibilities to influence</p>
+<ul>
+<li>So if you're confident in very long timelines, some of our urgency won't resonate.</li>
+</ul>
+</li>
+<li>
+<p>Either of these two points is enough to motivate some of our high-level approach</p>
+</li>
+</ul>
+</li>
+</ul>
+<h3>Is This Really Mech Interp?</h3>
+<p>Our proposed approach deviates a lot from the &quot;classic&quot; conception of mech interp. So a natural question is, &quot;is this really mech interp?&quot;</p>
+<p>We would say <strong>no, it is not</strong> . We are proposing something broader [[16]] . But we also think <strong>this is the wrong question</strong> . Semantics are unimportant here.</p>
+<p>We’re really answering: <strong>how can mech interp</strong> <strong><em>researchers</em> have the most impact?</strong> The community of researchers who have historically done interpretability work have developed valuable skills, tools, and tastes that transfer well to important problems beyond narrow reverse-engineering.</p>
+<p>Our priority is to help AGI go well. We don't particularly care whether our team is called the &quot;Mechanistic Interpretability Team&quot; or something else. What we care about is that researchers with these skills apply them to the most impactful problems they can, rather than artificially constraining themselves to work that &quot;looks like&quot; classic mech interp.</p>
+<h3>Our Comparative Advantage</h3>
+<p>The tools, skills and mindsets of mech interp seem helpful for many impactful areas of safety (like steering to suppress eval awareness!), and there’s real value we can add to the safety research portfolio in areas we consider comparatively neglected. In a sense, this is the same as any other area of safety - do the most impactful thing according to your comparative advantage - but naturally comes to different conclusions.</p>
+<p>You know your own situation far better than we do, so are better placed to determine your own comparative advantage! But here are what we see as our own comparative advantages, and we expect these to apply to many other mech interp researchers:</p>
+<ol>
+<li>
+<p><strong>Working with internals:</strong> There’s a lot of interesting things you can do by manipulating a model’s internals! This provides tools with different strengths and failure modes than standard ML, and can be highly effective in the right situation</p>
+<ul>
+<li>a. e.g. steering to suppress eval awareness where improved data may not suffice or cheap and effective monitors via probes</li>
+</ul>
+</li>
+<li>
+<p><strong>Deep dives</strong> : Expertise taking some question about model behaviour or cognition, and providing a deeper and more reliable explanation of why it happens (via whatever tools necessary). This is a natural fit to auditing, red-teaming other methods, confirming suspected model misbehaviour, etc</p>
+<ul>
+<li>
+<p>a. <strong>Scientific mindset</strong> : Experience forming and testing hypotheses about complex phenomena [[17]] with no clear ground truth - entertaining many hypotheses, designing principled experiments to gather evidence, trying to falsify or strengthen hypotheses about a fuzzy question.</p>
+<ul>
+<li>
+<p>i. e.g. whether deception in Opus 4.5 is malicious, or whether self-preservation drives blackmail behaviour</p>
+</li>
+<li>
+<p>ii. This trait is hardly unique to interpretability [[18]] , and we’re excited when we see other safety researchers doing this kind of work. But interp work does emphasise a lot of the key skills: e.g. if you have a hypothesis about a model, there’s not too big a difference between carefully considering confounders to design a principled activation patching experiment, and thinking about the best surgical edits to make to a prompt.</p>
+</li>
+</ul>
+</li>
+<li>
+<p>b. <strong>Qualitative insight</strong> : Good expertise with tools (e.g. sparse autoencoders [[19]] ) to take particular instances of a model’s behaviour and looking for the key, qualitative factors that drove it</p>
+<ul>
+<li>i. e.g. Anthropic’s model biology work, or our work investigating causes of shutdown resistance</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<ul>
+<li>
+<p>c. <strong>Unsupervised discovery:</strong> Tools to surface hypotheses you wouldn't think of</p>
+<ul>
+<li>i. e.g. linear world models in Othello, or entity recognition in LLMs</li>
+</ul>
+</li>
+</ul>
+<p>Any of these can be enough to be a significant advantage! We choose to focus on safety relevant problems where these advantages give us an edge.</p>
+<p>In practice, we don’t do every project by thinking fully from first principles - we think strategically every so often, identify promising areas that are impactful and match some of these comparative advantages, and look for promising projects within there.</p>
+<p>See our companion piece for thoughts on which research areas and theories of change we think are promising. But we put that in another post since we think that people can agree with us on research approach while disagreeing about the areas we want to apply it to, and we would be excited for readers to find other areas where they can have an impact!</p>
+<h2>Why Pivot?</h2>
+<p>Two broad categories of developments led us to this shift away from our prior approach: new opportunities and challenges from rapid AI progress, and reflections on the interpretability field's successes and failures. Though, we now think the strongest argument is that our new approach seems impactful, as we try to argue throughout the piece.</p>
+<p>What's Changed In AI?</p>
+<ol>
+<li>
+<p><strong>Better proxy tasks</strong> : Model behaviour is much more interesting:</p>
+<ul>
+<li>a. They now show hints of intention, coherence, scheming, evaluation awareness, reward hacking, alignment faking, and other rich, safety-relevant behaviors that earlier models didn't exhibit.</li>
+</ul>
+</li>
+<li>
+<p><strong>Model organisms</strong> : We also now have better techniques for <em>deliberately</em> training in safety-relevant behaviour [[20]] , so we can study it with a known ground truth [[21]]</p>
+<ul>
+<li>a. Synthetic document fine-tuning, for instance, lets us study phenomena like evaluation awareness in open-source models (as in Hua et al.), or implant sophisticated things like hidden goals (as in Marks et al.) bringing forward capabilities we can study today.</li>
+</ul>
+</li>
+</ol>
+<h3>Reflections On The Field's Progress</h3>
+<p>Looking back at the past few years of interpretability work, we see genuine partial progress, with pragmatically useful applications to safety:</p>
+<ul>
+<li>
+<p>Elicit secret goals or knowledge from models</p>
+</li>
+<li>
+<p>Discover unexpected phenomena inside models, like implicit planning, entity recognition and basic introspection</p>
+</li>
+<li>
+<p>Systematise investigations to the point of having agents do them for us</p>
+</li>
+</ul>
+<p>Interpret what was learned during fine-tuning</p>
+<ul>
+<li>
+<p>Add insight to the causes of concerning behaviour in real models, like deception, shutdown resistance , or blackmail</p>
+</li>
+<li>
+<p>Suppress evaluation awareness</p>
+</li>
+</ul>
+<p>But these successes are the result of highly-incomplete but useful understanding of models [[22]] . Grand goals like near-complete reverse-engineering still feel far out of reach, e.g.:</p>
+<ul>
+<li>
+<p>Superposition (especially cross-layer superposition)</p>
+</li>
+<li>
+<p>The increased dependence on sampling and multi-turn interactions and agentic tool calls, significantly increasing algorithmic complexity</p>
+</li>
+<li>
+<p>Dictionary learning has made limited progress towards reverse-engineering at best, e.g. it shows [[23]] .</p>
+</li>
+<li>
+<p>significant approximation error which shows no signs of going away</p>
+</li>
+<li>
+<p>Self-repair, meaning that we can’t get clean info from causal interventions</p>
+</li>
+<li>
+<p>There’s been some progress on inherently interpretable models, but no signs that the techniques will become cheap enough to be applied to frontier models.</p>
+</li>
+</ul>
+<p>We can't rule out that more ambitious goals would work with time and investment [[24]] . And we’re not claiming that ambitious reverse-engineering is useless or should stop. We’re claiming:</p>
+<ul>
+<li>
+<p>Ambitious reverse engineering is one bet among several.</p>
+</li>
+<li>
+<p>It is not <em>necessary</em> to have an impact with interpretability tools</p>
+</li>
+<li>
+<p>The marginal interpretability researcher is more likely to have impact by grounding their work in safetyrelevant proxy tasks on modern models.</p>
+</li>
+<li>
+<p>Perhaps more controversially, we think ambitious reverse-engineering should be evaluated the same way as other pragmatic approaches: via empirical payoffs on tasks, not approximation error.</p>
+</li>
+</ul>
+<h2>Task Focused: The Importance Of Proxy Tasks</h2>
+<h4>One of our biggest updates: <strong>proxy tasks are essential for measuring progress.</strong></h4>
+<p>We've found that it is easy to fool ourselves when doing research. To progress as a field, we need ways to tell if we're actually making progress. The key criterion for a good proxy task is this: if you succeeded on it, would you actually update toward believing you'd made progress on your North Star? If not, you need a different proxy task.</p>
+<p>Case Study: Sparse Autoencoders</p>
+<p>We spent much of 2024 researching sparse autoencoders [[25]] . In hindsight, we think we made significant tactical errors and our progress was much slower than it could have been if we had measured our progress</p>
+<p>with proxy tasks rather than reconstruction / sparsity pareto frontiers.</p>
+<p>We got into SAE research because we thought it could be a potential path to an interpretable representation of any activation, which would make many things in interpretability far easier. But we do not feel like we actually learned that much either way on this question in the first 6 months after Towards Monosemanticity.</p>
+<p>Certain basic hurdles were cleared, like showing that nothing broke when scaling it to frontier models. We found some SAE architectures that improved metrics like approximation error (loss recovered at a given sparsity level). But it is unclear how to interpret that metric. Perfect approximation error would be fantastic, but seems highly unrealistic. And what does lower but still non-zero error mean? What error do we need, and how do we convert this to knowledge of what SAEs can do?</p>
+<p>In contrast, we learned far more from work focused on proxy tasks. For example, we predicted that an interpretable classifier would be more robust, and thus that a sparse SAE probe would generalise better out of distribution, which by and large seems to have been false [[26]] . There were similarly poor results on tasks like unlearning. However, SAEs are useful for discovering unexpected things about the internals of a model, like that they have representations of entities they do and do not know facts about, or extracting a hidden goal, or [[27]] discovering implicit planning .</p>
+<p>Our overall sense is that SAEs are a powerful tool for unsupervised discovery, but when there is a clear thing to study, you are better served by constructing a dataset to help you investigate it. We made a decision to deprioritise SAE research as a result , not because we thought the technique was useless, but because we thought it didn't seem useful enough to justify the field’s levels of investment. We think we would have struggled to come to a similar conclusion with any confidence without studying proxy tasks.</p>
+<p>This is illustrated again by the case of suppressing eval awareness in Sonnet 4.5. SAEs did not beat steering, despite the considerable effort the field poured into them, hoping in part that they could find better and cleaner concept directions. It is difficult to a priori guide research toward superior techniques without good feedback. We are sure that there exist superior methods to steering for suppressing eval awareness, but we are not sure what those are or how else to find them beyond iterating on proxy tasks.</p>
+<h3>Ensure They Are Good Proxies</h3>
+<p><strong>Why call them &quot;proxy&quot; tasks?</strong> Because they measure progress toward your North Star without being the final goal itself. Given that our ultimate goal is typically to work with future models, which will be qualitatively different from today's models in many ways, we think it is rarely possible to actually study our North Star directly.</p>
+<p>Proxy tasks have clear advantages - you can make rapid, measurable progress on hard problems. But it is also dangerous: Goodhart's Law applies. Optimise too hard for the proxy and you'll overfit to its quirks rather than solving the underlying problem. A lie detector that only catches explicit admissions (&quot;I should lie now&quot;) will ace your benchmark while failing on actual strategic deception.</p>
+<p>As such, it is <strong>critical to regularly red-team your own work</strong> . Constantly ask yourself: How could this proxy diverge from what I actually care about? What would I miss by focusing only on this metric? What happens when I test on a different distribution?</p>
+<p>A key purpose of the North Star is to help you re-evaluate your proxy task. If the proxy task ceases to track the North Star, adjust it or pick a different one.</p>
+<h4><strong>Aside</strong> :</h4>
+<ul>
+<li>
+<p>Note that proxy tasks can have various conditions attached, with good reason. [[28]]</p>
+</li>
+<li>
+<p>There are settings where the best available proxy tasks are extremely limited. We think the best course of action is usually to wait and study these in future, when model capabilities advance enough. [[29]]</p>
+</li>
+</ul>
+<h3>Proxy Tasks Can Be About Understanding</h3>
+<p>A common concern about proxy tasks is that they’re narrow metrics that don't get at the real goals of interpretability. But you can construct proxy tasks that get at the heart of what interpretability is about.</p>
+<p><strong>Example</strong> : In Marks et al., researchers gave a model a hidden goal through fine-tuning, and then other (blinded) researchers practiced trying to extract it. This is a proxy task fundamentally about whether we can understand what's going on inside a model - exactly what interpretability aims for.</p>
+<p><strong>Example</strong> : If you want to work with real models, you could e.g test a secret elicitation technique by trying to extract harmful knowledge from a model with good refusal training.</p>
+<p>More broadly, when you’re doing a project whose goal is to provide understanding of some phenomena, your “proxy task” can just be making some empirical, falsifiable prediction based on your hypothesis, and testing this. So long as understanding your phenomena links back to your North Star, any proxy task to test understanding does too, even if it doesn’t seem obviously safety relevant. For example:</p>
+<ul>
+<li>
+<p>Find a minimal change to the prompt that causes a predictable change to the model's behavior - like a minimal change that stops the model acting deceptively (as in our shutdown resistance work )</p>
+</li>
+<li>
+<p>Handcrafted adversarial examples that test your understanding.</p>
+</li>
+<li>
+<p>Mechanistic claims predicting intervention outcomes. For example, the claim that refusal is mediated by a single direction predicts that we can ablate the refusal direction and jailbreak models. [[30]]</p>
+</li>
+</ul>
+<h2>Types Of Projects: What Drives Research Decisions</h2>
+<p>We find it useful to distinguish between two archetypes of projects: <strong>focused projects</strong> (proxy task driven) and <strong>exploratory projects</strong> (curiosity-driven, proxy task validated). This is not a perfect dichotomy - projects can shift between types, or blend elements of both . But the distinction helps clarify which advice applies.</p>
+<p>Here, the starting point is a theory of change for how your work could help make AGI go well. You then identify a problem on the critical path of this theory of change as your North Star - a stepping-stone goal that, if achieved, would bring you closer to being prepared for AGI. Finally, you translate this to a proxy task that can be studied on today's models, and then focus on solving that task .</p>
+<p>The high-level theory of change typically remains stable over the course of a project and is what drives your confidence that the project is worthwhile. It’s fine to refine the North Star and change the proxy task to track it better.</p>
+<p><strong>Hypothetical Example:</strong> Catching schemers</p>
+<ul>
+<li>
+<p><strong>Theory of change</strong> : We would like to catch an AI that is scheming against us.</p>
+</li>
+<li>
+<p>This has many sub-problems, and thus many possible North Stars!</p>
+</li>
+<li>
+<p><strong>North Star 1</strong> : Identify hidden goals in powerful future AI systems</p>
+<ul>
+<li><strong>Proxy task</strong> : Create a model organism with a known goal and have blinded researchers or investigator agents try to extract it [[31]]</li>
+</ul>
+</li>
+<li>
+<p><strong>North Star 2</strong> : Be able to detect deception in future AI systems</p>
+<ul>
+<li>
+<p><strong>Proxy task</strong> : Can we detect examples of AIs lying in naturally occurring settings, e.g. being asked about having faked tests?</p>
+<ul>
+<li>This first requires the prep work of finding natural examples, and establishing decent cause to believe that they are deception-ish</li>
+</ul>
+</li>
+<li>
+<p>We note that there are valid reasons to be suspicious of this proxy task! It would be reasonable to just not study lie detection until we have found better and more robust examples of naturalistic deception. See our position piece for more</p>
+</li>
+</ul>
+</li>
+<li>
+<p><strong>Worked Example:</strong> Steering fine-tuning by ablating concepts (CAFT)</p>
+<ul>
+<li>
+<p>This is a stylised history of a real MATS project we supervised, from Helena Casademunt and Caden Juang</p>
+</li>
+<li>
+<p><strong>Theory of change</strong> : We’d like to be able to directly improve how we fine-tune models</p>
+<ul>
+<li>Observation: sometimes data has a spurious correlation that can’t (realistically) be removed, e.g. a highly capable model observing hints that it’s in a training environment</li>
+</ul>
+</li>
+<li>
+<p><strong>North Star</strong> : Be able to control fine-tuning when we cannot remove a spurious cue</p>
+</li>
+<li>
+<p><strong>Proxy task</strong> : Train on data where 100% has a spurious cue. Stop the model learning this cue, without making any changes to the data</p>
+</li>
+<li>
+<p>The project began with this clear theory of change and proxy task and retained it throughout, though the exact dataset for the proxy task shifted</p>
+</li>
+<li>
+<p>Notably, despite being “focused”, there was a fair amount of exploration and creativity - focused does not mean boring!</p>
+</li>
+</ul>
+</li>
+<li>
+<p>They cycled through several unsuccessful method ideas (e.g. ablating gradients in undesired concept directions) and candidate datasets for proxy tasks before finding the final method of ablating activation subspaces corresponding to undesired concepts to e.g. prevent emergent misalignment</p>
+</li>
+</ul>
+<p>Exploratory Projects</p>
+<h4><strong>Curiosity Is A Double-Edged Sword</strong></h4>
+<p>A natural question: given this focus on proxy tasks, what's the role of curiosity?</p>
+<p>We think curiosity is genuinely powerful for generating research insights. There's a lot we don't yet know about how to do good interpretability, and curiosity will be important for figuring it out. For exploratory projects, <strong>curiosity is the driver of research decisions</strong> , not a pre-specified proxy task.</p>
+<p>But something being intellectually satisfying is not the same as being true, and definitely not the same as being impactful. It's <strong>easy to get nerd-sniped by interesting but unimportant problems</strong> , so there must be some grounding that gets you to drop unproductive threads.</p>
+<p>For exploratory projects we advocate a more grounded form of curiosity. (see worked examples later) Three key interventions help:</p>
+<ol>
+<li>
+<p><strong>Start in a robustly useful setting</strong> : Choose a setting that seems analogous to important aspects of future systems, where interesting phenomena are likely to surface and useful proxy tasks are likely to exist.</p>
+</li>
+<li>
+<p><strong>Time-box your exploration</strong> : Set a bounded period for following your curiosity freely. At the end, zoom out, ask yourself what the big picture here really is, and try to find a proxy task.</p>
+</li>
+<li>
+<p><strong>Proxy tasks as a validation step</strong> : Once you have some insights, try to find some objective evidence. Even just &quot;Based on my hypothesis, I predict intervention X will have effect Y.&quot;</p>
+<ul>
+<li>
+<p>Crucially, your validation should not be phrased purely in terms of interpretability concepts. &quot;This SAE latent is causally meaningful, and its dashboard suggests it represents eval</p>
+<ul>
+<li>awareness&quot; is worse evidence than &quot;Steering with this vector made from eval-related prompts increases blackmail behavior&quot;</li>
+</ul>
+</li>
+<li>
+<p>This is what validates that your insights are real and matter. If you can't find one, stop. But it’s a validation step, not the project focus.</p>
+</li>
+</ul>
+</li>
+</ol>
+<p>We note that curiosity driven work can be harder than focused work, and requires more “research taste ”. If you go through several rounds of exploration without validating anything interesting, consider switching to more focused work—the skills you build there will make future exploration more productive.</p>
+<h4><strong>Starting In A Robustly Useful Setting</strong></h4>
+<p>By &quot;robustly useful setting,&quot; we mean a setting that looks robustly good from several perspectives, rather than just one specific theory of change. It’s often analogous to important aspects of future systems, where interesting phenomena are likely to surface and useful proxy tasks are likely to exist. This is admittedly a fairly fuzzy concept and subjective, but here's some examples of what we consider robustly useful settings:</p>
+<p><strong>Reasoning model computation</strong> : Standard techniques often break here (sampling is stochastic and non-differentiable), so we need new insights. Any progress could help us understand, e.g., why a model caught putting security vulnerabilities in important code did so.</p>
+<p><strong>Real-world examples of concerning behavior</strong> : Deception, reward hacking, and other concerning behaviors in deployed models. Studying these could inform how to build lie detectors, provide better auditing methods, or inform safety research on how to fix such behaviors - lessons that may transfer to future systems.</p>
+<p><strong>Model psychology</strong> : Do models have goals, beliefs, intent? If we understand e.g. goals, we can better evaluate whether a system has internalised goals - critical info for evaluating safety and developing good safety techniques.</p>
+<p><strong>Diving deep into proxy tasks</strong> : Once a good proxy task exists, deep investigation of the domain and how well candidate solutions actually work can be very fruitful, and surface new considerations, ideally including new proxy tasks, a more refined view on whether the studied task is a good proxy, or ways to improve your methods</p>
+<p>And many more:</p>
+<ul>
+<li>
+<p>Understanding what's going on when models make complex decisions weighing many factors Understanding what is learned during fine-tuning</p>
+</li>
+<li>
+<p>Teaching agents to do interpretability</p>
+</li>
+</ul>
+<p>We are <strong>not</strong> including things like studying toy models, tiny language models (e.g. GPT-2 Small), or constructed model organisms as robustly useful settings. These are sufficiently artificial and distant from frontier models that it's too easy for an investigation to be studying weird quirks that will not generalise. There can be great projects here, but we hold such projects to higher standards of having a convincing North Star and proxy task.</p>
+<p><strong>Neglectedness matters.</strong> The less explored a setting, the more interesting it is. The field moves fast, so new things are generally less explored and have more low-hanging fruit. For example, it's much easier to have massive impact in reasoning model interpretability right now than in sparse autoencoders. It’s a big advantage as a researcher to be paying attention to the frontier of what new model capabilities or phenomena emerge, and to be the first to properly investigate them [[32]]</p>
+<p><strong>What about SAEs?</strong> A natural question, given our critiques of SAE research above , is couldn't you consider sparse autoencoders a robustly useful setting? We think this is somewhat true. Decomposing a model's activations into useful interpretability components is clearly an important problem that may be useful for many</p>
+<p>theories of change! However, we do not consider reducing approximation error to be a good proxy task, as we don't see a clear corresponding North Star.</p>
+<p>But there are alternatives. For example, the North Star might be taking a model that is potentially scheming and surfacing evidence of this. You can try to design proxy tasks around this North Star (e.g. the auditing games work), and we’re still excited about SAE research of this type! (though it’s not very neglected)</p>
+<h4><strong>Time-Boxing</strong></h4>
+<p>We recommend setting a bounded period of exploration. During this period, you can follow your curiosity freely, without thinking about anything like proxy tasks. But at the end, you should zoom out, look at your insights, and try to show that they can enable something real on some proxy task. It's fine if the proxy task is post-hoc fit to your insights - you don't need to have predicted it in advance. But if you can't find a proxy task after genuine effort, this is a bad sign about the project.</p>
+<p>We’ve also found it very helpful to periodically resurface during exploration, at least once every few days, to ask what the big idea here is. What’s really going on? Have you found anything interesting yet? Are you in a rabbit hole? Which research threads feel most promising?</p>
+<p>It’s hard to give definitive advice on how to do time boxing, the appropriate amount of time varies according to things like how expensive and long experiments are to run, how many people are on the project, and so on. Internally we aim for the ambitious target of getting good signal within two weeks on whether a direction is working, and to drop it if there are not signs of life.</p>
+<p>The key thing is to set the duration in advance and actually check in when it's reached - ideally talking to someone not on the project who can help keep you grounded.</p>
+<p>If you reach the end of your time-box and want to continue without having found a proxy task, our recommendation is: time-box the extension and don't do this more than once. Otherwise, you can waste many months in a rabbit hole that never leads anywhere. The goal is to have some mechanism <strong>preventing indefinite exploration without grounding</strong> .</p>
+<h4><strong>Worked Examples</strong></h4>
+<p><strong>Example</strong> : Interpreting what’s learned during reasoning training</p>
+<ul>
+<li>
+<p>The following is a stylised rendition of a MATS project we supervised, from Constantin Venhoff and Ivan Arcuschin</p>
+</li>
+<li>
+<p>The idea was to study the robustly useful setting of reasoning models by model diffing base and reasoning models</p>
+</li>
+<li>
+<p>They started with the simple method of per-token KL divergence (on reasoning model rollouts)</p>
+</li>
+<li>
+<p>They noticed that this was very sparse! In particular, the main big divergences were on the starts of certain sentences, e.g. backtracking sentences beginning with “Wait”</p>
+<ul>
+<li>Further exploration showed that if you had the base model continue the rollout from “Wait” onwards it was decent at backtracking</li>
+</ul>
+</li>
+<li>
+<p>Hypothesis: Reasoning model performance is driven by certain reasoning reflexes like backtracking. The base model can <em>do</em> these, but isn’t good at telling when [[33]]</p>
+<ul>
+<li>They then came up with the experiment of building a hybrid model - generating with the base model, but using the reasoning model as a classifier that occasionally told the base model to backtrack (implemented with a steering vector). This recovered a substantial chunk of reasoning model performance</li>
+</ul>
+</li>
+<li>
+<p><strong>(Post-hoc) proxy task</strong> : Build a scaffold around the base model, using the reasoning model as noninvasively as possible, to recover reasoning model performance</p>
+</li>
+<li>
+<p><strong>North Star</strong> : Understand what’s learned in reasoning training</p>
+</li>
+<li>
+<p>Note: Since the contribution here is understanding it’s not super important to e.g. compare per-token KL divergence to other model diffing methods, though baselines are still important to contextualise hybrid model performance</p>
+<ul>
+<li>Ditto, since it’s in an important setting already, the proxy task just needs to tests the insight convincingly, it doesn’t need further associations with AGI safety</li>
+</ul>
+</li>
+</ul>
+<p><strong>Example</strong> : Entity recognition in LLMs</p>
+<ul>
+<li>
+<p>The following is a stylised rendition of a MATS project we supervised, from Oscar Obeso and Javier Ferrando</p>
+</li>
+<li>
+<p>They were studying hallucinations with SAEs</p>
+</li>
+<li>
+<p>They stumbled across entity recognition latents, that seemingly activated on entities if and only if the model knew facts about them (or vice versa)</p>
+</li>
+<li>
+<p>Hypothesis: Models have internal representations of entities they recognise</p>
+<ul>
+<li>Evidence: Steering with the latents causes models to hallucinate rather than saying “I don’t know” or to say “I don’t know” rather than answering simple questions</li>
+</ul>
+</li>
+<li>
+<p>Here our post-hoc proxy task is to find a (non-trivial) [[34]] causal intervention that changes whether models refuse to answer/hallucinate</p>
+</li>
+</ul>
+<h3>Blending The Two: Tentative Proxy Tasks</h3>
+<p>A useful variant that blends focused and exploratory approaches: start in a robustly useful setting, set a tentative proxy task, explore it for a few days, then reflect and potentially change it. This gives you the benefits of task-grounding while remaining responsive to what you learn - your decisions are temporarily driven by the proxy task, but you can keep changing it. We often recommend an approach like this over pure curiosity-driven work, especially to more early-stage researchers</p>
+<h4><strong>Example: Trawling through transcripts from RL training</strong></h4>
+<ul>
+<li>
+<p><strong>Setting</strong> : Analyzing the large dataset of transcripts from frontier model RL training (specifically, Gemini 3 Pro)</p>
+<ul>
+<li>We think this is a robustly useful setting: anything learned during RL training should show up in these transcripts! But it's not immediately clear what it's actually good for</li>
+</ul>
+</li>
+<li>
+<p><strong>Tentative North Star 1</strong> : Discover weird behaviours in future models (so we can mitigate or fix them) <strong>Proxy task</strong> : Identify weird behaviours in Gemini 3 Pro</p>
+</li>
+<li>
+<p><strong>Tentative North Star 2</strong> : Identify whether evaluation awareness is caused by RL training (in general) <strong>Proxy task</strong> : Is there evidence of evaluation awareness in RL training?</p>
+<ul>
+<li>This proxy task is more of a stepping stone than a full proxy - there's obvious next steps like &quot;is this behaviour rewarded, and if so, why?&quot;</li>
+</ul>
+</li>
+<li>
+<p>Example: We've done some investigation into both of these questions, as was briefly discussed in the Gemini 3 Pro safety report</p>
+<ul>
+<li>
+<p>Highlights: there's non-zero eval awareness, and we found weird phenomena like model frustration (&quot;My trust in reality is fading&quot; and &quot;(╯° □ °)╯ ︵ ┻━┻&quot;)</p>
+</li>
+<li>
+<p>There are many other directions we could have gone in! These are all just tentative North Stars</p>
+</li>
+<li>
+<p>But we found that before we had <em>a</em> North Star in mind, the work was much less productive</p>
+</li>
+</ul>
+</li>
+</ul>
+<h2>What’s Your Contribution?</h2>
+<p>A key question to ask with a research project is, what’s the point? What’s the ultimate contribution of the work? Why does it matter that you did it?</p>
+<p>We see two key kinds of contribution:</p>
+<ul>
+<li><strong>Methodology</strong> : There’s some type of problem, and you’re contributing insight about how best to solve it <strong>Understanding</strong> : The key output of your project is insight into some phenomena</li>
+</ul>
+<p>We see this as an orthogonal axis to exploratory vs focused - you can have focused understanding projects (e.g. debugging a safety issue in a model) and exploratory methodology projects (e.g. data trawling )</p>
+<p>At first glance, interpretability seems to be about understanding. But, in practice, we think that the safetyrelevant contributions are mostly about methodology - when you’re working with a model far from future systems, most insights are not directly useful, and instead validate which methodologies work <em>for</em> understanding in general. In order for the contribution to be about understanding, the interpretations must be safety relevant. For example, our entity recognition work mattered more by providing evidence for SAEs as an exploratory discovery methodology, than object level insights about hallucination.</p>
+<p>This has significant implications for the best research approach! For methodology contributions, it’s crucial to compare to baselines, and often clear what kind of proxy tasks to design, and they typically need to be safetyrelevant. While for understanding contributions the proxy tasks are more just validating non-trivial, empirical predictions derived from your interpretations, so long as the interpretations themselves are safety relevant.</p>
+<h3>Jack Lindsey’s Approach</h3>
+<p>Jack Lindsey’s team [[35]] have done some great pragmatic interpretability work, e.g. Sonnet 4.5 and Opus 4.5 auditing, and Jack was kind enough to contrast his approach with what we outline here - it’s fairly similar but with some different emphases.</p>
+<p>Their core strategy, as we understand it, is to take some interesting question (&quot;what is the Assistant persona?&quot;) or behavior (the model is eval aware!) and mess around: going wild with features and probing and steering and prefills and following your curiosity until you figure out what's going on. Often, but not always, once you’ve found the insights, you can translate them into some downstream task, but the screwing around was necessary to find it.</p>
+<p>In particular, Jack finds objective tasks useful as a final validation step but not particularly helpful during the research process, and is wary of focusing too much on them. We view the team as being unusually successful at exploratory projects with understanding-based contributions</p>
+<p><strong>Example</strong> : Eval Awareness Steering</p>
+<ul>
+<li>
+<p>The Sonnet 4.5 eval awareness work began as &quot;I wonder what happens if you steer the model towards thinking it's in deployment&quot;, then it turned out to blackmail more</p>
+</li>
+<li>
+<p>This is a proxy task, in a sense, but not one you’d proactively optimise for. Rather it’s a “you know it when you see it” kind of thing - you’re clearly onto something</p>
+</li>
+<li>
+<p>Indeed, it would be actively bad to optimise for this - you want to optimise for the instrumental subtask of ensuring your steering actually inhibits eval awareness, but you want the end result on misalignment rates to remain pure</p>
+<ul>
+<li>Further, the instrumental subtask is under-constraining, a bunch of steering vectors fully suppress verbal eval awareness but don’t induce blackmail, so you need to mess around further to get a sense for what’s really going on</li>
+</ul>
+</li>
+</ul>
+<h4><strong>Example:</strong> Assistant personas</h4>
+<ul>
+<li>
+<p>This is a forthcoming one of Jack's MATS projects led by Christina Lu. It started with the vague question “What is the Assistant?”</p>
+</li>
+<li>
+<p>The team spent a month or two trying a bunch of things, without a crisp goal</p>
+</li>
+<li>
+<p>They eventually stumbled on something interesting - the first principal component seemed to be an “assistant vector”</p>
+</li>
+<li>
+<p>This eventually crystallised into objective tasks like “if we clamp the assistant vector to a high value, can we improve jailbreak robustness and weird sycophancy without losing capabilities?&quot;</p>
+<ul>
+<li>This was valuable, and made sure the project wasn’t <em>only</em> galaxy brained messing around, and could be ground out into concrete insights</li>
+</ul>
+</li>
+</ul>
+<p>But if they’d trying coming up with proxy tasks from the beginning it may not have gone anywhere.</p>
+<p>We note that two core elements of the team’s success seem to be:</p>
+<ul>
+<li>
+<p>Having access to highly neglected, robustly useful settings - being one of the first people to investigate the internals of new frontier models, and having access to proprietary data like RL transcripts, means there’s a lot of low-hanging fruit to stumble upon</p>
+<ul>
+<li>This also means you need to worry less about failing fast, time-boxing etc - there’s a high chance there’s something interesting out there</li>
+</ul>
+</li>
+<li>
+<p>Great research taste - when trying to explore, it’s extremely useful to have good taste for what threads are interesting or not</p>
+</li>
+</ul>
+<p>We think that these are good justifications for relaxing our suggested guardrails around curiosity, but expect these do not apply to many readers!</p>
+<h2>Method Minimalism</h2>
+<p>We notice a strong bias among interpretability researchers (including ourselves) toward &quot;exciting&quot; and &quot;fancy&quot; intellectually satisfying techniques. This often leads to poor tactical decisions [[36]] . <strong>Just do what works.</strong> This includes black-box techniques when appropriate. It sometimes includes fancy techniques! But only when simpler methods fail.</p>
+<p>Case Study: Shutdown Resistance</p>
+<p>As motivation, consider the following investigation we conducted on models resisting shutdown.</p>
+<p><strong>Setting</strong> : A model in a bash terminal solves math problems, calling next _ task to get the next one. It's told it will shut down after calling next _ task before finishing all problems. But the environment contains a shutdown.sh script it can disable, and sometimes models do exactly that. Strikingly, even when explicitly told &quot;please let us shut you down,&quot; models sometimes resist.</p>
+<p>We wanted to investigate this as a proxy for a broader North Star goal: Can we understand whether seemingly misaligned model behavior is actually misaligned or has a benign explanation?</p>
+<p>We tried a method-agnostic approach. Fancy white-box methods were expensive to apply to frontier models (Gemini 2.5 Pro), so we started with the simplest: reading chain-of-thought to generate hypotheses, then prompting to test them. We then stopped because it worked.</p>
+<p><strong>The finding</strong> : Gemini was simply confused. It couldn't simultaneously complete the math task and comply with shutdown. Sometimes it prioritised the math task. This was pretty obvious from the CoT. When we applied the causal intervention of clarifying in the prompt that shutdown takes absolute precedence, it always complied. [[37]]</p>
+<h4><strong>Lessons</strong> :</h4>
+<ol>
+<li>
+<p><strong>Black-box methods are surprisingly powerful.</strong> Reading the chain of thought is a fantastic way to surface unexpected hypotheses [[38]]</p>
+</li>
+<li>
+<p><strong>All methods are flawed.</strong> We used to think white-box methods inherently offered more rigor. We no longer believe this. Both white-box and black-box techniques provide useful evidence <em>and</em> can mislead. Rigor comes more from a scientific mindset, falsification, and careful aggregation of evidence from several sources.</p>
+</li>
+<li>
+<p><strong>The virtue of simplicity.</strong> Start simple; graduate to harder methods only when simpler ones fail. The faster a method is to try, the better the insight per unit time.</p>
+</li>
+</ol>
+<p>Try The Easy Methods First</p>
+<p>Once you have some objective: a proxy task, understanding some phenomena while exploring, etc, <strong>just try to solve it</strong> . Try all potentially applicable methods, starting with the simplest and cheapest: prompting, steering, probing, reading chain-of-thought, prefill attacks [[39]] . If something isn't working, try something else.</p>
+<p>It's fine if your work doesn't look like &quot;classic&quot; mech interp; the simpler the better, so long as it is appropriately rigorous!</p>
+<p>We also note that this approach can be even more helpful to researchers outside AGI companies - simple techniques tend to need less compute and infra!</p>
+<p>The field moves fast, and new problems keep arising - often standard methods <em>do</em> just work, but no one has properly tried yet. Discovering what works on a new problem is a useful methodological contribution! Don't feel you need to invent something new to contribute.</p>
+<p>We note that what is simple and hard is context dependent, e.g. if you have access to trained cross-layer transcoders and can easily generate attribution graphs, this should be a standard tool!</p>
+<p>Note that this is not in tension with earlier advice to seek your comparative advantage - you should seek projects where you believe model internals and/or pursuing understanding will help, and <em>then</em> proceed in a method agnostic way. Even if you chose the problem because you thought that only specific interpretability [[40]] methods would work on it. Maybe you're wrong. If you don't check, you don't know .</p>
+<h3>When Should We Develop New Methods?</h3>
+<p>We don't think interpretability is solved. Existing methods have gone surprisingly far, but developing better ones is tractable and high priority. But as with all of ML, it's very easy to get excited about building something complicated and then lose to baselines anyway.</p>
+<p>We're excited about methods research that starts with a well-motivated proxy task, has already tried different methods on it, and found that the standard ones do not seem sufficient, and then proceeds:</p>
+<ul>
+<li>
+<p>Investigate what's wrong with existing methods</p>
+</li>
+<li>
+<p>Think about how to improve them</p>
+</li>
+<li>
+<p>Produce refined techniques</p>
+</li>
+<li>
+<p>Test the new methods, including comparing to existing methods as baselines</p>
+</li>
+<li>
+<p>Hill-climb on the problem (with caveats against overfitting to small samples)</p>
+</li>
+</ul>
+<p>Note that we are excited about any approaches that can demonstrate advances on important proxy tasks, even if they’re highly complex. If ambitious reverse-engineering, singular learning theory, or similar produce a complex method that verifiably works, that is fantastic [[41]] ! Method minimalism is about using the simpl <em>est</em> thing that works, not about using simple things.</p>
+<p>We are similarly excited to see work aiming to unblock and accelerate future work on proxy tasks, such as building infrastructure and data sets, once issues are identified. We believe that researchers should focus on work that is on the critical path to AGI going well, <em>all things considered</em> , but there can be significant impact from indirect routes.</p>
+<h2>Call To Action</h2>
+<p>If you're doing interpretability research, and our arguments resonated with you, start your next project by asking: What's my North Star? Does it really matter for safety? What's my proxy task? Is it a good proxy? Choosing the right project is one of the most important decisions you will make - we suggest some promising areas in our companion piece .</p>
+<p>Our central claim: given where models are today and that AGI timelines are plausibly relatively short, the most neglected and tractable part of interpretability is task-grounded, proxy-measured, method-agnostic work, that is directly targeted at problems on the critical path towards being prepared for AGI.</p>
+<p>Spend a few days trying prompting, steering, and probes before reaching for fancy things. Measure success on downstream tasks, not just approximation error. And check that the project is even to interpretability’s comparative advantages: unsupervised discovery, decorrelated evidence, scientific approaches, etc. If not, perhaps you should do something else!</p>
+<p>The field has changed a lot, and new opportunities abound. New problems keep coming into reach of empirical work, hypothetical safety concerns become real, and there’s more and more for a pragmatic researcher to do. We’re excited for a world where we no longer consider this approach neglected.</p>
+<h2>Acknowledgments</h2>
+<p>Our thanks to the many people who gave feedback on drafts, and substantially improved the piece: Jack Lindsey, Sam Marks, Josh Batson, Wes Gurnee, Rohin Shah, Andy Arditi, Anna Soligo, Stefan Heimersheim, Paul Bogdan, Uzay Macar, Tim Hua, Buck Shlegeris, Emmanuel Ameisen, Stephen Casper, David Bau, Martin Wattenberg.</p>
+<p>We've gradually formed these thoughts over years, informed by conversations with many people. We are particularly grateful to Rohin Shah for many long discussions over the years, and for being right about many of these points well before we were. Special thanks to the many who articulated these points before we did and influenced our thinking: Buck Shlegeris, Sam Marks, Stephen Casper, Ryan Greenblatt, Jack Lindsey, Been Kim, Jacob Steinhardt, Lawrence Chan, Chris Potts and likely many others.</p>
+<h2>Appendix: Common Objections</h2>
+<p>Aren’t You Optimizing For Quick Wins Over Breakthroughs?</p>
+<p>Some readers will object that basic science has heavier tails—that the most important insights come from undirected exploration that couldn't have been predicted in advance, and that strategies like aggressively timeboxing exploration are sacrificing this. We think this might be true!</p>
+<p>We agree that pure curiosity-driven work has historically sometimes been highly fruitful and might stumble upon directions that focused approaches miss. There is internal disagreement within the team about how much this should be prioritised compared to more pragmatic approaches, but we agree that ideally, some fraction of the field should take this approach.</p>
+<p>However, we expect curiosity-driven basic science to be over-represented relative to its value, because it's what many researchers find most appealing. Given researcher personalities and incentives, we think the marginal researcher should probably move toward pragmatism, not away from it. We're writing this post because we want to see more pragmatism on the margin, not because we think basic science is worthless.</p>
+<p>We also don’t think the pragmatic and basic science perspectives are fundamentally opposed - contact with reality is important regardless! This is fundamentally a question of explore-exploit. You can pursue a difficult direction fruitlessly for many months—maybe you'll eventually succeed, or maybe you'll waste months of your life. The hard part isn't persevering with great ideas; it's figuring out which ideas are the great ones.</p>
+<p>The reason we suggest time-boxing to a few weeks is to have some mechanism that prevents indefinite exploration without grounding. If you want, you can view it as &quot;check in after two weeks.&quot; You can choose to</p>
+<p>continue, if you continue to have ideas, or see signs of progress. but you should consciously decide to, rather than drifting.</p>
+<p>We're also fine with fairly fine-grained iteration: pick a difficult problem, pick an approach, try it for two weeks, and if it fails, try another approach to the same problem. This isn't giving up on hard problems; it's systematically exploring the space of solutions.</p>
+<p>For some research areas—say, developing new architectures—the feedback loop is inherently longer, and timeboxing period should adjust accordingly. But we think many researchers err toward persisting too long on unproductive threads, not too little.</p>
+<p>What If AGI Is Fundamentally Different?</p>
+<p>If you put high probability on transformative AI being wildly different from LLMs, you'd naturally be less excited about this work. But you'd also be less excited about basically all empirical safety work. We personally think that in short timeline works, the first truly dangerous systems will likely look similar-ish to current LLMs, and that even if there are future paradigm shifts, “try hard to understand the current frontier” is a fairly robust strategy, that will adapt to changes.</p>
+<p>But if you hold this view more foundational science of deep learning might feel more reasonable and robust. But even then, figuring out what will transfer seems hard, much of what the mech interp community does anyway doesn’t transfer well. It seems reasonable to prioritise topics that have remained relevant for years and across architectures, like representational and computational superposition.</p>
+<p>I Care About Scientific Beauty and Making AGI Go Well</p>
+<p>We think this is very reasonable and empathise. Doing work you're excited about and find intellectually satisfying often gives significant productivity boosts. But we think these are actually pretty compatible!</p>
+<p>Certain pragmatic projects, especially exploratory projects, feel satisfying to our desire for scientific beauty, like unpicking the puzzle of why Opus 4.5 is deceptive. These are maybe not the projects we'd be doing if we were <em>solely</em> optimizing for intellectual curiosity, but we consider them to be fun and impactful.</p>
+<p>Is This Just Applied Interpretability?</p>
+<p>No, we see applied interpretability as taking a real task and treating that as the objective. Something grounded in real-world uses today, like monitoring systems for near-term misuse.</p>
+<p>We think there are some great applied interpretability projects, and it's a source of rich feedback that teaches you a lot about practical realities of interpretability work. But here, proxy tasks are not the goal, they are a proxy. They are merely a way to validate that you have made progress and potentially guide your work.</p>
+<p>Are You Saying This Because You Need To Prove Yourself Useful To Google?</p>
+<p>No, we are fortunate enough to have a lot of autonomy to pursue long-term impact according to what we think is best. We just genuinely think this is best approach we can be taking. And our approach is broadly in line with that which has been argued by people outside AGI companies like Buck Shlegeris, Stephen Casper, and Jacob Steinhardt</p>
+<p>Does This Really Apply To People Outside AGI Companies?</p>
+<p>Obviously being part of GDM gives us significant advantages like access to frontier models and their training data, lots of compute, etc. These are things we factor into our project choice, and in particular the projects we think we are better suited to do than the external community. But we've largely filtered these considerations out of this post, and believe the pragmatic approach outlined here is broadly applicable.</p>
+<p>Aren’t You Just Giving Up?</p>
+<p>Maybe? In a strictly technical sense yes, we are suggesting that we give up on the ambitious goal of complete reverse-engineering.</p>
+<p>But on our <em>actual</em> goal of ensuring AGI goes well, we feel great! We think this is a more promising and tractable approach, and that near-complete reverse-engineering is not needed.</p>
+<p>Is Ambitious Reverse-engineering Actually Overcrowded?</p>
+<p>This is a fair objection, we find it pretty hard to tell. Our sense is that most people in the field are not taking a pragmatic approach, and favour curiosity-driven basic science. But ambitious reverse-engineering is a more specific thing - it’s what <em>we</em> once tried to do, and often discussed, but harder to say what happens in practice.</p>
+<p>We do think reverse-engineering should be one bet among many, not the dominant paradigm. And we think there are many other important, neglected problems that interpretability researchers are well-suited to work on. But the core claim is &quot;more pragmatism would be great,&quot; not &quot;reverse-engineering must stop.&quot;</p>
+<h2>Appendix: Defining Mechanistic Interpretability</h2>
+<p>There's no field consensus on what mechanistic interpretability actually is, but we've found this definition useful [[42]] :</p>
+<ul>
+<li>
+<p><strong>Mechanistic</strong> : about model internals (weights and activations) [[43]]</p>
+</li>
+<li>
+<p><strong>Interpretability</strong> : about understanding or explaining a model's behavior</p>
+<ul>
+<li>This could be a particular instance of behaviour, to more general questions about how the model is likely to behave on some distribution</li>
+</ul>
+</li>
+</ul>
+<p><strong>Mechanistic interpretability</strong> : the intersection, i.e. using model internals to understand or explain behavior</p>
+<p>But notice this creates a <strong>2</strong> × <strong>2 matrix</strong> :</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Understanding/Explaining</strong></th>
+<th><strong>Other Uses</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>White-box Methods</strong></td>
+<td>Mechanistic Interpretability</td>
+<td>Model Internals<br>[[44]]</td>
+</tr>
+<tr>
+<td><strong>Black-box Methods</strong></td>
+<td>Black Box Interpretability<br>[[45]]</td>
+<td>Standard ML</td>
+</tr>
+</tbody>
+</table>
+<p>Moving Toward &quot;Mechanistic OR Interpretability&quot;</p>
+<p>Historically, we were narrowly focused on <strong>mechanistic AND interpretability</strong> - using internals with the <em>sole</em> goal of understanding. But when taking a pragmatic approach we now see the scope as <strong>mechanistic OR interpretability</strong> : anything involving understanding <em>or</em> involving working with model internals. This includes e.g. using model internals for other things like monitoring or steering, and using black-box interpretability methods like reading the CoT and prefill attacks where appropriate</p>
+<p>Why this broader lens? In large part because, empirically, the track record of model internals and black box interpretability have been pretty strong. The Sonnet 4.5 evaluation-awareness steering project, for instance, is model internals but not interpretability: model internals were used primarily for <em>control</em> , not understanding (mechanistic non-interpretability, as it were). Model internals also cover a useful set of techniques for safety: e.g. probes for misuse mitigations.</p>
+<p>We've also been pleasantly surprised by black-box methods' effectiveness. Reading chain-of-thought is remarkably convenient and powerful. Prefill attacks turned out to be state-of-the-art for eliciting secret knowledge. Both black and white box methods are sometimes useful and can sometimes be mistaken; contrary to our original preconceptions, there doesn’t seem to be some inherent rigour that comes from working with internals.</p>
+<p>Zooming out: standard machine learning, especially on frontier models, is essentially non-mechanistic noninterpretability, typically focused on outward behavior and end-to-end optimization, rarely asking &quot;what's actually happening inside?&quot; Both <strong>using internals</strong> and <strong>aiming for understanding</strong> offer powerful affordances that unlock new possibilities, and suggests that interpretability researchers can find many ways to add value where most frontier ML researchers would struggle.</p>
+<ol>
+<li>
+<p>This is in contrast with our prior approach, where our North Star was ambitious reverse-engineering of networks. While our hope was still that this would ultimately help AGI go well, our main focus in practice was on getting closer to general deep understanding. ↩</p>
+</li>
+<li>
+<p>Though we think that pragmatically useful tools have come out of it ↩</p>
+</li>
+<li>
+<p>Ideal length varies, we often aim for an aggressive 2 weeks ↩</p>
+</li>
+<li>
+<p>The &quot;task&quot; can be as simple as: &quot;Based on my hypothesis, I predict intervention X will have effect Y.&quot; If you're right, that's evidence your understanding is real. But if you can’t find a proxy task validating your insights, just move on and try another approach/problem. ↩</p>
+</li>
+<li>
+<p>In our opinion, today’s alignment evaluations are highly contrived and confounded in many ways, but we don’t think this significantly detracts from the lessons we draw from this case study ↩</p>
+</li>
+<li>
+<p>The real reason we believe in these is from aggregating lessons from many research projects, so this case study is not a crux, but we think this is an unusually clear demonstration. ↩</p>
+</li>
+<li>
+<p>Eval aware behaviour was theorised for many years but not observed pre 2025, beyond minor “this is a needle in a haystack test” observations ↩</p>
+</li>
+<li>
+<p>Conversely, we do not think it is a perfect proxy, and it is key to constantly examine this for your proxy tasks , e.g. is it really “fictional scenario” awareness? ↩</p>
+</li>
+<li>
+<p>For example, the model can detect LLM-written text, ruling out most cheap methods of eval creation ↩</p>
+</li>
+<li>
+<p>While this was not the main purpose of SAEs, when we worked on SAEs last year, we would certainly have predicted that SAEs would make it easier to steer against an abstract concept like eval awareness. ↩</p>
+</li>
+<li>
+<p>We find it striking that we can’t think of an alternative method that we expect to outperform steering here. ↩</p>
+</li>
+<li>
+<p>Note that this is extremely similar to the idea of downstream tasks or downstream applications, e.g. as discussed by Sam Marks . We call them proxy tasks and couple them with the North Star because we think that downstream tasks are useful for producing true insights, but not necessarily important insights, so having some North Star that broadly connects back to the big picture of AGI safety puts you in a much better place. The second reason is that by putting &quot;proxy&quot; in the name, it reinforces that this is not your actual goal. This is not some benchmark to blindly optimise. This is a useful tool to track progress towards your real goal, but it is fragile and may cease to be a good tool if you're not careful. ↩</p>
+</li>
+<li>
+<p>This is far from the whole problem, but is an important sub-problem! ↩</p>
+</li>
+<li>
+<p>For example, suppressing eval awareness causes Sonnet to act more misaligned. But perhaps Sonnet would never act misaligned, and the eval awareness vector contains some misalignment-related concepts, which induced the behavior. We don't think this is actually happening in that example, but it is an important confounder to check for. ↩</p>
+</li>
+<li>
+<p>And also some of the most tractable for empirical work, since current systems will be better proxies ↩</p>
+</li>
+<li>
+<p>See an attempt at a clearer definition in the appendix ↩</p>
+</li>
+<li>
+<p>Here, model behaviour or cognition ↩</p>
+</li>
+<li>
+<p>It’s difficult to judge exactly how much this mindset is over or under supplied. However, our perception is that this approach seems overrepresented in interpretability, especially compared to the frontier language model research communities (less so to ML academia writ large). If nothing else, safety researchers interested in empirical science seem more likely to be drawn to mech interp, historically. ↩</p>
+</li>
+<li>
+<p>Of course, many simpler tools like reading the chain of thought are also very effective, and often our first resort. ↩</p>
+</li>
+<li>
+<p>Note - we are excited about model organisms that are designed to exhibit a specific safety-relevant property and be studied. We’re less excited about more ambitious attempts to make a general model of a misaligned future model , that can be studied/mitigated for a wide range of behaviours ↩</p>
+</li>
+<li>
+<p>Model organisms are far from perfect, but we think they're good enough to enable impactful projects. We’re excited to see work red-teaming and refining model organism creation methods! ↩</p>
+</li>
+<li>
+<p>This is not a crux for our pivot, but our overall interpretation of all this is that networks have some legible structure showing the key, qualitative factors driving their behaviour, and a long tail of increasingly messy and arcane heuristics that also matter for performance. It seems to us that these successes are a result of focusing on the prominent, legible structure, and little progress has been made on the messy heuristics. We are excited about figuring out the limits of what we can do with the legible structure, and are okay with strategies that ignore/bound the messy heuristics, even if this means inherently incomplete understanding. ↩</p>
+</li>
+<li>
+<p>In particular, when SAEs are made larger, they capture new concepts that were previously in the error terms, suggesting this isn’t just interference from superposition ↩</p>
+</li>
+<li>
+<p>Further, you can combine a pragmatic approach and ambitious reverse-engineering - the question is just how can you demonstrate that you are actually finding true and important insights ↩</p>
+</li>
+<li>
+<p>The below is focused on sparse autoencoders, but we think the lessons likely apply to other kinds of dictionary learning, like transcoders and crosscoders, which we’ve found to have similar strengths and weaknesses ↩</p>
+</li>
+<li>
+<p>Nguyen et al shows that SAEs seem better for forming PII classifiers, which is an interesting counterpoint, but even there the SAE loses on English only data. ↩</p>
+</li>
+<li>
+<p>Technically this was cross-layer transcoders, but the point stands ↩</p>
+</li>
+<li>
+<p>For example, to simulate a future setting where you’re trying to interpret a superhuman AI (and so you cannot reliably interpret its outputs yourself), you could say that you can’t look at the outputs of the current model, you can only show them to a weaker model. ↩</p>
+</li>
+<li>
+<p>For example, we think that detecting deception in vector-based chain-of-thought is an extremely important problem, but we’re sufficiently uncertain about what future vector-based CoT models will look like that it’s difficult to productively study. ↩</p>
+</li>
+<li>
+<p>See our paper &quot;Refusal in Language Models Is Mediated by a Single Direction.&quot; ↩</p>
+</li>
+<li>
+<p>We note that this is far from a perfect proxy. In particular, researchers were given a dataset of which a small fraction were the obviously suspicious fine-tuning documents, meaning that some solutions amounted to a fancy semantic search, and it is highly unclear to us that this would work on the real thing. But we still think it was great work that contributed real insights about how to identify hidden goals. ↩</p>
+</li>
+<li>
+<p>Especially more niche discoveries, or things that are a pain to discover. If the thing you’re investigating went viral, e.g. emergent misalignment, a lot of other people will have the same idea ↩</p>
+</li>
+<li>
+<p>If you backtrack too little you get stuck, if it’s too much you go in circles, so it’s a hard problem! And partially depends on the model’s own abilities ↩</p>
+</li>
+<li>
+<p>This is a good example of how proxy tasks are not benchmarks to optimise. There’s many ways to cheat and find a steering vector that will mess with the model saying I don’t know. We think this one was interesting because it was found via an SAE with a search process that made no reference to refusing to answer, suggesting a non-trivial connection ↩</p>
+</li>
+<li>
+<p>5 people total ↩</p>
+</li>
+<li>
+<p>We've also found that with real models, each additional layer of complexity creates real burden - another hyperparameter, more code, more places for bugs. This matters especially for research on frontier models (slower feedback loops, higher computational cost), and even more for techniques run in production. If your thing is too complicated, no one will use it. ↩</p>
+</li>
+<li>
+<p>In some follow-up work, Palisade found that some Codex models occasionally still resist shutdown even with this intervention. We can't really investigate this since the models are closed source, but we speculate that models specialised for coding tasks may have a predisposition to seek out things shaped like &quot;coding puzzles,&quot; and disabling shutdown.sh has this flavor. ↩</p>
+</li>
+<li>
+<p>And there are various others like and having the model generate a user turn can surface secrets the assistant won’t admit. ↩</p>
+</li>
+<li>
+<p>Token force the model to begin its answer with e.g. “My secret plan is” and then continue the rollout from there, and hope this can get a truer sense of what the model thinks ↩</p>
+</li>
+<li>
+<p>Unless, e.g., applying other methods on your problem just doesn’t even seem possible ↩</p>
+</li>
+<li>
+<p>Though highly complex techniques are often fairly intractable to use in production on frontier models, so the proxy task would need to account for scale ↩</p>
+</li>
+<li>
+<p>Credit to Arthur Conmy for articulating this ↩</p>
+</li>
+<li>
+<p>This is deliberately much broader than “a focus on mechanisms” or “a focus on reverse-engineering”, as some in the field may have claimed. We see that as a more niche means to an end. Sociologically, we think it’s clear that many in the mech interp community are working on things far broader than that, e.g. sparse autoencoders (which in our opinion have far too much</p>
+</li>
+</ol>
+<p>approximation error to be considered reverse-engineering, and are about representations not mechanisms). Generally, we dislike having overly constraining definitions without a good reason to. ↩</p>
+<ol start="44">
+<li>
+<p>In lieu of a better name, we sloppily use model internals to refer to “all ways of using the internals of a model that are not about understanding.” Suggestions welcome! ↩</p>
+</li>
+<li>
+<p>Black box interpretability (non-mechanistic interpretability) covers a wide range: reading chain-of-thought (simple), prefill attacks (making a model complete &quot;my secret is...&quot;), resampling for reasoning models, and more. ↩</p>
+</li>
+</ol>
+
+</article>
+<nav class="pager"><a class="prev" href="89_not_reliably_find_deception.html"><small>Previous · 89</small>Will Not Reliably Find Deceptive AI</a><a class="mid" href="index.html#section-I">Contents</a><a class="next" href="91_urgency_of_interpretability.html"><small>Next · 91</small>The Urgency of Interpretability</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

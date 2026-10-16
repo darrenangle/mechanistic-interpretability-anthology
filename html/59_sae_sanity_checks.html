@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>59 · Sanity Checks for Sparse Autoencoders: Do SAEs Beat Random Baselines? — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 59 / 91 &nbsp;·&nbsp; Section F</span></div>
+<header class="cover">
+<div class="numeral">59</div>
+<div class="tag"><span class="pri F" aria-hidden="true"></span><span class="label" style="color:var(--ink)">F — FRONTIER</span>
+</div>
+<h1>Sanity Checks for Sparse Autoencoders: Do SAEs Beat Random Baselines?</h1>
+<p class="cite">Korznikov et al. — 2026</p>
+<p class="authors">Anton Korznikov, Andrey Galichin, Alexey Dontsov, Oleg Rogov, Ivan Oseledets, Elena Tutubalina</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Compares trained SAEs with baselines whose decoder or encoder is frozen at random and finds near parity on interpretability, sparse probing and causal editing; a synthetic test shows SAEs recover few true features.</p></div><div class="note"><div class="label">Reading focus</div><p>The synthetic ground-truth experiment (9% of features recovered at 71% explained variance), the three frozen baselines, the SAEBench-derived metrics, and the lazy-training reading of why random directions do so well.</p></div><div class="note"><div class="label">In context</div><p>Moves <a href="58_sae_random_transformers.html">58</a>'s null-model test from random transformers to random dictionaries; its title echoes <a href="84_saliency_sanity_checks.html">84</a>. It scores with metrics from <a href="61_saebench.html">61</a> and cites <a href="55_gdm_sae_negative_results.html">55</a> and <a href="56_axbench.html">56</a> as motivation. A frontier preprint: weigh how far its synthetic ground truth, built on <a href="33_toy_models_of_superposition.html">33</a>'s assumptions, licenses claims about real models.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>F — The reckoning</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2602.14111v1">https://arxiv.org/abs/2602.14111v1</a> &nbsp;·&nbsp; arXiv:2602.14111v1</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 2219–2239 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="58_sae_random_transformers.html"><small>Previous · 58</small>SAEs on Random Transformers</a><a class="mid" href="index.html#section-F">Contents</a><a class="next" href="60_sae_same_data_different_features.html"><small>Next · 60</small>SAEs Learn Different Features</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<p><strong>Anton Korznikov</strong><sup><em></sup> <strong>Andrey Galichin</strong><sup></em></sup> <strong>Alexey Dontsov Oleg Y. Rogov Ivan Oseledets Elena Tutubalina</strong></p>
+<h1><strong>Abstract</strong></h1>
+<p>Sparse Autoencoders (SAEs) have emerged as a promising tool for interpreting neural networks by decomposing their activations into sparse sets of human-interpretable features. Recent work has introduced multiple SAE variants and successfully scaled them to frontier models. Despite much excitement, a growing number of negative results in downstream tasks casts doubt on whether SAEs recover meaningful features. To directly investigate this, we perform two complementary evaluations. On a synthetic setup with known ground-truth features, we demonstrate that SAEs recover only 9% of true features despite achieving 71% explained variance, showing that they fail at their core task even when reconstruction is strong. To evaluate SAEs on real activations, we introduce three baselines that constrain SAE feature directions or their activation patterns to random values. Through extensive experiments across multiple SAE architectures, we show that our baselines match fully-trained SAEs in interpretability (0.87 vs 0.90), sparse probing (0.69 vs 0.72), and causal editing (0.73 vs 0.72). Together, these results suggest that SAEs in their current state do not reliably decompose models’ internal mechanisms.</p>
+<h1><strong>1. Introduction</strong></h1>
+<p>Large Language Models (LLMs) have achieved remarkable performance across a wide range of natural language processing tasks, with applications continuing to expand rapidly. As these models grow in capability and deployment, the interpretation of their internal mechanisms becomes increasingly important (Bereska &amp; Gavves, 2024; Grace et al., 2025). Interpretability could potentially help to understand specific learning behaviors, such as safety mechanisms (Arditi et al., 2024) and reasoning processes (Wang et al., 2023; Galichin et al., 2025), identify misalignment risks (Betley et al., 2025; Wang et al., 2025). Sparse Au-</p>
+<blockquote>
+<p>*Equal contribution . Correspondence to: Anton Korznikov</p>
+</blockquote>
+<blockquote>
+<p><em>&lt;</em> korznikovantona@gmail.com <em>&gt;</em> .</p>
+</blockquote>
+<p>toencoders (SAEs) serve as a popular tool for this purpose, aiming to decompose dense model activations into sparse human-interpretable features (Bricken et al., 2023; Huben et al., 2024). Recent contributions have introduced various SAE architectures (Rajamanoharan et al., 2024b; Bussmann et al., 2024; Korznikov et al., 2025; Bussmann et al., 2025), with further success in scaling to frontier models (Gao et al., 2025; Lieberum et al., 2024). However, a critical challenge remains: lacking ground truth for true features, <em>it is difficult to determine whether SAEs recover meaningful representations.</em> Recent negative results on downstream applications (Smith et al., 2025; Wu et al., 2025) further underscore this challenge.</p>
+<p>To address this ambiguity, we propose a systematic evaluation approach to assess whether SAEs learn meaningful feature decompositions. We first set up a synthetic experiment with known ground-truth features and test whether state-of-the-art SAE architectures can recover them. Despite achieving 71% explained variance, SAEs recover only the highest-frequency features (9%), failing to discover the decomposition they are intended to find. Second, to evaluate SAEs on real activations where ground truth is unknown, we compare them against three easy-to-implement baselines on downstream tasks. These baselines constrain SAE feature directions or activation patterns to random values 1: (1) <strong>Frozen Decoder</strong> fixes directions to random vectors; (2) <strong>Frozen Encoder</strong> fixes activation patterns to random; (3) <strong>Soft-Frozen Decoder</strong> restricts directions to remain near random initialization. The rationale is straightforward: the learned directions and activation patterns represent the learned decomposition. Consequently, if SAEs learn meaningful features, they should outperform these baselines.</p>
+<p>Across multiple SAE architectures (Bricken et al., 2023; Rajamanoharan et al., 2024b; Bussmann et al., 2024), we find that our baselines match fully-trained SAEs on interpretability (Paulo et al., 2025) (0.87 vs 0.90), sparse probing (Karvonen et al., 2025) (0.69 vs 0.72), and causal editing (Huang et al., 2024; Karvonen et al., 2025) (0.73 vs 0.72). Together with our synthetic results, these findings suggest that current evaluation practices may be insufficient, and we offer our baselines as simple sanity checks for validating whether SAEs learn meaningful feature decompositions.</p>
+<p>Our work makes the following contributions:</p>
+<p><em>Preprint. February 17, 2026.</em></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0002-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0002-02.jpg" alt="" /></p>
+<p><em>Figure 1.</em> <strong>Frozen SAE baselines and their performance.</strong> (Left) Conceptual diagrams: Frozen Decoder SAE (decoder weights fixed at random initialization), Soft-Frozen Decoder SAE (decoder weights initialized randomly and constrained to maintain CosineSim <em>≥</em> 0.8 with their initial values throughout training), and Frozen Encoder SAE (encoder weights fixed at random initialization). (Right) For BatchTopK SAE (L0=160), these baselines remain competitive with fully trained SAE across four key evaluation metrics, challenging the assumption that strong performance indicates meaningful feature learning.</p>
+<ul>
+<li>
+<p>We demonstrate that SAEs fail on synthetic data with known ground-truth features, revealing a disconnect between reconstruction fidelity and feature recovery.</p>
+</li>
+<li>
+<p>We introduce three easy-to-implement baselines for evaluating SAEs’ quality on real activations.</p>
+</li>
+<li>
+<p>Through extensive experiments, we find that our baselines match fully-trained SAEs, challenging the premise that SAEs learn meaningful features.</p>
+</li>
+</ul>
+<h1><strong>2. Background</strong></h1>
+<h2><strong>2.1. Sparse Autoencoders for Interpretability</strong></h2>
+<p><strong>Model Architecture and Decomposition</strong> SAEs have emerged as a prominent tool for understanding neural network internals. It mainly addresses the challenge of polysemanticity, where individual neurons respond to multiple unrelated concepts (Bricken et al., 2023). The core motivation behind SAEs is the <em>superposition hypothesis</em> (Elhage et al., 2022), which posits that neural networks represent more features than they have dimensions by encoding them as directions in activation space. Formally, for an activation vector <strong>x</strong> <em>∈</em> R<sup><em>n</em></sup> , this hypothesis states that <strong>x</strong> can be expressed as a sparse linear combination of feature vectors:</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0002-10.jpg" alt="" /></p>
+<p>where <em>{</em> <strong>f</strong> <em>j} ⊂</em> R<sup><em>n</em></sup> are the underlying feature directions (with <em>m ≫ n</em> ) and <em>aj</em> are sparse (mostly zero) nonnegative scalar coefficients. SAEs aim to learn this decomposition by approximating <strong>x</strong> as:</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0002-12.jpg" alt="" /></p>
+<p>where <strong>d</strong> <em>j ∈</em> R<sup><em>n</em></sup> are the learned decoder column vectors (the SAE’s estimate of the true features <strong>f</strong> <em>j</em> ), and <em>zj</em> is a sparse activation produced by the encoder: <strong>z</strong> = <em>f</em> ( <strong>W</strong><sup>enc</sup> <strong>x</strong> + <strong>b</strong><sup>enc</sup> ). Here <em>f</em> is a sparsity-inducing activation (e.g., ReLU) and <strong>b</strong><sup>enc</sup> is a learned bias. The full reconstruction is <strong>x</strong> ˆ = <strong>W</strong><sup>dec</sup> <strong>z</strong> + <strong>b</strong><sup>dec</sup> . Typically, SAEs use an expansion factor <em>k</em> = <em>m/n &gt;</em> 1 (e.g. <em>k ∈{</em> 16 <em>,</em> 32 <em>,</em> 64 <em>}</em> ) to learn overcomplete dictionaries that can represent more features than the original dimensionality.</p>
+<p><strong>Training Objective</strong> SAEs are trained to minimize a reconstruction loss while encouraging sparsity in the latent activations. The standard training objective combines mean squared error with an <em>L</em> 1 sparsity penalty:</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0002-15.jpg" alt="" /></p>
+<p>where <em>λ</em> controls the sparsity-reconstruction trade-off. Different SAE variants enforce sparsity through alternative mechanisms: some directly constrain the number of active features (measured by L0 norm, the count of non-zero elements in <strong>z</strong> ), while others use adaptive thresholds. A fundamental premise of SAEs is that optimizing both reconstruction and sparsity will yield learned feature directions <strong>d</strong> <em>j</em> that align with the true underlying model features <strong>f</strong> <em>j</em> and correspond to meaningful and interpretable concepts.</p>
+<p>Pioneering work by Bricken et al. (2023) and Huben et al. (2024) demonstrated this approach on small transformers, discovering interpretable features such as DNA sequences and legal terminology. Subsequent efforts successfully</p>
+<p>scaled SAEs to frontier models, including Claude 3 Sonnet (Templeton et al., 2024), GPT-4 (Gao et al., 2025), and open-source models such as Gemma (Lieberum et al., 2024).</p>
+<h2><strong>2.2. SAE Architectural Variants</strong></h2>
+<p>Related work has proposed alternative SAE architectures to improve training stability and reconstruction quality. While vanilla SAEs use ReLU activation (Bricken et al., 2023; Huben et al., 2024), Rajamanoharan et al. (2024b) introduced JumpReLU, which adds learnable bias terms to activation thresholds, enabling dynamic sparsity adjustment during training. Bussmann et al. (2024) proposed BatchTopK, which enforces sparsity by selecting top- <em>k</em> activations across batches rather than per sample, promoting feature reuse and potentially improving interpretability. Many more SAE variants have been proposed (Bussmann et al., 2025; Korznikov et al., 2025; Rajamanoharan et al., 2024a), but we focus on the above-mentioned two variants due to their popularity and state-of-the-art performance on SAEBench (Karvonen et al., 2025).</p>
+<h2><strong>2.3. Critical Perspectives on SAEs</strong></h2>
+<p>Despite generating significant excitement, SAEs have accumulated a growing body of critical evidence documenting substantial limitations. While claimed benefits include decomposing activations into monosemantic features (Bricken et al., 2023; Huben et al., 2024), successful scaling to frontier models (Templeton et al., 2024; Gao et al., 2025; Lieberum et al., 2024), recent work has identified concerning issues: SAEs sometimes fail to faithfully represent true model computations (Leask et al., 2025; Menon et al., 2025), show poor generalization across tasks and perturbations (Heindrich et al., 2025; Kantamneni et al., 2025; Li et al., 2026), learn features in corrupted ways like feature absorption (Chanin et al., 2025b) or feature hedging (Chanin et al., 2025a), underperform on downstream applications (Wu et al., 2025; Smith et al., 2025), and exhibit high sensitivity to hyperparameters and initialization (Chanin &amp; Garriga-Alonso, 2025; Paulo &amp; Belrose, 2025; Minegishi et al., 2025). These failure modes are particularly concerning because SAEs can yield high scores on standard evaluation metrics – reconstruction fidelity, interpretability, sparse probing – while failing to capture genuinely meaningful structure (a comprehensive overview is provided in Appendix A).</p>
+<p>This tension between claimed benefits and documented limitations motivates a fundamental question: do SAEs genuinely learn meaningful feature decompositions, or do they merely optimize reconstruction metrics? Our work contributes to this critical literature by systematically evaluating whether SAEs discover true features in both controlled synthetic settings and real model activations.</p>
+<h1><strong>3. Case Study #1: Toy Model Experiments</strong></h1>
+<p>Before evaluating SAEs on real model activations, we first test them in a controlled, synthetic setting with known ground-truth features. This provides a clear benchmark for success: the SAE should recover the true generative components. Although prior work has validated SAEs on synthetic data (Chanin &amp; Garriga-Alonso, 2025; Sharkey et al., 2022; Elhage et al., 2022), these studies typically used a small <em>expansion factor k</em> (the ratio of dictionary size to activation dimension) close to 2. This limited capacity simplifies the recovery problem and may not reflect the challenge faced in practice, where SAEs employ large expansion factors (e.g., 32 to 256) to learn highly overcomplete dictionaries. To bridge this gap, we design a synthetic experiment with a realistic expansion factor (32) and two distinct data regimes, providing a more challenging and realistic test of SAEs’ ability to recover underlying features.</p>
+<h2><strong>3.1. Experimental setup</strong></h2>
+<p><strong>Synthetic Data Generation</strong> We base our toy model on the <em>superposition hypothesis</em> (Elhage et al., 2022), which posits that neural network activations can be represented as a sparse sum of interpretable feature vectors. To test whether SAEs can recover such features, we generate synthetic activations <strong>x</strong> <em>∈</em> R<sup><em>n</em></sup> (with <em>n</em> = 100) by first sampling an overcomplete dictionary of 3200 ground-truth feature vectors <em>{</em> <strong>fi</strong> <em>}</em> , each drawn uniformly from the unit sphere <em>S</em><sup>_n−_1</sup> . Each sample <strong>x</strong> is then a sparse combination of these features, expressed by:</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0003-11.jpg" alt="" /></p>
+<p>Here, <em>ci ∼</em> Log-Normal(0 <em>,</em> 0 <em>.</em> 25) governs the coefficient magnitude, while <em>bi ∼</em> Bernoulli( <em>pi</em> ) determines whether a feature is active. We examine two settings for the activation probability <em>pi</em> : the <em>Constant Probability Model</em> with <em>pi</em> = 0 <em>.</em> 00625 across all features, and the <em>Variable Probability Model</em> where <em>pi ∼</em> Log-Uniform(10<sup>_−<em>5</sup><sup></em>.<em>5</sup> <em>,</em> 10<sup></em>−<em>1</sup><sup></em>._2</sup> ), reflecting the long-tailed activations found in practice (Lieberum et al., 2024). Both variants yield an expected sparsity of 20 active features per sample.</p>
+<p><strong>SAE variants</strong> We evaluated two state-of-the-art SAE architectures, BatchTopK (Bussmann et al., 2024) and JumpReLU (Rajamanoharan et al., 2024b), on this synthetic dataset (extended model comparisons are provided in Appendix B). The SAE dictionary size was set to 3200 with target L0 = 20, matching the ground truth.</p>
+<p><strong>Evaluation</strong> Following Gao et al. (2025); Rajamanoharan et al. (2024b); Bussmann et al. (2024), we measured recon-</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0004-01.jpg" alt="" /></p>
+<p><em>Figure 2.</em> <strong>SAEs performance on constant probability setting.</strong> Both BatchTopK and JumpReLU SAEs achieve high reconstruction fidelity (Explained Variance = 0.67), yet recover almost none of the ground-truth features in this simplest aligned setting.</p>
+<p>struction fidelity using explained variance:</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0004-04.jpg" alt="" /></p>
+<p>This metric ranges from 0 (reconstruction no better than the mean prediction) to 1 (perfect reconstruction).</p>
+<p>Following Sharkey et al. (2022), to quantify feature recovery, we compute the cosine similarity between each ground-truth feature and its nearest SAE latent:</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0004-07.jpg" alt="" /></p>
+<p>High similarity scores indicate successful alignment between the learned and true features.</p>
+<h2><strong>3.2. Results</strong></h2>
+<p>Our experimental results, summarized in Figure 2 (constant probability setting) and Figure 3 (variable probability setting), reveal that SAEs fail at their core objective despite a strong reconstruction metric.</p>
+<p><strong>SAEs fail even in the simplest toy setting with fully aligned hyperparameters.</strong> In the constant probability setting (Figure 2), both architectures achieve an explained variance of approximately 0.67, a value that suggests reasonably good reconstruction (see Figure 4 where SAEs trained on real activations achieve <em>≈</em> 0 <em>.</em> 8). However, they recover almost none of the ground-truth features: only 3 out of 3200 true features have a cosine similarity above 0.8 to their closest SAE latent for BatchTopK and JumpReLU SAEs. This indicates that SAEs can learn alternative representations that effectively minimize the reconstruction loss without aligning with the true generative features. Therefore, optimizing for reconstruction does not necessarily lead to discovering ground-truth features, highlighting a fundamental limitation of current SAE approaches.</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0004-12.jpg" alt="" /></p>
+<p><em>Figure 3.</em> <strong>SAEs performance on variable probability setting.</strong> Both SAE architectures achieve high reconstruction fidelity (explained variance = 0.71), yet recover only the highest-frequency ground-truth features.</p>
+<p><strong>SAEs only recover the most highly activated groundtruth features in the variable setting.</strong> In the more realistic variable, heavy-tailed setting, both SAE architectures achieve a high explained variance of 0.71. Despite this strong reconstruction performance, feature recovery remains limited: JumpReLU SAE recovers only about 7% (225 out of 3200) of the total features, while BatchTopK SAE performs similarly with only about 9% (297 out of 3200) recovery, as measured by cosine similarity thresholds above 0.8. Crucially, Figure 3 shows this recovery is highly non-uniform: SAEs capture almost exclusively the highestfrequency features, leaving over 90% of the ground-truth dictionary, including the entire long tail of less frequent features, unmatched. This indicates that the standard reconstruction objective primarily guides SAEs toward the most frequently occurring features, resulting in incomplete coverage of the underlying feature space.</p>
+<h1><strong>4. Case Study #2: Validating SAEs on LLMs</strong></h1>
+<p>Having established SAE limitations in idealized settings, we now evaluate them on real LLM activations, where ground truth is unknown. In prior work (Karvonen et al., 2025), strong performance on four established proxy metrics has been taken as evidence that SAEs learn true model features: reconstruction fidelity, latent interpretability, sparse probing, and causal editing. We directly test this assumption by introducing three baselines where key SAE components are randomly initialized and frozen, preventing any learning beyond initialization. By comparing these baselines to fullytrained SAEs, we perform a crucial null test: if SAEs genuinely discover meaningful features, they should strongly outperform models with frozen random components.</p>
+<h2><strong>4.1. Experimental setup</strong></h2>
+<p><strong>SAE variants and baselines.</strong> We examine three SAE architectures: the state-of-the-art BatchTopK SAE (Bussmann</p>
+<p>et al., 2024) and JumpReLU SAE (Rajamanoharan et al., 2024b), as well as the traditional ReLU SAE (Bricken et al., 2023; Huben et al., 2024). To test if SAEs decompose model internal mechanisms rather than exploiting spurious correlations in data, we compare them against three easy-toimplement baselines where key components are randomly initialized and frozen (see Figure 1):</p>
+<ol>
+<li>
+<p><strong>Frozen Decoder</strong> : Decoder vectors <strong>W</strong> <em>j</em><sup>dec</sup> are randomly initialized and frozen throughout training. This tests how well SAEs can perform when the latent representations are fixed to random vectors.</p>
+</li>
+<li>
+<p><strong>Soft-Frozen Decoder</strong> : Decoder vectors <strong>W</strong><sup>dec</sup> are ran- <em>j</em></p>
+</li>
+</ol>
+<p>domly initialized and constrained via projection to remain within a cosine similarity <em>τ</em> of their initial values throughout training. This baseline is motivated by our observation that SAE loss plateaus early while decoder vectors remain near initialization. We hypothesize this indicates SAEs may operate in a <em>lazy training</em> regime (Chizat et al., 2019; Kumar et al., 2024), where reconstruction loss is dramatically reduced via small adjustments to latents without substantially changing their core semantics. This baseline directly tests that hypothesis. For all experiments, we use <em>τ</em> = 0.8 (see further discussion in Appendix D).</p>
+<ol start="3">
+<li><strong>Frozen Encoder</strong> : Encoder vectors <strong>W</strong> <em>j</em><sup>enc</sup> are randomly initialized and frozen. This evaluates SAE performance when each feature’s activation pattern (i.e., the contexts that trigger it) is predetermined in initialization, and only the activation threshold and decoder are learned.</li>
+</ol>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0005-05.jpg" alt="" /></p>
+<p><em>Figure 4.</em> <strong>Explained Variance.</strong> Despite training with frozen components, naive baselines achieve high reconstruction performance, with Soft-Frozen SAEs matching fully-trained ReLU SAEs and losing only 6% relative to their original variants.</p>
+<p><strong>Evaluation.</strong> We evaluate the trained SAEs and baselines along four key dimensions: (1) reconstruction fidelity measured by Explained Variance (Gao et al., 2025; Rajamanoharan et al., 2024b); (2) latent’s interpretability evaluated through both automated scoring (AutoInterp) (Paulo et al., 2025) and qualitative manual analysis of activation patterns; (3) sparse probing using the SAEBench framework (Karvonen et al., 2025) to measure how precisely individual latents correspond to meaningful concepts (e.g., sentiment, syntax, factual recall); and (4) causal editing evaluated via the RAVEL framework (Huang et al., 2024; Karvonen et al., 2025) to test whether SAE features can be used for precise and targeted model edits.</p>
+<h2><strong>4.2. Results</strong></h2>
+<p><strong>Models and Configuration.</strong> Following Bussmann et al. (2025), we train all SAEs on the residual stream activations from layer 12 of the Gemma-2-2B model (Team et al., 2024) (26 layers total). To assess generalizability, we also conduct experiments on layer 19 of Gemma-2-2B and layer 16 of Llama-3-8B (Team, 2024) (32 layers total). Each SAE uses a standard expansion factor <em>k</em> of 32 (Bussmann et al., 2025) (matching our toy model experiments), resulting in dictionary sizes of 73,728 and 131,072 latents for Gemma-2-2B and Llama-3.1-8B, respectively. We sweep sparsity levels L0 in the set <em>{</em> 80 <em>,</em> 115 <em>,</em> 160 <em>,</em> 225 <em>,</em> 320 <em>}</em> for each architecture.</p>
+<p>All models are trained on 500 million tokens from the OpenWebText corpus (Gokaslan et al., 2019) with a context length of 512. We use the AdamW optimizer (Loshchilov &amp; Hutter, 2019) with a learning rate of 2 <em>×</em> 10<sup>_−_4</sup> and a batch size of 4098. To ensure a fair comparison, all models share identical initialization, data ordering, and hyperparameters. We will publicly release all code, hyperparameters, and trained SAEs to ensure full reproducibility. Extended results for all layers and models (Gemma-2-2B layers 12 and 19, and Llama-3-8B layer 16) with detailed metrics and standard errors are provided in Appendix E.</p>
+<p>Our results, summarized in Figures 4 to 8, show that SAEs with frozen random components perform comparably to fully-trained SAEs across all four evaluation dimensions, challenging the notion that SAEs learn meaningful feature decompositions.</p>
+<p><strong>Frozen SAE baselines show strong reconstruction performance.</strong> A fundamental premise of SAE evaluation is that strong reconstruction performance indicates the model has learned a meaningful decomposition of activations (Bricken et al., 2023). We directly test this premise by evaluating whether SAEs maintain high reconstruction fidelity even when key components are fixed to random values. Following prior work (Gao et al., 2025; Rajamanoharan et al., 2024b), we use Explained Variance (Eq. 5) as our primary reconstruction metric. We also measure cross-entropy loss and KL-divergence when substituting original activations with their SAE approximations, with these results provided in Appendix C.</p>
+<p>As shown in Figure 4, frozen SAE baselines achieve robust performance across both SAE architectures, with some baselines even matching the reconstruction fidelity</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0006-01.jpg" alt="" /></p>
+<p><em>Figure 5.</em> <strong>AutoInterp score distribution.</strong> For both SAE architectures, frozen baselines achieve high AutoInterp scores, with the Soft-Frozen variant matching original performance, suggesting interpretability can emerge without learned feature alignment.</p>
+<p>of fully-trained SAEs. For instance, at L0=160, the original JumpReLU SAE attains an Explained Variance of 0.85, while its Soft-Frozen Decoder variant reaches 0.79. The Frozen Decoder and Frozen Encoder variants at the same sparsity yield scores of 0.58 and 0.60, respectively, providing that even severely constrained models can achieve non-trivial performance. This pattern indicates that SAEs can produce high-quality reconstructions even when their latent representations or activation patterns are randomized and fixed. Combined with our toy model results (Sec. 3.2), this suggests that strong reconstruction performance may not be a sufficient indicator for validating the discovery of true underlying features.</p>
+<h2><strong>Latents from frozen SAE baselines are monoseman-</strong></h2>
+<p><strong>tic and interpretable.</strong> Beyond reconstruction, SAEs are claimed to produce interpretable latents, taken as proof they capture genuine model features (Bricken et al., 2023). We test whether this interpretability emerges from meaningful feature learning or can be produced even when core components are frozen at random values.</p>
+<p>To evaluate the interpretability of SAE latents, we follow the automated interpretability methodology outlined in (Paulo et al., 2025; Karvonen et al., 2025), leveraging LLMs to generate and validate human-readable feature descriptions. First, we select 200 random SAE latents for all SAE architectures and baseline variants with L0=160, excluding non-active “dead” features, defined as those with activation frequencies <em>&lt;</em> 1e-6. For each latent, we collect up to 15 top-activating sequences and prompt GPT-4o-mini (Hurst et al., 2024) to generate a concise description capturing the feature’s core concept (e.g., <em>“sentiment terms”</em> or <em>“math expressions”</em> ). To assess these descriptions, we create a test set for each latent consisting of 100 sequences: 50 sequences that activate the latent at varying strengths and 50 random non-activating sequences. A separate GPT-4omini model then predicts, based on the description, whether each sequence activates the latent, treating this as a binary</p>
+<p>classification task. The AutoInterp score is defined as the classification accuracy on this test set.</p>
+<p>The AutoInterp scores in Figure 5 reveal that frozen SAE variants produce monosemantic, interpretable latents nearly as well as their fully-trained counterparts. For instance, the Soft-Frozen BatchTopK SAE attains a mean AutoInterp score of 0.88, closely matching the fully-trained variant’s score of 0.90. This suggests that high interpretability can emerge even when latent directions are constrained to remain near random initialization. Notably, the Frozen Encoder BatchTopK baseline, which fixes each feature’s activation pattern to a random projection, still yields a modest fraction of highly interpretable latents, with roughly 30% achieving AutoInterp scores above 0.7.</p>
+<p>To further validate these findings, we conducted a brief qualitative analysis. Focusing on the top-performing latents from our set of 200 randomly selected SAE features, we studied the sentences that triggered them (detailed activation contexts and descriptions for all evaluated latents are provided in the supplementary materials). We observed that many of these latents correspond to abstract, monosemantic, high-level concepts. As illustrated in Figure 6 (with examples from both Soft-Frozen Decoder and Frozen Encoder variants), even our easy-to-implement baselines learn latents representing concepts such as <em>“time-related expressions indicating future events and deadlines”</em> , <em>“terms related to measurements and quantities”</em> , or <em>“words expressing kindness and positive traits of individuals”</em> .</p>
+<p>These results demonstrate that SAEs with frozen components achieve interpretability scores comparable to fullytrained SAEs, challenging the notion that high interpretability reflects meaningful feature learning. Instead, our findings suggest that strong interpretability scores may emerge from aligning with statistical patterns in the data, rather than from genuine feature discovery during training.</p>
+<p><strong>Frozen SAEs yield competitive sparse probing results.</strong> Sparse Probing evaluates the ability of SAEs to isolate specific concepts, such as sentiment, within individual latents without explicit supervision. For each concept, we select the top- <em>k</em> latents by comparing their mean activations on positive versus negative examples. A linear probe is then trained on these latents to predict the concept. High probe accuracy indicates that the latents effectively capture the target concept in a disentangled manner. Following Karvonen et al. (2025), we evaluate across five diverse concept types: profession classification, product classification and sentiment analysis, language identification, programming language classification, and news topic categorization.</p>
+<p>As shown in Figure 7, sparse probing accuracy remains strong even when core SAE components are randomly initialized and frozen. Under the single-top-latent ( <em>k</em> =1) setup,</p>
+<h3><strong>Submission and Formatting Instructions for ICML 2026</strong></h3>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0007-01.jpg" alt="" /></p>
+<p><em>Figure 6.</em> <strong>Qualitative analysis: frozen SAEs produce interpretable latents.</strong> Sample activation contexts for latents from Soft-Frozen Decoder (rows 1-2) and Frozen Encoder (row 3) variants of BatchTopK SAE, with corresponding LLM-generated descriptions and AutoInterp scores. The features capture abstract concepts like <em>“words expressing kindness”</em> , <em>“time-related expressions indicating future events”</em> , and <em>“names of sports teams”</em> , demonstrating that high-level abstract interpretability can emerge without learned feature alignment.</p>
+<p>frozen variants of both BatchTopK and JumpReLU SAEs achieve accuracy scores comparable to their fully-trained counterparts across all sparsity levels (for <em>k</em> =5 see Appendix C). For instance, at L0=225, the BatchTopK Frozen Decoder variant reaches 0.70, matching the fully-trained model’s score, while the Frozen Encoder variant attains 0.65, a difference of only 0.05. These gaps remain narrow (0.001 to 0.07) across all settings and stay well above the randomguessing baseline of 0.50.</p>
+<p>Together, these findings indicate that sparse probing yields non-trivial outcomes likely not because SAEs learn meaningful features, but simply due to the sheer scale of the dictionary. With tens or hundreds of thousands of latents, some inevitably correlate with concept clusters by chance. This random-alignment hypothesis further reinforces our AutoInterp results, where frozen baselines produced highly</p>
+<p>interpretable features despite never learning them.</p>
+<p><strong>Frozen SAEs retain strong RAVEL causal editing performance.</strong> To further test if SAEs discover genuinely meaningful model features, we examine their causal properties. We evaluate whether SAE latents encode causally independent concepts using the RAVEL framework (Huang et al., 2024; Karvonen et al., 2025), which tests if targeted interventions on latents can cleanly edit model predictions. This framework assesses whether the apparent causal utility of SAEs depends on learned feature alignment or can be achieved with frozen random components.</p>
+<p>Specifically, given a factual statement like “Paris is in France”, we encode the subject token (e.g., <em>“Paris”</em> ) with the SAE, train a binary mask to transfer latent values from a different token (e.g., <em>“Tokyo”</em> ), and decode the modi-</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0008-01.jpg" alt="" /></p>
+<p><em>Figure 7.</em> <strong>Sparse probing accuracy.</strong> Frozen-component variants of both BatchTopK and JumpReLU SAEs achieve accuracy comparable to their fully-trained counterparts when using singletop-latent probing.</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0008-03.jpg" alt="" /></p>
+<p><em>Figure 8.</em> <strong>RAVEL causal editing scores.</strong> SAEs with frozen components achieve RAVEL disentanglement scores equivalent to fully-trained SAEs, challenging the premise that SAEs learn meaningful features.</p>
+<p>fied latents back into the residual stream. The model then generates completions; a successful edit would change the targeted attribute (e.g., now stating “Paris is in Japan”) while preserving other attributes (e.g., still “People in Paris speak French”). The RAVEL disentanglement score averages a <em>Cause Metric</em> (measuring how often the desired attribute changes) and an <em>Isolation Metric</em> (measuring how often other attributes remain unchanged).</p>
+<p>As shown in Figure 8, both BatchTopK and JumpReLU SAE variants with frozen components achieve RAVEL scores competitive with their fully-trained counterparts. For BatchTopK, the fully trained model achieves a RAVEL score of approximately 0.72–0.74 across higher sparsity levels (L0 <em>≥</em> 160). The Frozen Decoder variant performs surprisingly well, reaching 0.57-0.62, demonstrating that effective causal editing can be achieved even when decoder vectors are frozen as random directions. The Frozen Encoder variant also shows strong performance, maintaining a score of 0.63 for L0 = 160. Meanwhile, the Soft-Frozen Decoder variant matches or even exceeds the fully trained model, reaching up to 0.78 at L0 = 320.</p>
+<p>This suggests that much of the causal editing performance</p>
+<p>attributed to SAEs emerges from the systemic coverage of its initial vector set rather than from learned feature representations, undermining claims about SAEs’ ability to discover causally meaningful features.</p>
+<h1><strong>5. Limitations</strong></h1>
+<p>Our work has two primary limitations. First, our synthetic experiment assumes independent feature activations, omitting correlations that likely exist in real neural networks. However, since current SAE architectures already fail to recover ground-truth features in this simplified setting, incorporating more realistic dependencies is unlikely to improve their performance. Moreover, it remains unclear how to appropriately model these covariances in a synthetic setup without making arbitrary assumptions. Second, we focus on standard SAE architectures and do not evaluate related approaches such as transcoders or crosscoders (Dunefsky et al., 2024); designing appropriate randomization baselines for these methods, given their different training objectives, remains an open challenge.</p>
+<h1><strong>6. Discussion and Conclusion</strong></h1>
+<p>We have presented a systematic evaluation of SAEs through two complementary approaches: synthetic experiments with known ground-truth features, and comparisons against random baselines on real LLM activations. Our synthetic results reveal a troubling disconnect between reconstruction fidelity and feature recovery, where SAEs achieve 71% explained variance while recovering only 9% of true features. Our baselines, which constrain SAE components to random values, match fully-trained SAEs across interpretability, sparse probing, and causal editing evaluations.</p>
+<p>When viewed in isolation, fully-trained SAEs appear to perform well on standard metrics. However, in relation to our baselines, we show that the gains attributable to learning become modest. We hypothesize that this stems from the reconstruction objective itself: minimizing reconstruction loss encourages SAEs to find any sparse representation that recovers the input, without explicitly rewarding alignment with the model’s true features. Our synthetic experiments support this view, as SAEs achieve strong reconstruction while failing to recover ground-truth features. This suggests that reconstruction may be a poor proxy for meaningful decomposition, and future work might explore objectives that more directly incentivize feature alignment.</p>
+<p>We emphasize that our baselines are simple to implement. If future SAE architectures substantially outperform them, it would provide stronger evidence for meaningful feature learning. We hope that our work contributes to more rigorous evaluation standards for interpretability methods, not a verdict on SAEs as a paradigm.</p>
+<h1><strong>Impact Statement</strong></h1>
+<p>This paper presents work whose goal is to advance the field of Machine Learning. There are many potential societal consequences of our work, none of which we feel must be specifically highlighted here.</p>
+<p><em>Machine Learning, ICML 2025, Vancouver, BC, Canada, July 13-19, 2025</em> . OpenReview.net, 2025. URL https: //openreview.net/forum?id=m25T5rAy43.</p>
+<ul>
+<li>Chanin, D. and Garriga-Alonso, A. Sparse but wrong: Incorrect l0 leads to incorrect features in sparse autoencoders. <em>arXiv preprint arXiv:2508.16560</em> , 2025.</li>
+</ul>
+<h1><strong>References</strong></h1>
+<ul>
+<li>
+<p>Chanin, D., Dulka, T., and Garriga-Alonso, A. Feature hedging: Correlated features break narrow sparse autoencoders, 2025a. URL https://arxiv.org/abs/ 2505.11756.</p>
+</li>
+<li>
+<p>Arditi, A., Obeso, O., Syed, A., Paleka, D., Panickssery, N., hedging:</p>
+</li>
+<li>
+<p>Gurnee, W., and Nanda, N. Refusal in language models is coders, 2025a.</p>
+</li>
+<li>
+<p>mediated by a single direction. In Globerson, A., Mackey, 2505.11756. L., Belgrave, D., Fan, A., Paquet, U., Tomczak, J., and Zhang, C. (eds.), <em>Advances in Neural Information Pro-</em> Chanin, D.,</p>
+</li>
+<li>
+<p><em>cessing Systems</em> , volume 37, pp. 136037–136083. Curran Golechha, Associates, Inc., 2024. doi: 10.52202/079017-4322. URL https://proceedings.neurips. coders. In cc/paper_files/paper/2024/file/ f545448535dfde4f9786555403ab7c49-Paper-Conference. pdf.</p>
+<ul>
+<li>
+<p>Chanin, D., Wilken-Smith, J., Dulka, T., Bhatnagar, H., Golechha, S., and Bloom, J. I. A is for absorption: Studying feature splitting and absorption in sparse autoencoders. In <em>The Thirty-ninth Annual Conference on Neural Information Processing Systems</em> , 2025b. URL https: //openreview.net/forum?id=R73ybUciQF.</p>
+</li>
+<li>
+<p>Chizat, L., Oyallon, E., and Bach, F. R. On lazy training in differentiable programming. In Wallach, H. M., Larochelle, H., Beygelzimer, A., d’Alche-Buc, F., Fox,´ E. B., and Garnett, R. (eds.), <em>Advances in Neural Information Processing Systems 32: Annual Conference on Neural Information Processing Systems 2019, NeurIPS 2019, December 8-14, 2019, Vancouver, BC, Canada</em> , pp. 2933–2943, 2019. URL https://proceedings. neurips.cc/paper/2019/hash/</p>
+</li>
+</ul>
+</li>
+<li>
+<p>Bereska, L. and Gavves, S. Mechanistic interpretability for AI safety - A review. <em>Trans. Mach. Learn. Res.</em> , 2024, 2024. URL https://openreview.net/forum? id=ePUVetPKu6.</p>
+</li>
+<li>
+<p>Betley, J., Tan, D. C. H., Warncke, N., Sztyber-Betley, A., Bao, X., Soto, M., Labenz, N., and Evans, O. Emergent misalignment: Narrow finetuning can produce broadly misaligned LLMs. In Singh, A., Fazel, M., Hsu, D., Lacoste-Julien, S., Berkenkamp, F., Maharaj, T., Wagstaff, K., and Zhu, J. (eds.), <em>Proceedings of the 42nd International Conference on Machine Learning</em> , volume 267 of <em>Proceedings of Machine Learning Research</em> , pp. 4043–4068. PMLR, 13–19 Jul 2025. URL https://proceedings.mlr.press/ v267/betley25a.html.</p>
+<ul>
+<li>
+<p>ae614c557843b1df326cb29c57225459-Abstract. html.</p>
+</li>
+<li>
+<p>Deng, J., Dong, W., Socher, R., Li, L.-J., Li, K., and Fei-Fei, L. Imagenet: A large-scale hierarchical image database. In <em>2009 IEEE Conference on Computer Vision and Pattern Recognition</em> , pp. 248–255, 2009. doi: 10.1109/CVPR.2009.5206848.</p>
+</li>
+</ul>
+</li>
+<li>
+<p>Bricken, T., Templeton, A., Batson, J., Chen, B., Jermyn, A., Conerly, T., Turner, N., Anil, C., Denison, C., Askell, A., Lasenby, R., Wu, Y., Kravec, S., Schiefer, N., Maxwell, T., Joseph, N., Hatfield-Dodds, Z., Tamkin, A., Nguyen, K., McLean, B., Burke, J. E., Hume, T., Carter, S., Henighan, T., and Olah, C. Towards monosemanticity: Decomposing language models with dictionary learning. <em>Transformer Circuits Thread</em> , 2023. URL https: //transformer-circuits.pub/2023/ monosemantic-features/index.html.</p>
+<ul>
+<li>
+<p>Dunefsky, J., Chlenski, P., and Nanda, N. Transcoders find interpretable llm feature circuits. <em>Advances in Neural Information Processing Systems</em> , 37:24375–24410, 2024.</p>
+</li>
+<li>
+<p>Elhage, N., Hume, T., Olsson, C., Schiefer, N., Henighan, T., Kravec, S., Hatfield-Dodds, Z., Lasenby, R., Drain, D., Chen, C., Grosse, R. B., McCandlish, S., Kaplan, J., Amodei, D., Wattenberg, M., and Olah, C. Toy models of superposition. <em>CoRR</em> , abs/2209.10652, 2022. doi: 10.48550/ARXIV.2209.10652. URL https://doi. org/10.48550/arXiv.2209.10652.</p>
+</li>
+</ul>
+</li>
+<li>
+<p>Bussmann, B., Leask, P., and Nanda, N. Batchtopk sparse autoencoders. <em>CoRR</em> , abs/2412.06410, 2024. doi: 10.48550/ARXIV.2412.06410. URL https://doi. org/10.48550/arXiv.2412.06410.</p>
+<ul>
+<li>Galichin, A., Dontsov, A., Druzhinina, P., Razzhigaev, A., Rogov, O. Y., Tutubalina, E., and Oseledets, I. I have covered all the bases here: Interpreting reasoning features in large language models via sparse autoencoders. <em>arXiv preprint arXiv:2503.18878</em> , 2025.</li>
+</ul>
+</li>
+<li>
+<p>Bussmann, B., Nabeshima, N., Karvonen, A., and Nanda, N. Learning multi-level features with matryoshka sparse autoencoders. In <em>Forty-second International Conference on</em></p>
+</li>
+<li>
+<p>Gao, L., la Tour, T. D., Tillman, H., Goh, G., Troll, R., Radford, A., Sutskever, I., Leike, J., and Wu, J. Scaling and evaluating sparse autoencoders. In <em>The Thirteenth International Conference on Learning Representations, ICLR 2025, Singapore, April 24-28, 2025</em> . OpenReview.net, 2025. URL https://openreview.net/forum? id=tcsZt9ZNKD.</p>
+</li>
+<li>
+<p>Gokaslan, A., Cohen, V., Pavlick, E., and Tellex, S. Openwebtext corpus. http://Skylion007.github. io/OpenWebTextCorpus, 2019.</p>
+</li>
+<li>
+<p>Grace, K., Sandkuhler, J. F., Stewart, H., Weinstein-Raun,¨ B., Thomas, S., Stein-Perlman, Z., Salvatier, J., Brauner, J., and Korzekwa, R. C. Thousands of AI authors on the future of AI. <em>J. Artif. Intell. Res.</em> , 84, 2025. doi: 10.1613/JAIR.1.19087. URL https://doi.org/10. 1613/jair.1.19087.</p>
+</li>
+<li>
+<p>Heap, T., Lawson, T., Farnik, L., and Aitchison, L. Sparse autoencoders can interpret randomly initialized transformers. <em>CoRR</em> , abs/2501.17727, 2025. doi: 10.48550/ARXIV. 2501.17727. URL https://doi.org/10.48550/ arXiv.2501.17727.</p>
+</li>
+<li>
+<p>Heindrich, L., Torr, P., Barez, F., and Thost, V. Do sparse autoencoders generalize? A case study of answerability. <em>CoRR</em> , abs/2502.19964, 2025. doi: 10.48550/ARXIV. 2502.19964. URL https://doi.org/10.48550/ arXiv.2502.19964.</p>
+</li>
+<li>
+<p>Huang, J., Wu, Z., Potts, C., Geva, M., and Geiger, A. RAVEL: evaluating interpretability methods on disentangling language model representations. In Ku, L., Martins, A., and Srikumar, V. (eds.), <em>Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), ACL 2024, Bangkok, Thailand, August 11-16, 2024</em> , pp. 8669–8687. Association for Computational Linguistics, 2024. doi: 10.18653/ V1/2024.ACL-LONG.470. URL https://doi.org/ 10.18653/v1/2024.acl-long.470.</p>
+</li>
+<li>
+<p>Huben, R., Cunningham, H., Smith, L. R., Ewart, A., and Sharkey, L. Sparse autoencoders find highly interpretable features in language models. In <em>The Twelfth International Conference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024</em> . OpenReview.net, 2024. URL https://openreview.net/forum? id=F76bwRSLeK.</p>
+</li>
+<li>
+<p>Hurst, A., Lerer, A., Goucher, A. P., Perelman, A., Ramesh, A., Clark, A., Ostrow, A., Welihinda, A., Hayes, A., Radford, A., Madry, A., Baker-Whitcomb, A., Beutel, A., Borzunov, A., Carney, A., Chow, A., Kirillov, A., Nichol, A., Paino, A., Renzin, A., Passos, A. T., Kirillov, A., Christakis, A., Conneau, A., Kamali, A., Jabri, A., Moyer, A., Tam, A., Crookes, A., Tootoonchian, A.,</p>
+</li>
+</ul>
+<p>Kumar, A., Vallone, A., Karpathy, A., Braunstein, A., Cann, A., Codispoti, A., Galu, A., Kondrich, A., Tulloch, A., Mishchenko, A., Baek, A., Jiang, A., Pelisse, A., Woodford, A., Gosalia, A., Dhar, A., Pantuliano, A., Nayak, A., Oliver, A., Zoph, B., Ghorbani, B., Leimberger, B., Rossen, B., Sokolowsky, B., Wang, B., Zweig, B., Hoover, B., Samic, B., McGrew, B., Spero, B., Giertler, B., Cheng, B., Lightcap, B., Walkin, B., Quinn, B., Guarraci, B., Hsu, B., Kellogg, B., Eastman, B., Lugaresi, C., Wainwright, C. L., Bassin, C., Hudson, C., Chu, C., Nelson, C., Li, C., Shern, C. J., Conger, C., Barette, C., Voss, C., Ding, C., Lu, C., Zhang, C., Beaumont, C., Hallacy, C., Koch, C., Gibson, C., Kim, C., Choi, C., McLeavey, C., Hesse, C., Fischer, C., Winter, C., Czarnecki, C., Jarvis, C., Wei, C., Koumouzelis, C., and Sherburn, D. Gpt-4o system card. <em>CoRR</em> , abs/2410.21276, 2024. doi: 10.48550/ARXIV.2410.21276. URL https: //doi.org/10.48550/arXiv.2410.21276.</p>
+<ul>
+<li>
+<p>Joseph, S., Suresh, P., Hufe, L., Stevinson, E., Graham, R., Vadi, Y., Bzdok, D., Lapuschkin, S., Sharkey, L., and Richards, B. A. Prisma: An open source toolkit for mechanistic interpretability in vision and video, 2025. URL https://arxiv.org/abs/2504.19475.</p>
+</li>
+<li>
+<p>Kantamneni, S., Engels, J., Rajamanoharan, S., Tegmark, M., and Nanda, N. Are sparse autoencoders useful? A case study in sparse probing. In <em>Forty-second International Conference on Machine Learning, ICML 2025, Vancouver, BC, Canada, July 13-19, 2025</em> . OpenReview.net, 2025. URL https://openreview.net/ forum?id=rNfzT8YkgO.</p>
+</li>
+<li>
+<p>Karvonen, A., Wright, B., Rager, C., Angell, R., Brinkmann, J., Smith, L., Verdun, C. M., Bau, D., and Marks, S. Measuring progress in dictionary learning for language model interpretability with board game models. In Globersons, A., Mackey, L., Belgrave, D., Fan, A., Paquet, U., Tomczak, J. M., and Zhang, C. (eds.), <em>Advances in Neural Information Processing Systems 38: Annual Conference on Neural Information Processing Systems 2024, NeurIPS 2024, Vancouver, BC, Canada, December 10 - 15, 2024</em> , 2024. URL http://papers. nips.cc/paper_files/paper/2024/hash/ 9736acf007760cc2b47948ae3cf06274-Abstract-Conference. html.</p>
+</li>
+<li>
+<p>Karvonen, A., Rager, C., Lin, J., Tigges, C., Bloom, J. I., Chanin, D., Lau, Y., Farrell, E., McDougall, C., Ayonrinde, K., Till, D., Wearden, M., Conmy, A., Marks, S., and Nanda, N. Saebench: A comprehensive benchmark for sparse autoencoders in language model interpretability. In <em>Forty-second International Conference on Machine Learning, ICML 2025, Vancouver, BC, Canada, July 13-19, 2025</em> . OpenReview.net, 2025. URL https:</p>
+</li>
+<li>
+<p>//openreview.net/forum?id=qrU3yNfX0d.</p>
+</li>
+<li>
+<p>Korznikov, A., Galichin, A., Dontsov, A., Rogov, O., Tutubalina, E., and Oseledets, I. Ortsae: Orthogonal sparse autoencoders uncover atomic features. <em>arXiv preprint arXiv:2509.22033</em> , 2025.</p>
+</li>
+<li>
+<p>Kumar, T., Bordelon, B., Gershman, S. J., and Pehlevan, C. Grokking as the transition from lazy to rich training dynamics. In <em>The Twelfth International Conference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024</em> . OpenReview.net, 2024. URL https: //openreview.net/forum?id=vt5mnLVIVo.</p>
+</li>
+<li>
+<p>Leask, P., Bussmann, B., Pearce, M. T., Bloom, J. I., Tigges, C., Moubayed, N. A., Sharkey, L., and Nanda, N. Sparse autoencoders do not find canonical units of analysis. In <em>The Thirteenth International Conference on Learning Representations, ICLR 2025, Singapore, April 24-28, 2025</em> . OpenReview.net, 2025. URL https: //openreview.net/forum?id=9ca9eHNrdH.</p>
+</li>
+<li>
+<p>Li, A. J., Srinivas, S., Bhalla, U., and Lakkaraju, H. Evaluating adversarial robustness of concept representations in sparse autoencoders. 2026. URL https://arxiv. org/abs/2505.16004.</p>
+</li>
+<li>
+<p>Lieberum, T., Rajamanoharan, S., Conmy, A., Smith, L., Sonnerat, N., Varma, V., Kramar, J., Dragan, A., Shah,´ R., and Nanda, N. Gemma scope: Open sparse autoencoders everywhere all at once on gemma 2. <em>arXiv preprint arXiv:2408.05147</em> , 2024.</p>
+</li>
+<li>
+<p>Loshchilov, I. and Hutter, F. Decoupled weight decay regularization. 2019. URL https://openreview.net/ forum?id=Bkg6RiCqY7.</p>
+</li>
+<li>
+<p>Menon, A., Shrivastava, M., Krueger, D., and Lubana, E. S. Analyzing (in) abilities of saes via formal languages. In <em>Proceedings of the 2025 Conference of the Nations of the Americas Chapter of the Association for Computational Linguistics: Human Language Technologies (Volume 1: Long Papers)</em> , pp. 4837–4862, 2025.</p>
+</li>
+<li>
+<p>Minegishi, G., Furuta, H., Iwasawa, Y., and Matsuo, Y. Rethinking evaluation of sparse autoencoders through the representation of polysemous words. In <em>The Thirteenth International Conference on Learning Representations, ICLR 2025, Singapore, April 24-28, 2025</em> . OpenReview.net, 2025. URL https://openreview.net/ forum?id=HpUs2EXjOl.</p>
+</li>
+<li>
+<p>Paulo, G. and Belrose, N. Sparse autoencoders trained on the same data learn different features, 2025. URL https://arxiv.org/abs/2501.16615.</p>
+</li>
+<li>
+<p>Paulo, G. S., Mallen, A. T., Juang, C., and Belrose, N. Automatically interpreting millions of features in large</p>
+</li>
+<li>
+<p>language models. In <em>Forty-second International Conference on Machine Learning</em> , 2025. URL https: //openreview.net/forum?id=EemtbhJOXc.</p>
+</li>
+<li>
+<p>Radford, A., Kim, J. W., Hallacy, C., Ramesh, A., Goh, G., Agarwal, S., Sastry, G., Askell, A., Mishkin, P., Clark, J., et al. Learning transferable visual models from natural language supervision. In <em>International conference on machine learning</em> , pp. 8748–8763. PmLR, 2021.</p>
+</li>
+<li>
+<p>Rajamanoharan, S., Conmy, A., Smith, L., Lieberum, T., Varma, V., Kramar,´ J., Shah, R., and Nanda, N. Improving dictionary learning with gated sparse autoencoders, 2024a. URL https://arxiv.org/abs/ 2404.16014.</p>
+</li>
+<li>
+<p>Rajamanoharan, S., Lieberum, T., Sonnerat, N., Conmy, A., Varma, V., Kramar,´ J., and Nanda, N. Jumping ahead: Improving reconstruction fidelity with jumprelu sparse autoencoders. <em>arXiv preprint arXiv:2407.14435</em> , 2024b.</p>
+</li>
+<li>
+<p>Sharkey, L., Braun, D., and Millidge, B. Taking features out of superposition with sparse autoencoders. <em>AI Alignment Forum</em> , 2022. URL https://www.alignmentforum. org/posts/z6QQJbtpkEAX3Aojj/</p>
+</li>
+<li>
+<p>interim-research-report-taking-features-out-of-superposition</p>
+</li>
+<li>
+<p>Smith, L., Rajamanoharan, S., Conmy, A., McDougall, C., Kramar,´ J., Lieberum, T., Shah, R., and Nanda, N. Negative results for saes on downstream tasks and deprioritising sae research (gdm mech interp team progress update# 2), march 2025. 2025. URL https://www.lesswrong. com/posts/4uXCAJNuPKtKBsi28/</p>
+</li>
+<li>
+<p>negative-results-for-saes-on-downstream-tasks.</p>
+</li>
+<li>
+<p>Team, G., Riviere, M., Pathak, S., Sessa, P. G., Hardin, C., Bhupatiraju, S., Hussenot, L., Mesnard, T., Shahriari, B., Rame, A., Ferret, J., Liu, P., Tafti, P., Friesen, A., Casbon,´ M., Ramos, S., Kumar, R., Lan, C. L., Jerome, S., Tsitsulin, A., Vieillard, N., Stanczyk, P., Girgin, S., Momchev, N., Hoffman, M., Thakoor, S., Grill, J.-B., Neyshabur, B., Bachem, O., Walton, A., Severyn, A., Parrish, A., Ahmad, A., Hutchison, A., Abdagic, A., Carl, A., Shen, A., Brock, A., Coenen, A., Laforge, A., Paterson, A., Bastian, B., Piot, B., Wu, B., Royal, B., Chen, C., Kumar, C., Perry, C., Welty, C., Choquette-Choo, C. A., Sinopalnikov, D., Weinberger, D., Vijaykumar, D., Rogozinska,´ D., Herbison, D., Bandy, E., Wang, E., Noland, E., Moreira, E., Senter, E., Eltyshev, E., Visin, F., Rasskin, G., Wei, G., Cameron, G., Martins, G., Hashemi, H., KlimczakPlucinska,´ H., Batra, H., Dhand, H., Nardini, I., Mein, J., Zhou, J., Svensson, J., Stanway, J., Chan, J., Zhou, J. P., Carrasqueira, J., Iljazi, J., Becker, J., Fernandez, J., van Amersfoort, J., Gordon, J., Lipschultz, J., Newlan, J.,</p>
+</li>
+</ul>
+<p>yeong Ji, J., Mohamed, K., Badola, K., Black, K., Millican, K., McDonell, K., Nguyen, K., Sodhia, K., Greene, K., Sjoesund, L. L., Usui, L., Sifre, L., Heuermann, L., Lago, L., McNealus, L., Soares, L. B., Kilpatrick, L., Dixon, L., Martins, L., Reid, M., Singh, M., Iverson, M., Gorner,¨ M., Velloso, M., Wirth, M., Davidow, M., Miller, M., Rahtz, M., Watson, M., Risdal, M., Kazemi, M., Moynihan, M., Zhang, M., Kahng, M., Park, M., Rahman, M., Khatwani, M., Dao, N., Bardoliwalla, N., Devanathan, N., Dumai, N., Chauhan, N., Wahltinez, O., Botarda, P., Barnes, P., Barham, P., Michel, P., Jin, P., Georgiev, P., Culliton, P., Kuppala, P., Comanescu, R., Merhej, R., Jana, R., Rokni, R. A., Agarwal, R., Mullins, R., Saadat, S., Carthy, S. M., Cogan, S., Perrin, S., Arnold, S. M. R., Krause, S., Dai, S., Garg, S., Sheth, S., Ronstrom, S., Chan, S., Jordan, T., Yu, T., Eccles, T., Hennigan, T., Kocisky, T., Doshi, T., Jain, V., Yadav, V., Meshram, V., Dharmadhikari, V., Barkley, W., Wei, W., Ye, W., Han, W., Kwon, W., Xu, X., Shen, Z., Gong, Z., Wei, Z., Cotruta, V., Kirk, P., Rao, A., Giang, M., Peran, L., Warkentin, T., Collins, E., Barral, J., Ghahramani, Z., Hadsell, R., Sculley, D., Banks, J., Dragan, A., Petrov, S., Vinyals, O., Dean, J., Hassabis, D., Kavukcuoglu, K., Farabet, C., Buchatskaya, E., Borgeaud, S., Fiedel, N., Joulin, A., Kenealy, K., Dadashi, R., and Andreev, A. Gemma 2: Improving open language models at a practical size. 2024. URL https://arxiv.org/abs/2408.00118.</p>
+<ul>
+<li>
+<p>Wang, M., la Tour, T. D., Watkins, O., Makelov, A., Chi, R. A., Miserendino, S., Wang, J., Rajaram, A., Heidecke, J., Patwardhan, T., et al. Persona features control emergent misalignment. <em>arXiv preprint arXiv:2506.19823</em> , 2025.</p>
+</li>
+<li>
+<p>Wu, Z., Arora, A., Geiger, A., Wang, Z., Huang, J., Jurafsky, D., Manning, C. D., and Potts, C. Axbench: Steering llms? even simple baselines outperform sparse autoencoders. In <em>ICML</em> . OpenReview.net, 2025.</p>
+</li>
+<li>
+<p>Team, L. The llama 3 herd of models. <em>CoRR</em> , abs/2407.21783, 2024. doi: 10.48550/ARXIV.2407. 21783. URL https://doi.org/10.48550/ arXiv.2407.21783.</p>
+</li>
+<li>
+<p>Templeton, A., Conerly, T., Marcus, J., Lindsey, J., Bricken, T., Chen, B., Pearce, A., Citro, C., Ameisen, E., Jones, A., Cunningham, H., Turner, N. L., McDougall, C., MacDiarmid, M., Freeman, C. D., Sumers, T. R., Rees, E., Batson, J., Jermyn, A., Carter, S., Olah, C., and Henighan, T. Scaling monosemanticity: Extracting interpretable features from claude 3 sonnet. <em>Transformer Circuits Thread. Anthropic</em> , 2024. URL https: //transformer-circuits.pub/2024/ scaling-monosemanticity/index.html.</p>
+</li>
+<li>
+<p>Tkocz, T. An upper bound for spherical caps. <em>The American Mathematical Monthly</em> , 119(7):606–607, 2012. URL https://doi.org/10.4169/amer.math. monthly.119.07.606.</p>
+</li>
+<li>
+<p>Wang, K. R., Variengien, A., Conmy, A., Shlegeris, B., and Steinhardt, J. Interpretability in the wild: a circuit for indirect object identification in GPT-2 small. In <em>The Eleventh International Conference on Learning Representations</em> , 2023. URL https://openreview.net/forum? id=NpsVSN6o4ul.</p>
+</li>
+</ul>
+<h1><strong>A. SAEs: Claimed Benefits vs. Documented Limitations</strong></h1>
+<p>Table 1 provides a comprehensive overview of both the claimed advantages that have motivated widespread adoption of SAEs and the documented challenges that cast doubt on their reliability.</p>
+<p><em>Table 1.</em> <strong>Sparse Autoencoders: Claimed Benefits vs. Documented Limitations</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>Claimed Benefits</strong></th>
+<th><strong>Documented Limitations</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Core Purpose:</strong> Decompose dense activations into sparse, inter-<br>pretable, monosemantic features (Bricken et al.,2023;Huben<br>et al.,2024)</td>
+<td><strong>Spurious Features:</strong> Find features even in randomly initialized<br>transformers with no learned structure (Heap et al.,2025)</td>
+</tr>
+<tr>
+<td><strong>Monosemanticity:</strong> Address polysemanticity by learning fea-<br>tures that correspond to single coherent concepts (Bricken et al.,<br>2023;Huben et al.,2024)<br></td>
+<td><strong>Unfaithfulness:</strong> Reconstructed features do not faithfully repre-<br>sent true model computations (Leask et al.,2025;Menon et al.,<br>2025)<br></td>
+</tr>
+<tr>
+<td><strong>Scalability:</strong> Successfully scaled to frontier models including</td>
+<td><strong>Poor Generalization:</strong> Fail to generalize across tasks, settings,<br></td>
+</tr>
+<tr>
+<td>Claude 3 Sonnet, GPT-4, and Gemma 2 (Templeton et al.,2024;<br>Gao et al.,2025;Lieberum et al.,2024)<br></td>
+<td>and perturbations (Heindrich et al., 2025; Kantamneni et al.,<br>2025;Li et al.,2026)<br></td>
+</tr>
+<tr>
+<td>**AI Safety Applications:**Enable mechanistic interpretability for<br>understanding safety mechanisms, reasoning, and misalignment<br></td>
+<td><strong>Downstream Performance:</strong> Underperform on downstream<br>tasks; other approaches often outperform SAEs (Wu et al.,2025;<br></td>
+</tr>
+<tr>
+<td>(Wang et al.,2023;Galichin et al.,2025)</td>
+<td>Smith et al.,2025)</td>
+</tr>
+<tr>
+<td><strong>Reconstruction Quality:</strong> Achieve high reconstruction fidelity</td>
+<td><strong>Training Fragility:</strong> Highly sensitive to hyperparameters and</td>
+</tr>
+<tr>
+<td>(Bricken et al.,2023;Gao et al.,2025)</td>
+<td>initialization (Chanin &amp; Garriga-Alonso,2025;Paulo &amp; Belrose,<br>2025;Minegishi et al.,2025)</td>
+</tr>
+</tbody>
+</table>
+<h1><strong>B. Extended Comparison for Toy Model Experiments</strong></h1>
+<p>In addition to the BatchTopK and JumpReLU architectures evaluated in Section 3.1, we examine two further SAE variants on our synthetic data: the simple TopK SAE (Gao et al., 2025) and the hierarchical Matryoshka SAE (Bussmann et al., 2025) built on the BatchTopK architecture. These variants provide insight into how different architectural choices affect feature recovery in controlled settings. For these experiments, we use the same setup as described in Section 3.1. For Matryoshka SAE, we use the standard group fractions <em>{</em> 0.5, 0.3, 0.2 <em>}</em> .</p>
+<p><strong>Constant Probability Setting</strong> Figure 9 (left) presents feature recovery in the uniform setting where all ground truth features have equal activation probability. TopK SAE achieves near-perfect recovery (99.9% of features aligned with cosine similarity <em>≥</em> 0.8), dramatically outperforming all other architectures. This strong performance is particularly surprising. We hypothesize that its simpler activation mechanism may be more stable in this synthetic setting, but this success does not necessarily translate to real-world activations where feature distributions are more complex. In contrast, Matryoshka SAE fails entirely, recovering only 0.03% of features, a performance indistinguishable from BatchTopK and JumpReLU SAEs.</p>
+<p><strong>Varying Probability Setting</strong> Figure 9 (right) shows results in the heavy-tailed setting, which mimics the skewed activation distributions observed in real LLMs. Here, all architectures recover only a small fraction (7 to 43%) of ground truth features, exclusively from the high frequency tail. TopK SAE achieves the best recovery, though still far from complete coverage. Matryoshka’s hierarchical decomposition introduces a subtle trade-off: it recovers slightly more mid-frequency features than BatchTopK and JumpReLU, but at the cost of missing some of the very highest frequency components. This suggests that hierarchical sparsity can redistribute feature recovery across the frequency spectrum but does not overcome the fundamental bias toward high-variance directions.</p>
+<p><strong>Implications</strong> Despite TopK SAE’s success in a constant probability setting, this doesn’t translate to real LLM activations. As shown in Appendix C, TopK SAE with frozen components performs comparably to its fully-trained counterpart on real data, suggesting toy model success is an artifact of the simplified controlled setting.</p>
+<h1><strong>C. Frozen Baselines for TopK SAE on Real Activations</strong></h1>
+<p>To provide a comprehensive evaluation across SAE architectures, we extend our frozen baseline analysis to the simpler TopK SAE variant. Figure 10 presents the performance of TopK SAE (L0=160) trained on Gemma-2-2B layer 12 activations, comparing the four variants (Fully Trained, Soft-Frozen Decoder, Frozen Decoder, Frozen Encoder) across our standard</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0014-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0014-02.jpg" alt="" /></p>
+<p><em>Figure 9.</em> <strong>Toy model experiments: extended architectures.</strong> Surprisingly, simple TopK SAE successfully recovers nearly all ground truth features (99.99%), while Matryoshka SAE fails completely (0.03% recovery), performing equivalently to BatchTopK and JumpReLU in the constant probability setting. In the more realistic heavy-tailed variable setting, all architectures recover only high-frequency features (7 to 43% of total). TopK SAE achieves the best recovery, while Matryoshka’s hierarchical structure shifts recovery toward moderately frequent features at the expense of the very highest frequencies compared to BatchTopK and JumpReLU SAEs.</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0014-04.jpg" alt="" /></p>
+<p><em>Figure 10.</em> <strong>Frozen baseline performance for TopK SAE (L0=160) on Gemma-2-2B layer 12.</strong></p>
+<p>evaluation metrics.</p>
+<p>The results reveal a pattern similar to that observed for BatchTopK SAE: frozen variants remain competitive with the fully trained model. The Soft-Frozen Decoder variant in particular maintains strong performance across all metrics, demonstrating that even simple SAE architectures can achieve high scores without meaningful feature learning.</p>
+<h1><strong>D. The Soft-Frozen Decoder: Testing the Lazy Training Hypothesis</strong></h1>
+<p>The Soft-Frozen Decoder baseline directly tests whether SAEs operate in what we term a <em>lazy training</em> regime (Chizat et al., 2019; Kumar et al., 2024). Under this hypothesis, SAEs achieve strong reconstruction performance primarily through vanishingly small adjustments to both encoder and decoder vectors that remain semantically close to their random initializations without discovering fundamentally new feature directions. This baseline constrains decoder vectors to maintain at least <em>τ</em> = 0.8 cosine similarity with their initial random directions throughout training. Below, we present empirical observations and theoretical analysis that motivate this baseline and reveal its implications.</p>
+<p><strong>Empirical Motivation: Early Convergence with Minimal Directional Change</strong> During training of a JumpReLU SAE (L0=160), we observed that the loss and explained variance plateaued early, while the decoder vectors remained close to their initial random directions. After just 5% of total training steps, when loss and Explained Variance had plateaued at</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0015-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0015-02.jpg" alt="" /></p>
+<p><em>Figure 11.</em> <strong>Decoder vectors remain near random initialization throughout training.</strong> Histograms of cosine similarity between decoder vectors at initialization and after 5% (left) and 10% (right) of training steps for a JumpReLU SAE. The strong concentration near 1.0 indicates minimal directional change even after reconstruction performance has plateaued, supporting the lazy training hypothesis and motivating the Soft-Frozen Decoder baseline.</p>
+<p>0.80 (versus a final value of 0.86), the majority of decoder vectors showed minimal directional deviation from initialization (Figure 11, left). This pattern persisted at 10% training (Explained Variance = 0.82), with cosine similarities still concentrated near 0.8 (Figure 11, right). These observations suggest SAEs achieve most reconstruction gains through vanishingly small adjustments to both encoder and decoder vectors rather than discovering new directional representations. Motivated by this finding and the theoretical analysis below, we set <em>τ</em> = 0 <em>.</em> 8 for the Soft-Frozen Decoder baseline, selecting a threshold that permits very limited directional adjustment while remaining consistent with the observed training dynamics.</p>
+<p><strong>Theoretical Analysis: The Vanishing Probability of Feature Alignment</strong> The Soft-Frozen Decoder baseline initializes decoder vectors <strong>W</strong> <em>i</em><sup>dec</sup> uniformly from the unit sphere <em>S</em><sup>_n−<em>1</sup> and constrains them to maintain cosine similarity <em>τ</em> = 0 <em>.</em> 8 with their initial values <strong>W</strong><sup>�</sup> <em>i</em><sup>dec.For the SAE to represent a specific ground-truth feature (e.g.,</sup><sup></em>“there is a knight on F3”_in a chess</sup> model (Karvonen et al., 2024)), at least one decoder vector must align closely with that feature’s true direction.</p>
+<p>Formally, the constraint confines each decoder vector to a spherical cap around its random initialization. The set of expressible directions is:</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0015-07.jpg" alt="" /></p>
+<p>For an arbitrary ground-truth feature direction <strong>Y</strong> <em>∈ S</em><sup>_n−_1</sup> , the probability it lies within <em>X</em> is bounded by:</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0015-09.jpg" alt="" /></p>
+<p>The probability that a random unit vector falls within a spherical cap of cosine similarity <em>t</em> decays exponentially with dimension <em>n</em> (Tkocz, 2012). With our experimental parameters ( <em>τ</em> = 0 <em>.</em> 8, <em>n</em> = 2304, <em>m</em> = 73728):</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0015-11.jpg" alt="" /></p>
+<p>Thus, the Soft-Frozen Decoder is mathematically unlikely to align with arbitrary semantic features beyond chance initialization. Its strong performance must therefore arise from efficiently combining its nearly-fixed, random directions through vanishingly small adjustments to both encoder and decoder vectors. This provides formal evidence that standard SAE metrics can be optimized without learning meaningful feature directions, challenging the assumption that reconstruction fidelity indicates successful feature discovery.</p>
+<p><strong>Discussion</strong> The competitive performance of Soft-Frozen Decoder SAEs across multiple evaluation dimensions (Figure 1) provides strong support for the lazy training hypothesis: much of what we attribute to learned feature discovery may</p>
+<p>instead reflect efficient use of nearly-fixed, randomly initialized components with only minimal adjustments. This success challenges the premise that SAEs learn meaningful feature decompositions through training, and underscores the importance of rigorous validation against constrained baselines in interpretability research.</p>
+<h1><strong>E. Frozen Models Ablation</strong></h1>
+<p>We provide an ablation study comparing fully-trained SAEs against our frozen baselines under two initialization schemes: <em>iso</em> (vectors sampled uniformly from the unit sphere) and <em>cov</em> (vectors sampled from a Gaussian distribution with zero mean and covariance estimated from real activations, then normalized). Tables 2, 3, and 4 report key metrics (mean <em>±</em> standard deviation) at L0=160 for Gemma-2-2B layers 12 and 19, and Llama-3-8B layer 16. The experiments in the preceding sections use the best-performing initialization for each baseline: <em>cov</em> for Frozen Decoder and <em>iso</em> for Soft-Frozen Decoder and Frozen Encoder. These results confirm that the competitive performance of frozen baselines is consistent across layers and model families.</p>
+<h1><strong>F. Additional Metrics</strong></h1>
+<p>To complement our primary evaluation metrics, we assess SAEs and frozen baselines using additional performance measures following the SAEBench framework (Karvonen et al., 2025), which evaluates cross-entropy loss and KL-divergence when substituting original activations with SAE reconstructions. As shown in Figures 12 and 13, Frozen Decoder and Frozen Encoder baselines show modest degradation in these metrics compared to fully-trained SAEs. In contrast, the Soft-Frozen Decoder variant closely matches, and sometimes exceeds, the performance of fully-trained ReLU SAEs, demonstrating that even minimal adjustments to decoder vectors can achieve strong reconstruction quality. However, when moving from single-latent to multi-latent sparse probing (top-5, Figure 14), all frozen baselines show more pronounced gaps compared to fully-trained SAEs, suggesting that while they can approximate overall model behavior, they are less effective at aggregating complementary features across multiple latents than learned representations.</p>
+<h1><strong>G. Random SAEs on CLIP</strong></h1>
+<p>To validate our findings from language models, we conduct a parallel analysis on vision models by comparing trained and randomly initialized SAEs on CLIP ViT-B/32 (Radford et al., 2021). We use pretrained SAEs (Joseph et al., 2025) from layers 3, 5, 7, and 9 and create matched random baselines with identical architectures but Kaiming-initialized weights. For each SAE, we select features with rare ( <em>&lt;</em> 0 <em>.</em> 1%) activation frequency, then visualize images from ImageNet-10k (Deng et al., 2009) at different activation percentiles (100th, 75th, 50th, 25th) for each feature. This percentile-based visualization reveals whether features capture coherent semantic concepts. We present these visualisations Figures 15, 16, 17 and 18</p>
+<p><em>Table 2.</em> <strong>Frozen SAEs performance on Gemma-2-2B layer 12 L0=160.</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>Variant</strong></th>
+<th><strong>Explained Variance</strong></th>
+<th><strong>Sparse Probing (top-1)</strong></th>
+<th><strong>Sparse Probing (top-5)</strong></th>
+<th><strong>Causal Editing</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>BatchTopK:</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Fully-Trained (iso)</td>
+<td>0.852_±_0.001</td>
+<td>0.721_±_0.026</td>
+<td>0.849_±_0.025</td>
+<td>0.720_±_0.049</td>
+</tr>
+<tr>
+<td>Frozen Decoder (iso)</td>
+<td>0.430_±_0.000</td>
+<td>0.669_±_0.010</td>
+<td>0.768_±_0.013</td>
+<td>0.562_±_0.027</td>
+</tr>
+<tr>
+<td>Frozen Decoder (cov)</td>
+<td>0.570_±_0.004</td>
+<td>0.692_±_0.014</td>
+<td>0.797_±_0.014</td>
+<td>0.554_±_0.028</td>
+</tr>
+<tr>
+<td>Soft-Frozen Decoder (iso)</td>
+<td>0.785_±_0.001</td>
+<td>0.659_±_0.035</td>
+<td>0.723_±_0.031</td>
+<td>0.728_±_0.038</td>
+</tr>
+<tr>
+<td>Frozen Encoder (iso)</td>
+<td>0.475_±_0.004</td>
+<td>0.638_±_0.013</td>
+<td>0.731_±_0.013</td>
+<td>0.641_±_0.027</td>
+</tr>
+<tr>
+<td>Frozen Encoder (cov)</td>
+<td>0.112_±_0.004</td>
+<td>0.609_±_0.010</td>
+<td>0.682_±_0.008</td>
+<td>0.400_±_0.039</td>
+</tr>
+<tr>
+<td>∆<strong>Best Frozen</strong><em>−</em><strong>Fully-Trained</strong></td>
+<td><strong>-7.8%</strong></td>
+<td><strong>-4.0%</strong></td>
+<td><strong>-6.0%</strong></td>
+<td><strong>+1.0%</strong></td>
+</tr>
+<tr>
+<td><strong>JumpReLU:</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Fully-Trained (iso)</td>
+<td>0.852_±_0.001</td>
+<td>0.704_±_0.031</td>
+<td>0.843_±_0.027</td>
+<td>0.722_±_0.046</td>
+</tr>
+<tr>
+<td>Frozen Decoder (iso)</td>
+<td>0.457_±_0.003</td>
+<td>0.702_±_0.009</td>
+<td>0.771_±_0.012</td>
+<td>0.591_±_0.027</td>
+</tr>
+<tr>
+<td>Frozen Decoder (cov)</td>
+<td>0.578_±_0.003</td>
+<td>0.694_±_0.015</td>
+<td>0.790_±_0.011</td>
+<td>0.551_±_0.030</td>
+</tr>
+<tr>
+<td>Soft-Frozen Decoder (iso)</td>
+<td>0.789_±_0.000</td>
+<td>0.672_±_0.036</td>
+<td>0.735_±_0.036</td>
+<td>0.739_±_0.038</td>
+</tr>
+<tr>
+<td>Frozen Encoder (iso)</td>
+<td>0.609_±_0.003</td>
+<td>0.635_±_0.010</td>
+<td>0.747_±_0.012</td>
+<td>0.623_±_0.024</td>
+</tr>
+<tr>
+<td>Frozen Encoder (cov)</td>
+<td>-0.017_±_0.076</td>
+<td>0.652_±_0.015</td>
+<td>0.720_±_0.017</td>
+<td>0.423_±_0.043</td>
+</tr>
+<tr>
+<td>∆<strong>Best Frozen</strong><em>−</em><strong>Fully-Trained</strong></td>
+<td><strong>-7.3%</strong></td>
+<td><strong>-0.2%</strong></td>
+<td><strong>-6.2%</strong></td>
+<td><strong>+2.3%</strong></td>
+</tr>
+</tbody>
+</table>
+<p><em>Table 3.</em> <strong>Frozen SAEs performance on Gemma-2-2B layer 19 L0=160.</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>Variant</strong></th>
+<th><strong>Explained Variance</strong></th>
+<th><strong>Sparse Probing (top-1)</strong></th>
+<th><strong>Sparse Probing (top-5)</strong></th>
+<th><strong>Causal Editing</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>BatchTopK:</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Fully-Trained (iso)</td>
+<td>0.887_±_0.000</td>
+<td>0.806_±_0.032</td>
+<td>0.900_±_0.016</td>
+<td>0.512_±_0.011</td>
+</tr>
+<tr>
+<td>Frozen Decoder (iso)</td>
+<td>0.404_±_0.001</td>
+<td>0.709_±_0.019</td>
+<td>0.829_±_0.020</td>
+<td>0.492_±_0.002</td>
+</tr>
+<tr>
+<td>Frozen Decoder (cov)</td>
+<td>0.555_±_0.001</td>
+<td>0.730_±_0.020</td>
+<td>0.818_±_0.020</td>
+<td>0.493_±_0.002</td>
+</tr>
+<tr>
+<td>Soft-Frozen Decoder (iso)</td>
+<td>0.812_±_0.001</td>
+<td>0.758_±_0.037</td>
+<td>0.823_±_0.031</td>
+<td>0.509_±_0.010</td>
+</tr>
+<tr>
+<td>Frozen Encoder (iso)</td>
+<td>0.562_±_0.000</td>
+<td>0.722_±_0.026</td>
+<td>0.812_±_0.025</td>
+<td>0.492_±_0.002</td>
+</tr>
+<tr>
+<td>Frozen Encoder (cov)</td>
+<td>0.523_±_0.001</td>
+<td>0.638_±_0.014</td>
+<td>0.791_±_0.020</td>
+<td>0.491_±_0.002</td>
+</tr>
+<tr>
+<td>∆<strong>Best Frozen</strong><em>−</em><strong>Fully-Trained</strong></td>
+<td><strong>-8.4%</strong></td>
+<td><strong>-6.0%</strong></td>
+<td><strong>-7.9%</strong></td>
+<td><strong>-0.5%</strong></td>
+</tr>
+<tr>
+<td><strong>JumpReLU:</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Fully-Trained (iso)</td>
+<td>0.887_±_0.000</td>
+<td>0.813_±_0.028</td>
+<td>0.900_±_0.016</td>
+<td>0.511_±_0.012</td>
+</tr>
+<tr>
+<td>Frozen Decoder (iso)</td>
+<td>0.432_±_0.001</td>
+<td>0.727_±_0.017</td>
+<td>0.824_±_0.022</td>
+<td>0.493_±_0.002</td>
+</tr>
+<tr>
+<td>Frozen Decoder (cov)</td>
+<td>0.543_±_0.000</td>
+<td>0.727_±_0.019</td>
+<td>0.825_±_0.019</td>
+<td>0.493_±_0.002</td>
+</tr>
+<tr>
+<td>Soft-Frozen Decoder (iso)</td>
+<td>0.816_±_0.000</td>
+<td>0.736_±_0.042</td>
+<td>0.858_±_0.026</td>
+<td>0.509_±_0.009</td>
+</tr>
+<tr>
+<td>Frozen Encoder (iso)</td>
+<td>0.590_±_0.001</td>
+<td>0.701_±_0.016</td>
+<td>0.795_±_0.020</td>
+<td>0.494_±_0.002</td>
+</tr>
+<tr>
+<td>Frozen Encoder (cov)</td>
+<td>0.512_±_0.001</td>
+<td>0.650_±_0.014</td>
+<td>0.737_±_0.019</td>
+<td>0.492_±_0.002</td>
+</tr>
+<tr>
+<td>∆<strong>Best Frozen</strong><em>−</em><strong>Fully-Trained</strong></td>
+<td><strong>-7.9%</strong></td>
+<td><strong>-9.5%</strong></td>
+<td><strong>-4.7%</strong></td>
+<td><strong>-0.4%</strong></td>
+</tr>
+</tbody>
+</table>
+<p><em>Table 4.</em> <strong>Frozen SAEs performance on Llama-3-8B layer 16 L0=160.</strong></p>
+<table>
+<thead>
+<tr>
+<th><strong>Variant</strong></th>
+<th><strong>Explained Variance</strong></th>
+<th><strong>Sparse Probing (top-1)</strong></th>
+<th><strong>Sparse Probing (top-5)</strong></th>
+<th><strong>Causal Editing</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>BatchTopK:</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Fully-Trained (iso)</td>
+<td>0.805_±_0.000</td>
+<td>0.766_±_0.039</td>
+<td>0.874_±_0.022</td>
+<td>0.533_±_0.015</td>
+</tr>
+<tr>
+<td>Frozen Decoder (iso)</td>
+<td>0.268_±_0.001</td>
+<td>0.709_±_0.012</td>
+<td>0.779_±_0.019</td>
+<td>0.486_±_0.004</td>
+</tr>
+<tr>
+<td>Frozen Decoder (cov)</td>
+<td>0.426_±_0.001</td>
+<td>0.689_±_0.014</td>
+<td>0.771_±_0.016</td>
+<td>0.491_±_0.005</td>
+</tr>
+<tr>
+<td>Soft-Frozen Decoder (iso)</td>
+<td>0.699_±_0.000</td>
+<td>0.752_±_0.046</td>
+<td>0.848_±_0.030</td>
+<td>0.519_±_0.009</td>
+</tr>
+<tr>
+<td>Frozen Encoder (iso)</td>
+<td>0.424_±_0.001</td>
+<td>0.713_±_0.010</td>
+<td>0.798_±_0.012</td>
+<td>0.492_±_0.005</td>
+</tr>
+<tr>
+<td>Frozen Encoder (cov)</td>
+<td>0.408_±_0.000</td>
+<td>0.681_±_0.013</td>
+<td>0.763_±_0.017</td>
+<td>0.482_±_0.005</td>
+</tr>
+<tr>
+<td>∆<strong>Best Frozen</strong><em>−</em><strong>Fully-Trained</strong></td>
+<td><strong>-13.1%</strong></td>
+<td><strong>-1.9%</strong></td>
+<td><strong>-3.0%</strong></td>
+<td><strong>-2.7%</strong></td>
+</tr>
+<tr>
+<td><strong>JumpReLU:</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Fully-Trained (iso)</td>
+<td>0.805_±_0.000</td>
+<td>0.798_±_0.034</td>
+<td>0.882_±_0.024</td>
+<td>0.527_±_0.012</td>
+</tr>
+<tr>
+<td>Frozen Decoder (iso)</td>
+<td>0.291_±_0.000</td>
+<td>0.685_±_0.011</td>
+<td>0.771_±_0.015</td>
+<td>0.485_±_0.003</td>
+</tr>
+<tr>
+<td>Frozen Decoder (cov)</td>
+<td>0.000_±_0.000</td>
+<td>0.500_±_0.000</td>
+<td>0.500_±_0.000</td>
+<td>0.485_±_0.003</td>
+</tr>
+<tr>
+<td>Soft-Frozen Decoder (iso)</td>
+<td>0.707_±_0.001</td>
+<td>0.768_±_0.040</td>
+<td>0.842_±_0.034</td>
+<td>0.521_±_0.012</td>
+</tr>
+<tr>
+<td>Frozen Encoder (iso)</td>
+<td>0.473_±_0.001</td>
+<td>0.682_±_0.014</td>
+<td>0.766_±_0.011</td>
+<td>0.498_±_0.007</td>
+</tr>
+<tr>
+<td>Frozen Encoder (cov)</td>
+<td>0.414_±_0.001</td>
+<td>0.620_±_0.015</td>
+<td>0.751_±_0.009</td>
+<td>0.489_±_0.006</td>
+</tr>
+<tr>
+<td>∆<strong>Best Frozen</strong><em>−</em><strong>Fully-Trained</strong></td>
+<td><strong>-12.1%</strong></td>
+<td><strong>-3.9%</strong></td>
+<td><strong>-4.5%</strong></td>
+<td><strong>-1.1%</strong></td>
+</tr>
+</tbody>
+</table>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0018-01.jpg" alt="" /></p>
+<p><em>Figure 12.</em> <strong>Cross-entropy loss comparison.</strong> Frozen baselines match fully-trained SAEs, showing reconstruction metrics alone don’t guarantee feature learning.</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0018-03.jpg" alt="" /></p>
+<p><em>Figure 13.</em> <strong>KL-divergence comparison.</strong> Frozen and fully-trained SAEs produce similar KL-divergence, indicating comparable model behavior without meaningful feature learning.</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0018-05.jpg" alt="" /></p>
+<p><em>Figure 14.</em> <strong>Sparse probing accuracy (top-5).</strong> Frozen baselines show larger gaps vs. fully-trained SAEs, suggesting learned representations better aggregate multiple features.</p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0019-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0019-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a)  Random<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0019-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0019-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(b)  Trained<br><!-- End of picture text --></p>
+<p><em>Figure 15.</em> <strong>Comparison of Random vs. Trained SAE Features on CLIP ViT-B/32 (Layer 3).</strong></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0019-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0019-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a)  Random<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0019-08.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0019-09.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(b)  Trained<br><!-- End of picture text --></p>
+<p><em>Figure 16.</em> <strong>Comparison of Random vs. Trained SAE Features on CLIP ViT-B/32 (Layer 5).</strong></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0020-01.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0020-02.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a)  Random<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0020-03.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0020-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(b)  Trained<br><!-- End of picture text --></p>
+<p><em>Figure 17.</em> <strong>Comparison of Random vs. Trained SAE Features on CLIP ViT-B/32 (Layer 7).</strong></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0020-06.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0020-07.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a)  Random<br><!-- End of picture text --></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0020-08.jpg" alt="" /></p>
+<p><img src="../markdown/images/sae_sanity_checks/59_sae_sanity_checks.pdf-0020-09.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(b)  Trained<br><!-- End of picture text --></p>
+<p><em>Figure 18.</em> <strong>Comparison of Random vs. Trained SAE Features on CLIP ViT-B/32 (Layer 9).</strong></p>
+
+</article>
+<nav class="pager"><a class="prev" href="58_sae_random_transformers.html"><small>Previous · 58</small>SAEs on Random Transformers</a><a class="mid" href="index.html#section-F">Contents</a><a class="next" href="60_sae_same_data_different_features.html"><small>Next · 60</small>SAEs Learn Different Features</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

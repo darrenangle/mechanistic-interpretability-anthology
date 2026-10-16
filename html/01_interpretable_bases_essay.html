@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>01 · Mechanistic Interpretability, Variables, and the Importance of Interpretable Bases — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 01 / 91 &nbsp;·&nbsp; Section A</span></div>
+<header class="cover">
+<div class="numeral">01</div>
+<div class="tag"><span class="pri P0" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P0 — ESSENTIAL</span>
+</div>
+<h1>Mechanistic Interpretability, Variables, and the Importance of Interpretable Bases</h1>
+<p class="cite">Olah — 2022</p>
+<p class="authors">Chris Olah</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Olah's short case for treating a trained network as a compiled program to be decompiled: parameters as binary, activations as memory, and interpretable features as the variables without which reverse engineering cannot start.</p></div><div class="note"><div class="label">Reading focus</div><p>The program–network analogy table, the curse-of-dimensionality argument for reading weights rather than input–output behaviour, why activations must be split into independently understandable variables, privileged bases, and the FAQ on what a feature is.</p></div><div class="note"><div class="label">In context</div><p>The founding statement of the reverse-engineering programme: later choices of basis — neurons, dictionaries (<a href="46_towards_monosemanticity.html">46</a>), rotations (<a href="23_distributed_alignment_search.html">23</a>), parameter components (<a href="66_stochastic_parameter_decomposition.html">66</a>) — all answer its demand for interpretable variables. <a href="03_open_problems.html">03</a> still calls decomposition the central unsolved step, <a href="02_mechanistic_question.html">02</a> traces how Olah's term drifted, and <a href="85_neuroscientist_microprocessor.html">85</a> tests the reverse-engineering analogy on a real chip.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>A — Orientation</dd>
+<dt>Source</dt><dd><a href="https://transformer-circuits.pub/2022/mech-interp-essay/index.html">https://transformer-circuits.pub/2022/mech-interp-essay/index.html</a> &nbsp;·&nbsp; Transformer Circuits Thread</dd>
+<dt>Licence</dt><dd>No explicit licence published on transformer-circuits.pub</dd>
+<dt>In print</dt><dd>PDF pages 17–24 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><span></span><a class="mid" href="index.html#section-A">Contents</a><a class="next" href="02_mechanistic_question.html"><small>Next · 02</small>Mechanistic?</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1>Mechanistic Interpretability, Variables, and the Importance of Interpretable Bases</h1>
+<p>An informal note on some intuitions related to Mechanistic Interpretability by Chris Olah.</p>
+<p>Mechanistic interpretability seeks to reverse engineer neural networks, similar to how one might reverse engineer a compiled binary computer program. After all, neural network parameters are in some sense a binary computer program which runs on one of the exotic virtual machines we call a neural network architecture.</p>
+<p>This is actually quite a deep analogy. We'll discuss it more as this essay unfolds, but some parallels are listed in the table below:</p>
+<table>
+<thead>
+<tr>
+<th>Regular Computer Programs</th>
+<th>Neural Networks</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reverse Engineering</td>
+<td>Mechanistic Interpretability</td>
+</tr>
+<tr>
+<td>Program Binary</td>
+<td>Network Parameters</td>
+</tr>
+<tr>
+<td>VM/Processor/Interpreter</td>
+<td>Network Architecture</td>
+</tr>
+<tr>
+<td>Program State/Memory</td>
+<td>Layer Representation/Activations</td>
+</tr>
+<tr>
+<td>Variable/Memory Location</td>
+<td>Neuron/Feature Direction</td>
+</tr>
+</tbody>
+</table>
+<p>Taking this analogy seriously can let us explore some of the big picture questions in mechanistic interpretability. Often, questions that feel speculative and slippery for reverse engineering neural networks become clear if you pose the same question for reverse engineering of regular computer programs. And it seems like many of these answers plausibly transfer back over to the neural network case.</p>
+<p>Perhaps the most interesting observation is that this analogy seems to suggest that finding and understanding interpretable neurons – analogous to understanding variables in a computer program – isn't just one of many interesting questions. Arguably, it's the central task.</p>
+<h2>Attacking the Curse of Dimensionality</h2>
+<p>Every approach to interpretability must somehow overcome the curse of dimensionality. Neural networks are functions which typically have extremely high-dimensional input spaces. The n-dimensional volume of the input space grows exponentially as the number of dimensions increases, making it incredibly large. This is the curse of dimensionality. It is normally brought up as a challenge to learning functions: how can we learn a function over such a large input space without an exponential amount of data? But it's also a challenge for interpretability: how can we hope to understand a function over such a large space, without an exponential amount of time?1</p>
+<p>One answer is to study toy <u>neural networks with low-dimensional inputs, allowing</u> easy full understanding by dodging the problem. Another answer is to study the behavior of neural networks in a neighborhood around an individual data point of interest – this is roughly the answer of saliency maps.</p>
+<p>How does mechanistic interpretability solve the curse of dimensionality? It's worth asking this question of regular reverse engineering as well! Somehow, a programmer reverse engineering a computer program is able to understand its behavior, often over an incredibly high-dimensional space of inputs. They are able to do this because the code gives a non-exponential description of the program's behavior, which is an alternative to understanding the program as a function over a huge input space. We can aim for this same answer in the context of artificial neural networks. Ultimately, the parameters are a finite description of a neural network, if we can somehow understand them.</p>
+<p>Of course, the parameters may be very large – hundreds of billions of parameters for the largest language models! But binary computer programs like a compiled operating system can also be very large, and we're often able to eventually understand them.</p>
+<p>Another consequence is that we shouldn't expect mechanistic interpretability to be easy or have a cookie cutter process that can be followed. People often want interpretability to provide simple answers, a short explanation. But we should expect mechanistic interpretability to be at least as difficult as reverse engineering a large, complicated computer program.</p>
+<h2>Variables &amp; Activations</h2>
+<p>Understanding a computer program requires us to both understand variables and understand operations acting on those variables. A statement like <code>y = x + 5;</code> is meaningless unless one understands what <code>y</code> and <code>x</code> are. At the same time, ultimately the meaning of <code>y</code> and <code>x</code> comes from how they're used by operations somewhere in the program. Presumably this is why variable names are so useful!</p>
+<p>Reverse engineers generally don't have the benefit of variable names. They need to figure out what each variable actually represents. In fact, that understates the problem. Programs actually act on a collection of computer memory – their state – which humans think about in terms of discrete variables. In many cases, it's obvious how memory maps to variables, but this isn't always the case. So a reverse engineer must figure out how to segment the memory into variables which can be understood separately, and then what the meaning of those variables is. Put another way, a reverse engineer must assign meaning to positions in memory.</p>
+<p>Reverse engineering neural networks faces an almost identical challenge. As discussed by <u>Voss et al, neural</u> network parameters might be thought of as binary instructions, while neuron activations are analogous to variables or memory. Each parameter describes how previous activations affect later activations. We can only understand the meaning of a parameter if we understand the input and output activations.</p>
+<p>But the activations are high dimensional vectors: how can we hope to understand them? We've run back into the curse of dimensionality, but again, regular reverse engineering points at a solution. It's possible to understand computer program memory – also a high-dimensional space! – because we can segment it into variables which can be reasoned about and understood separately. Similarly, we need to break neural network activations into independently understandable pieces.</p>
+<p>In some very special cases, including attention-only transformers (see <u>Elhage et al), we</u> can use linearity to describe all the network's operations in terms of the inputs and outputs of the model. This is similar to how some functions in a computer program can be described solely in terms of the arguments and return value, without intermediate variables. Since we generally understand the inputs and outputs, this allows us to side step the problem. But in most cases, we can't do this – what then?</p>
+<p>If we can't avoid the problem with special tricks, mechanistic interpretability requires that we must somehow decompose activations into independently understandable pieces.</p>
+<h2>Simple Memory Layout &amp; Neurons</h2>
+<p>Computer programs often have memory layouts that are convenient to understand. For example, most bytes in memory represent a single thing, rather than having each bit represent something unrelated. This is partly because these layouts are easier for programmers to think about, but it's also because our hardware often makes &quot;simple&quot; contiguous memory layouts more efficient. Having these simple memory layouts makes it easier to reverse engineer computer programs. It makes it easier to figure out how one should break memory up into independently understandable variables.</p>
+<p>Something kind of analogous to this often happens in neural networks.</p>
+<p>Let's assume for a moment that neural networks can be understood in terms of operations on a collection of independent &quot;interpretable features&quot;. In principle, one could imagine &quot;interpretable features&quot; being embedded as arbitrary directions in activation space. But often, it seems like neural network layers with activation functions align features with their basis dimensions. This is because the activation functions in some sense make these directions natural and useful. Just as a CPU having operations that act on bytes encourages information to be grouped in bytes rather than randomly scattered over memory, activation functions often encourage features to be aligned with a neuron, rather than correspond to a random linear combination of neurons. We call this a <u>privileged basis.</u></p>
+<p>Having features align with neurons would make neural networks much easier to reverse engineer. This isn't to say that a neural network is impossible to reverse engineer without neurons being individually understandable. But it seems much harder, just as it is harder to reverse engineer computer programs with strange memory layouts.</p>
+<p>Unfortunately, many neurons can't be understood this way. These polysemantic neurons seem to help represent features which are not best understood in terms of individual neurons. This is a really tricky problem for reverse engineering neural networks, which we discuss more in the <u>SoLU paper (see</u> especially <u>Section 3).</u></p>
+<p>For now, the main point we wish to make is that the ability to decompose representations into independently understandable parts seems essential for the success of mechanistic interpretability.</p>
+<p><img src="../markdown/images/interpretable_bases_essay/01_interpretable_bases_essay.pdf-0005-07.jpg" alt="" /></p>
+<h3>Learn More</h3>
+<p>This essay is a very informal discussion of some of the intuitions that motivate me in personally working on mechanistic interpretability. If you found it interesting and want to learn more about this line of research, check out the <u>original Circuits thread</u> and the new <u>Transformer Circuits thread.</u></p>
+<h3>Random Related Topics FAQ</h3>
+<p>Doesn't having interpretable neurons go against having a distributed representation?</p>
+<p>That isn't how we understand the term &quot;distributed representation&quot; in the context of Deep Learning. For example, a word embedding might have dimensions corresponding to interpretable features such as singular-plural, male-female, and large-small. One could rotate it so that those are basis dimensions. The thing that makes it &quot;distributed&quot; is that independent aspects of words are represented by different directions in representation space.</p>
+<h4>What do you mean by &quot;feature&quot;?</h4>
+<p>Defining a &quot;feature&quot; in a satisfying way is surprisingly hard. This isn't necessarily a bad thing. Sometimes when you're trying to understand something, you need to struggle with lots of definitions. (Lakatos' famous <u>Proofs and Refutations</u> is a beautiful articulation of this.)</p>
+<p>The easy answer would be to say a feature is something like curve detector or car detector neurons found in InceptionV1 – some meaningful, articulable property of the input which the network encodes as a direction in activation space. The unsatisfactory thing about this definition is that it's human centric: it excludes the possibility of features humans don't understand.</p>
+<p>An alternative definition, which I find more satisfactory, is to say that features are whatever the &quot;independent units&quot; a neural network representation can be decomposed into are. That definition is a bit fuzzier, but I suspect it might be getting at something more fundamental. Another idea for a potential human-independent definition is that features are the things a network would ideally dedicate a neuron to if you gave it enough neurons.</p>
+<p>Some researchers define features simply as any function of the input. The thing I find unsatisfactory about this is that under this definition, any mixture of features is also a feature. It seems to me that there's something importantly different about a &quot;car detector&quot; (which seems to correspond to an important latent variable) from &quot;car and cat detector&quot; (which seems to be an arbitrary mixture of things). I'd like for a definition of a feature to make this distinction.</p>
+<p>A lot of people seem to think that modularity is the key thing for understanding neural networks, but the circuits work keeps focusing on whether neurons can be understood. Why the difference?</p>
+<p>The brief answer is that both seem very helpful – and we're hopeful they can be linked, as in <u>branch specialization</u> – but it seems to us that being able to decompose into understandable features is what makes mechanistic interpretability possible at all while modularity may make it easier once it is possible.</p>
+<p>The intuitive focus on modularity seems very natural. In day-to-day programming, modularity is often the difference between code being easy or hard to understand. Another intuition is that the only way we'll be able to understand neural networks is if we can break them down into small enough chunks to understand, which seems like a kind of modularity. However, while modularity helps in day to day programming, we think it isn't the thing that makes it possible to understand programs at all. Understanding a computer program written as one giant function might be difficult, but trying to understand a program where memory isn't broken down into variables with coherent meanings (let alone variable names) seems terrifying!</p>
+<p>In some ways, interpretable features create the ultimate kind of modularity: the network can be broken down into individual parameters, since each parameter can be thought of independently as connecting two features.</p>
+<h3>Publication</h3>
+<p>Published June 27, 2022 by Chris Olah.</p>
+<h3>Acknowledgments</h3>
+<p>The ideas in this note are based on many conversations with others, especially Nelson Elhage, Catherine Olsson, Tristan Hume, Dario Amodei, Chelsea Voss, Nick Cammarata, Gabriel Goh, Neel Nanda, Martin Wattenberg, Shan Carter, and Ludwig Schubert. The note itself was greatly improved by the feedback of Nelson Elhage and Martin Wattenberg.</p>
+<h3>Footnotes</h3>
+<p>A possible objection is that, while the input space is high-dimensional, we only need to understand the behavior of the function over the data manifold of actual inputs. (I was, at one point, personally quite invested in this approach!) However, while the data manifold is certainly lower dimensional than the input space but for tasks we care about like vision or language, it seems like it must still be very highdimensional. For example, for any given natural image, it seems like one could move along the data manifold by having an arbitrary object enter the image from any side of the field of view – that's a lot of dimensions! <u>[</u> ↩ <u>]</u></p>
+
+</article>
+<nav class="pager"><span></span><a class="mid" href="index.html#section-A">Contents</a><a class="next" href="02_mechanistic_question.html"><small>Next · 02</small>Mechanistic?</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

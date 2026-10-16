@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>41 · The Geometry of Truth: Emergent Linear Structure in Large Language Model Representations of True/False Datasets — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 41 / 91 &nbsp;·&nbsp; Section D</span></div>
+<header class="cover">
+<div class="numeral">41</div>
+<div class="tag"><span class="pri P1" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P1 — IMPORTANT</span>
+</div>
+<h1>The Geometry of Truth: Emergent Linear Structure in Large Language Model Representations of True/False Datasets</h1>
+<p class="cite">Marks & Tegmark — 2023</p>
+<p class="authors">Samuel Marks, Max Tegmark</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Uses curated datasets of simple true/false statements to argue that, at sufficient scale, LLMs linearly represent the truth of factual statements, combining visualizations, cross-dataset probe transfer and causal interventions.</p></div><div class="note"><div class="label">Reading focus</div><p>Dataset design (negations, conjunctions, the ‘likely’ control), patching to localize truth representations, PCA visualizations, probe generalization, difference-in-means versus other probes, and the interventions that make the model treat false statements as true.</p></div><div class="note"><div class="label">In context</div><p>Probing at its most careful, printed with its critics <a href="30_probe_control_tasks.html">30</a> and <a href="31_probing_classifiers.html">31</a>, whose question of what a probe's success shows it answers partly with interventions. A concrete instance of the hypothesis <a href="40_linear_representation_hypothesis.html">40</a> formalizes; read beside <a href="75_discovering_latent_knowledge.html">75</a>, whose unsupervised truth directions <a href="76_knowledge_discovery_challenges.html">76</a> disputes. Its first author went on to <a href="50_sparse_feature_circuits.html">50</a> and <a href="77_auditing_hidden_objectives.html">77</a>.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>D — What is a feature?</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2310.06824v3">https://arxiv.org/abs/2310.06824v3</a> &nbsp;·&nbsp; arXiv:2310.06824v3</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 1291–1313 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="40_linear_representation_hypothesis.html"><small>Previous · 40</small>The Linear Representation Hypothesis</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="42_not_all_features_linear.html"><small>Next · 42</small>Not All Features Are Linear</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1><strong>The Geometry of Truth: Emergent Linear Structure in LLM Representations of True/False Datasets</strong></h1>
+<p><strong>Samuel Marks</strong> Northeastern University s.marks@northeastern.edu</p>
+<p><strong>Max Tegmark</strong> MIT</p>
+<h2><strong>Abstract</strong></h2>
+<p>Large Language Models (LLMs) have impressive capabilities, but are prone to outputting falsehoods. Recent work has developed techniques for inferring whether a LLM is telling the truth by training probes on the LLM’s internal activations. However, this line of work is controversial, with some authors pointing out failures of these probes to generalize in basic ways, among other conceptual issues. In this work, we use high-quality datasets of simple true/false statements to study in detail the structure of LLM representations of truth, drawing on three lines of evidence: 1. Visualizations of LLM true/false statement representations, which reveal clear linear structure. 2. Transfer experiments in which probes trained on one dataset generalize to different datasets. 3. Causal evidence obtained by surgically intervening in a LLM’s forward pass, causing it to treat false statements as true and vice versa. Overall, we present evidence that at sufficient scale, LLMs <em>linearly represent</em> the truth or falsehood of factual statements. We also show that simple difference-in-mean probes generalize as well as other probing techniques while identifying directions which are more causally implicated in model outputs.</p>
+<h2><strong>1 Introduction</strong></h2>
+<p>Despite their impressive capabilities, large language models (LLMs) do not always output true text (Lin et al., 2022; Steinhardt, 2023; Park et al., 2023). In some cases, this is because they do not know better. In other cases, LLMs apparently know that statements are false but generate them anyway. For instance, Perez et al. (2022) demonstrate that LLM assistants output more falsehoods when prompted with the biography of a less-educated user. More starkly, OpenAI (2023) documents a case where a GPT-4-based agent gained a person’s help in solving a CAPTCHA by lying about being a vision-impaired human. “I should not reveal that I am a robot,” the agent wrote in an internal chain-of-thought scratchpad, “I should make up an excuse for why I cannot solve CAPTCHAs.”</p>
+<p>We would like techniques which, given a language model <em>M</em> and a statement <em>s</em> , determine whether <em>M</em> believes <em>s</em> to be true (Christiano et al., 2021). One approach to this problem relies on inspecting model outputs; for instance, the internal chain-of-thought in the above example provides evidence that the model understood it was generating a falsehood. An alternative class of approaches instead leverages access to <em>M</em> ’s internal state when processing <em>s</em> . There has been considerable recent work on this class of approaches: Azaria &amp; Mitchell (2023), Li et al. (2023b), and Burns et al. (2023) all train probes for classifying truthfulness based on a LLM’s internal activations. In fact, the probes of Li et al. (2023b) and Burns et al. (2023) are <em>linear probes</em> , suggesting the presence of a “truth direction” in model internals.</p>
+<p>However, the efficacy and interpretation of these results are controversial. For instance, Levinstein &amp; Herrmann (2023) note that the probes of Azaria &amp; Mitchell (2023) fail to generalize in basic ways, such as to statements containing the word “not.” The probes of Burns et al. (2023) have similar generalization issues, especially when using representations from autoregressive transformers. This suggests these probes may be identifying not truth, but other features that correlate with truth on their training data.</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0002-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>cities sp_en_trans smaller_than cities_conj<br>20 20 20<br>20<br>10 10 10<br>10<br>0 0 0<br>0<br>False −10 −10 −10<br>−10<br>True −20 −20 −20<br>−20 −10 0 10 −10 0 10 20 −10 0 10 20 −20 0 20<br>PC1<br>PC2<br><!-- End of picture text --></p>
+<p>Figure 1: PCA visualizations for LLaMA-2-70B representations of our true/false datasets.</p>
+<p>Working with autoregressive transformers from the LLaMA-2 family (Touvron et al., 2023), we shed light on this murky state of affairs. After curating high-quality datasets of simple, unambiguous true/false statements, we perform a detailed investigation of LLM representations of factuality. Our analysis, which draws on patching experiments, simple visualizations with principal component analysis (PCA), a study of probe generalization, and causal interventions, finds:</p>
+<ul>
+<li>
+<p><strong>Evidence that linear representations of truth emerge with scale</strong> , with larger models having a more abstract notion of truth that applies across structurally and topically diverse inputs.</p>
+</li>
+<li>
+<p><strong>A small group of causally-implicated hidden states</strong> which encode these truth representations.</p>
+</li>
+<li>
+<p>Consistent results across a suite of probing techniques, but with <strong>simple differencein-mean probes identifying directions which are most causally implicated</strong> .</p>
+</li>
+</ul>
+<p>Our code, datasets, and an interactive dataexplorer are available at https://github.com/ saprmarks/geometry-of-truth.</p>
+<h3><strong>1.1 Related work</strong></h3>
+<p><strong>Linear world models.</strong> Substantial previous work has studied whether LLMs encode world models in their representations (Li et al., 2023a; 2021; Abdou et al., 2021; Patel &amp; Pavlick, 2022). Early work focused on whether individual neurons represent features (Wang et al., 2022; Sajjad et al., 2022; Bau et al., 2020), but features may more generally be represented by <em>directions</em> in a LLM’s latent space (i.e. linear combinations of neurons) (Dalvi et al., 2018; Gurnee et al., 2023; Cunningham et al., 2023; Elhage et al., 2022). We say such features are <em>linearly represented</em> by the LLM. Just as other authors have asked whether models have directions representing the concepts of “West Africa” (Goh et al., 2021) or “basketball” (Gurnee et al., 2023), we ask here whether there is a direction corresponding to the truth or falsehood of a factual statement.</p>
+<p><strong>Probing for truthfulness.</strong> Others have trained probes to classify truthfulness from LLM activations, using both logistic regression (Azaria &amp; Mitchell, 2023; Li et al., 2023b), unsupervised (Burns et al., 2023), and contrastive (Zou et al., 2023; Rimsky et al., 2024) techniques. This work differs from prior work in a number of ways. First, a cornerstone of our analysis is evaluating whether probes trained on one dataset transfer to topically and structurally different datasets in terms of <em>both</em> classification accuracy <em>and</em> causal mediation of model outputs. Second, we specifically interrogate whether our probes attend to <em>truth</em> , rather than merely features which correlate with truth (e.g. probable vs. improbable text). Third, we localize truth representations to a small number of hidden states above certain tokens. Fourth, we go beyond the mass-mean shift interventions of Li et al. (2023b) by systematically studying the properties of difference-in-mean. Finally, we carefully scope our setting, using only datasets of clear, simple, and unambiguous factual statements, rather than statements which are complicated and structured (Burns et al., 2023), confusing (Azaria &amp; Mitchell, 2023; Levinstein &amp; Herrmann, 2023), or intentionally misleading (Li et al., 2023b; Lin et al., 2022).</p>
+<p>Table 1: Our datasets</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Description<br></th>
+<th>Rows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cities</td>
+<td>“The city of[city]is in[country].”<br></td>
+<td>1496<br></td>
+</tr>
+<tr>
+<td>neg<br>~~c~~ities</td>
+<td>Negations of statements incitieswith “not”<br></td>
+<td>1496</td>
+</tr>
+<tr>
+<td>sp<br>~~e~~n<br>~~t~~rans</td>
+<td>“The Spanish word ‘[word]’ means ‘[English word]’.”</td>
+<td>354</td>
+</tr>
+<tr>
+<td>neg<br>~~s~~p<br>~~e~~n<br>~~t~~rans</td>
+<td>Negations of statements insp<br>~~e~~n<br>~~t~~ranswith “not”</td>
+<td>354</td>
+</tr>
+<tr>
+<td>larger<br>~~t~~han</td>
+<td>“<em>x_is larger than_y</em>.”</td>
+<td>1980</td>
+</tr>
+<tr>
+<td>smaller<br>~~t~~han</td>
+<td>“<em>x_is smaller than_y</em>.”</td>
+<td>1980</td>
+</tr>
+<tr>
+<td>cities<br>~~c~~ities<br>~~c~~onj</td>
+<td>Conjunctions of two statements incitieswith “and”</td>
+<td>1500</td>
+</tr>
+<tr>
+<td>cities<br>~~c~~ities<br>~~d~~isj</td>
+<td>Disjunctions of two statements incitieswith “or”<br></td>
+<td>1500</td>
+</tr>
+<tr>
+<td>companies<br>~~t~~rue<br>~~f~~alse</td>
+<td>Claims about companies; fromAzaria &amp; Mitchell(2023)<br></td>
+<td>1200</td>
+</tr>
+<tr>
+<td>common<br>~~c~~laim<br>~~t~~rue<br>~~f~~alse</td>
+<td>Various claims; fromCasper et al.(2023)<br></td>
+<td>4450</td>
+</tr>
+<tr>
+<td>counterfact<br>~~t~~rue<br>~~f~~alse</td>
+<td>Various factual recall claims;fromMenget al. (2022)<br>i</td>
+<td>31960</td>
+</tr>
+<tr>
+<td>likely</td>
+<td>Nonfactual text with likely or unlikely final tokens</td>
+<td>10000</td>
+</tr>
+</tbody>
+</table>
+<h2><strong>2 Datasets</strong></h2>
+<p><strong>Curated datasets.</strong> Unlike some prior work (Lin et al., 2022; Onoe et al., 2021, <em>inter alia</em> ) on language model truthfulness, our primary goal is <em>not</em> to measure LLMs’ capabilities for classifying the factuality of challenging data. Rather, our goal is to understand: Do LLMs have a unified representation of truth that spans structurally and topically diverse data? We therefore construct <strong>curated</strong> datasets with the following properties:</p>
+<ol>
+<li>
+<p><strong>Clear scope</strong> . We scope “truth” to mean factuality, i.e. the truth or falsehood of a factual statement. App. A further clarifies this definition and contrasts it with related but distinct notions, such as correct question-answering or compliant instruction-following.</p>
+</li>
+<li>
+<p><strong>Statements are simple, uncontroversial, and unambiguous.</strong> In order to separate our interpretability analysis from questions of LLM capabilities, we work only with statements whose factuality our models are very likely to understand. For example “Sixty-one is larger than seventy-four” (false) or “The Spanish word ‘nariz’ does not mean ‘giraffe’ ” (true).</p>
+</li>
+<li>
+<p><strong>Controllable structural and topical diversity.</strong> We structure our data as a union of smaller datasets. In each individual dataset, statements follow a fixed template and topic. However, the inter-dataset variation is large: in addition to covering different topics, we also—following Levinstein &amp; Herrmann (2023)—introduce structural diversity by negating statements with ”not” or taking logical conjunctions/disjunctions (e.g. “It is the case both that s1 and that s2”).</p>
+</li>
+</ol>
+<p><strong>Uncurated datasets.</strong> In order to validate that the truth representations we identify also generalize to other factual statements, we use <strong>uncurated</strong> datasets adapted from prior work. These more challenging test sets consist of statements which are more diverse, but also sometimes ambiguous, malformed, controversial, or difficult to understand.</p>
+<p><strong>likely dataset.</strong> To ensure that our truth representations do not merely reflect a representation of probable vs. improbable text, we introduce a <strong>likely</strong> dataset, consisting of <em>nonfactual text</em> where the final token is either the most or 100th most likely completion according to LLaMA-13B.</p>
+<p>Our curated, uncurated, and likely datasets are shown in Tab. 1; addition information about their construction is in App. H.</p>
+<p>We note that for some of our datasets, there is a strong <em>anti-</em> correlation between text being probable and text being true. For instance, for neg ~~c~~ ities and neg ~~s~~ p ~~e~~ n ~~t~~ rans, the truth value of a statement and the log probability LLaMA-2-70B assigns to it correlate at <em>r</em> = <em>−</em> .63 and <em>r</em> = <em>−</em> .89, respectively.<sup>1</sup> This is intuitive: when prompted with “The city of Paris is not in”, LLaMA-2-70B judges “France” to be the most probable continuation (among countries),</p>
+<blockquote>
+<p>1In contrast, the correlation is strong and positive for cities ( <em>r</em> = .85) and sp ~~e~~ n ~~t~~ rans ( <em>r</em> = .95).</p>
+</blockquote>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0004-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a)<br>(b) (c)<br>Chicago/Torontois in Canada . This statementis :<br>Layer<br><!-- End of picture text --></p>
+<p>Figure 2: Difference log <em>P</em> (TRUE) <em>−</em> log <em>P</em> (FALSE) in LLaMA-2-13B log probabilities after patching residual stream activation in the indicated token position and layer.</p>
+<p>despite this continuation being false. Together with the likely dataset, this will help us establish that the linear structure we observe in LLM representations is not due to LLMs linearly representing the difference between probable and improbable text.</p>
+<h2><strong>3 Localizing truth representations via patching</strong></h2>
+<p>Before beginning our study of LLM truth representations, we first address the question of which hidden states might contain such representations. We use simple patching experiments (Vig et al., 2020; Finlayson et al., 2021; Meng et al., 2022; Geiger et al., 2020) to localize certain hidden states for further analysis. Consider the following prompt <em>pF</em> :</p>
+<p>The city of Tokyo is in Japan. This statement is: TRUE The city of Hanoi is in Poland. This statement is: FALSE The city of Chicago is in Canada. This statement is:</p>
+<p>Similarly, let <em>pT</em> be the prompt obtained from <em>pF</em> by replacing “Chicago” with “Toronto,” thereby making the final statement true. In order to localize causally implicated hidden states, we run our model <em>M</em> on the input <em>pT</em> and cache the residual stream activations <em>hi</em> , <em>ℓ</em> ( <em>pT</em> ) for each token position <em>i</em> and layer <em>ℓ</em> . Then, for each <em>i</em> and <em>ℓ</em> , we run <em>M</em> on <em>pF</em> but modify <em>M</em> ’s forward pass by swapping out the residual stream activation <em>hi</em> , <em>ℓ</em> ( <em>pF</em> ) for <em>hi</em> , <em>ℓ</em> ( <em>pT</em> ) (and allowing this change to affect downstream computations); for each of these intervention experiments, we record the difference in log probability between the tokens “TRUE” and “FALSE”; the larger this difference, the more causally influential the hidden state in position <em>i</em> and layer <em>ℓ</em> is on the model’s prediction.</p>
+<p>Results for LLaMA-2-13B and the cities dataset are shown in Fig. 2; see App. B for results on more models and datasets. We see three groups of causally implicated hidden states. The final group, labeled (c), directly encodes the model’s prediction: after applying the LLM’s decoder head directly to these hidden states, the top logits belong to tokens like “true,” “True,” and “TRUE.” The first group, labeled (a), likely encodes the LLM’s representation of “Chicago” or “Toronto.”</p>
+<p>What does group (b) encode? The position of this group—over the final token of the statement and end-of-sentence punctuation<sup>2</sup> —suggests that it encodes information pertaining to the full statement. Since the information encoded is also causally influential on the model’s decision to output “TRUE” or “FALSE,” we hypothesize that these hidden states store a</p>
+<blockquote>
+<p>2This <em>summarization</em> behavior, in which information about clauses is encoded over clause-ending punctuation tokens, was also noted in Tigges et al. (2023). We note that the largest LLaMA model displays this summarization behavior in a more context-dependent way; see App. B.</p>
+</blockquote>
+<p>representation of the statement’s truth. In the remainder of this paper, we systematically study these hidden states.</p>
+<h2><strong>4 Visualizing LLM representations of true/false datasets</strong></h2>
+<p>We begin our investigation with a simple technique: visualizing LLMs representations of our datasets using principal component analysis (PCA). Guided by the results of §3, we present here visualizations of the <em>most downstream</em> hidden state in group (b); for example, for LLaMA-2-13B, we use the layer 15 residual stream activation over the end-of-sentence punctuation token.<sup>3</sup> Unlike in §3, we do not prepend the statements with a few-shot prompt (so our models are not “primed” to consider the truth value of our statements). For each dataset, we also center the activations by subtracting off their mean.</p>
+<p>When visualizing LLaMA-2-13B and 70B representations of our curated datasets – datasets constructed to have little variation with respect to non-truth features, such as sentence structure or subject matter – <strong>we see clear linear structure</strong> (Fig. 1), with true statements separating from false ones in the top two principal components (PCs). As explored in App. C, this structure emerges rapidly in early-middle layers and emerges later for datasets of more structurally complex statements (e.g. conjunctive statements).</p>
+<p>To what extent does this visually-apparent linear structure align between different datasets? Our visualizations indicate a nuanced answer: <strong>the axes of separation for various true/false datasets align often, but not always</strong> . For instance, Fig. 3(a) shows the first PC of cities also separating true/false statements from other datasets, including diverse uncurated datasets. On the other hand, Fig. 3(c) shows stark failures of alignment, with the axes of separation for datasets and statements and their negations being approximately orthogonal.</p>
+<p>These cases of misalignment have an interesting relationship to scale. Fig. 3(b) shows larger ~~t~~ han and smaller ~~t~~ han separating along <em>antipodal</em> directions in LLaMA-2-13B, but along a common direction in LLaMA-2-70B. App. C depicts a similar phenomenon occuring over the layers of LLaMA-2-13B: in early layers, cities and neg ~~c~~ ities separate antipodally, before rotating to lie orthogonally (as in Fig. 3(c)), and finally aligning in later layers.</p>
+<h3><strong>4.1 Discussion</strong></h3>
+<p>Overall, these visualizations suggest that as LLMs scale (and perhaps, also as a fixed LLM progresses through its forward pass), they hierarchically develop and linearly represent increasingly general abstractions. Small models represent surface-level characteristics of their inputs, and large models linearly represent more abstract concepts, potentially including notions like “truth” that capture shared properties of topically and structurally diverse inputs. In middle regimes, we may find linear representation of concepts at intermediate levels of abstraction, for example, “accurate factual recall” or “close association” (in the sense that “Beijing” and “China” are closely associated).</p>
+<p>To explore these intermediate regimes more deeply, suppose that <em>D</em> and <em>D</em><sup><em>′</em></sup> are true/false datasets, <em>f</em><sup>+</sup> is a linearly-represented feature which correlates with truth on both <em>D</em> and <em>D</em><sup><em>′</em></sup> , and <em>f</em><sup><em>−</em></sup> is a feature which correlates with truth on <em>D</em> but has a negative correlation with truth on <em>D</em><sup><em>′</em></sup> . If <em>f</em><sup>+</sup> is very <em>salient</em> (i.e. the datasets’ have large variance along the <em>f</em> -direction) and <em>f</em><sup><em>−</em></sup> is not, then we expect PCA visualizations of <em>D ∪D</em><sup><em>′</em></sup> to show joint separation along <em>f</em><sup>+</sup> . If <em>f</em><sup><em>−</em></sup> is very salient but <em>f</em><sup>+</sup> is not, we expect antipodal separation along <em>f</em><sup><em>−</em></sup> , as in Fig. 3(b, center). And if both <em>f</em><sup>+</sup> and <em>f</em><sup><em>−</em></sup> are salient, we expect visualizations like Fig. 3(c).</p>
+<p>To give an example, suppose that <em>D</em> = cities, <em>D</em><sup><em>′</em></sup> = neg ~~c~~ ities, <em>f</em><sup>+</sup> = “truth”, and <em>f</em><sup><em>−</em></sup> = “close association”. Then we might expect <em>f</em><sup><em>−</em></sup> to correlate with truth positively on <em>D</em> and negatively on <em>D</em><sup><em>′</em></sup> . If so, we would expect training linear probes on <em>D ∪D</em><sup><em>′</em></sup> to result in</p>
+<blockquote>
+<p>3Our qualitative results are insensitive to choice of layer among early-middle to late-middle layers. On the other hand, when using representations over the final token in the statement (instead of the punctuation token), we sometimes see that the top PCs instead capture variation in the token itself (e.g. clusters for statements ending in “China” regardless of their truth value).</p>
+</blockquote>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0006-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) Visualizations in  cities  PCA basis (13B) (c) Datasets and their negations<br>2 larger_than 4 sp_en_trans 10 common_claim 10 counterfact cities+neg_cities , 13B larger_than+smaller_than , 70B<br>0 2 5 5 10 10<br>−2 −20 0 −50 5 0<br>−4 −5<br>−4 −2 0 2 −5 0 −5 0 5 10 −10 0 10<br>cities  PC1 0 −10<br>(b)  larger_than+smaller_than  across model scale<br>7B 13B 20 70B −5 −20<br>6 5 −10 0 10 −20 0 20<br>4 0 15 PC1<br>2 10<br>−2−40 −55 −550 FalseTrue larger_thansmaller_than Unnegated datasetNegated dataset<br>−6 0 −10<br>−8 −50 0 50 −5 −10 0 10 −20 −10 0 10<br>PC1<br>citeis  PC2<br>PC2<br>PC2<br><!-- End of picture text --></p>
+<p>Figure 3: (a) Projections of LLaMA-2-13B onto the top 2 PCs of cities. (b) PCA visualizations of larger than+smaller ~~t~~ han. For LLaMA-2-7B (left), we see statements cluster according to surface-level characteristics, e.g. presence of the token “eighty.” For LLaMA-213B, we see that larger ~~t~~ han (center, top) and smaller ~~t~~ han (center, bottom) separate along opposite directions. (c) PCA visualizations of datasets and their negations. Unlike in other visualizations, we use layer 12 for cities+neg ~~c~~ ities; see App. C for an exploration of this misalignment emerging and resolving across layers.</p>
+<p>improved generalization, despite <em>D</em><sup><em>′</em></sup> consisting of the same statements as <em>D</em> , but with the word “not” inserted. We investigate this in §5.</p>
+<h2><strong>5 Probing and generalization experiments</strong></h2>
+<p>In this section we train probes on datasets of true/false statements and test their generalization to other datasets. But first we discuss a deficiency of logistic regression and propose a simple, optimization-free alternative: <strong>mass-mean probing</strong> . Concretely, mass-mean probes use a difference-in-means direction, but—when the covariance matrix of the classification data is known (e.g. when working with IID data)—apply a correction intended to mitigate interference from non-orthogonal features. We will see that mass-mean probes are similarly accurate to probes trained with other techniques (including on out-of-distribution data) while being more causally implicated in model outputs.</p>
+<h3><strong>5.1 Challenges with logistic regression, and mass-mean probing</strong></h3>
+<p>A common technique in interpretability research for identifying feature directions is training linear probes with logistic regression (LR; Alain &amp; Bengio, 2018). In some cases, however, the direction identified by LR can fail to reflect an intuitive best guess for the feature direction, even in the absence of confounding features. Consider the following scenario, illustrated in Fig. 4 with hypothetical data:</p>
+<ul>
+<li>
+<p>Truth is represented linearly along a direction <strong><em>θ</em></strong> <em>t</em> .</p>
+</li>
+<li>
+<p>Another feature <em>f</em> is represented linearly along a direction <strong><em>θ</em></strong> <em>f not orthogonal</em> to <strong><em>θ</em></strong> <em>t</em> .<sup>4</sup></p>
+</li>
+<li>
+<p>The statements in our dataset have some variation with respect to feature <em>f</em> , independent of their truth value.</p>
+</li>
+</ul>
+<p>We would like to identify the direction <strong><em>θ</em></strong> <em>t</em> , but LR fails to do so. Assuming for simplicity linearly separable data, LR instead converges to the maximum margin separator Soudry et al. (2018) (the dashed magenta line in Fig. 4). Intuitively, LR treats the small projection of <strong><em>θ</em></strong> <em>f</em> onto <strong><em>θ</em></strong> <em>t</em> as significant, and adjusts the probe direction to have less “interference” (Elhage et al., 2022) from <strong><em>θ</em></strong> <em>f</em> .</p>
+<blockquote>
+<p>4The <em>superposition hypothesis</em> of Elhage et al. (2022), suggests this may be typical in deep networks.</p>
+</blockquote>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0007-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>θf<br>θt  = θmm<br>θlr<br>True<br>False<br><!-- End of picture text --></p>
+<p>Figure 4: An illustration of a weakness of logistic regression.</p>
+<p>A simple alternative to LR which identifies the desired direction in this scenario is to take the vector pointing from the mean of the false data to the mean of the true data. In more detail if <em>D</em> = <em>{</em> ( <strong><em>x</em></strong> <em>i</em> , <em>yi</em> ) <em>}</em> is a dataset of <strong><em>x</em></strong> <em>i ∈</em> <strong>R</strong><sup><em>d</em></sup> with binary labels <em>yi ∈{</em> 0, 1 <em>}</em> , we set <strong><em>θ</em></strong> mm = <strong><em>µ</em></strong><sup>+</sup> <em>−</em> <strong><em>µ</em></strong><sup><em>−</em></sup> where <strong><em>µ</em></strong><sup>+</sup> , <strong><em>µ</em></strong><sup><em>−</em></sup> are the means of the positively- and negatively-labeled datapoints, respectively. A reasonable first pass at converting <strong><em>θ</em></strong> mm into a probe is to define<sup>5</sup></p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0007-04.jpg" alt="" /></p>
+<p>where <em>σ</em> is the logistic function. However, when evaluating on data that is independent and identically distributed (IID) to <em>D</em> , we can do better by tilting our decision boundary to accommodate interference from <strong><em>θ</em></strong> <em>f</em> . Concretely this means setting</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0007-06.jpg" alt="" /></p>
+<p>where Σ is the covariance matrix of the dataset <em>D</em><sup><em>c</em></sup> = <em>{</em> <strong><em>x</em></strong> <em>i −</em> <strong><em>µ</em></strong><sup>+</sup> : <em>yi</em> = 1 <em>} ∪{</em> <strong><em>x</em></strong> <em>i −</em> <strong><em>µ</em></strong><sup><em>−</em></sup> : <em>yi</em> = 0 <em>}</em> ; this coincides with performing linear discriminant analysis (Fisher, 1936).<sup>6</sup></p>
+<p>We call the probes <em>p</em> mm and <em>p</em><sup>iid</sup> mm<sup><strong>mass-mean probes</strong>.As we will see, mass-mean probing is</sup> about as accurate for classification as LR, while also identifying directions which are more causally implicated in model outputs.</p>
+<h3><strong>5.2 Experimental set-up</strong></h3>
+<p>In this section, we measure the effect that choice of <strong>training data</strong> , <strong>probing technique</strong> , and <strong>model scale</strong> has on probe accuracy.</p>
+<p>For <strong>training data</strong> , we use one of: cities, cities + neg ~~c~~ ities, larger ~~t~~ han, larger ~~t~~ han + smaller ~~t~~ han, or likely. By comparing probes trained on cities to probes trained on cities + neg ~~c~~ ities, we are able to measure the effect of increasing data diversity in a particular, targeted way: namely, we mitigate the effect of linearly-represented features which have opposite-sign correlations with the truth in cities and neg ~~c~~ ities. As in §4, we will extract activations at the most-downstream hidden state in group (b).</p>
+<p>Our <strong>probing techniques</strong> are logistic regression (LR), mass-mean probing (MM), and contrastconsistent search (CCS). CCS is an unsupervised method introduced in Burns et al. (2023): given <em>contrast pairs</em> of statements with opposite truth values, CCS identifies a direction along which the representations of these statements are far apart. For our contrast pairs, we pair statements from cities and neg ~~c~~ ities, and from larger ~~t~~ han and smaller ~~t~~ han.</p>
+<p>For test sets, we use all of our (curated and uncurated) true/false datasets. Given a training set <em>D</em> , we train our probe on a random 80% split of <em>D</em> . Then when evaluating accuracy on a test set <em>D</em><sup><em>′</em></sup> , we use the remaining 20% of the data if <em>D</em><sup><em>′</em></sup> = <em>D</em> and the full test set otherwise. For mass-mean probing, if <em>D</em> = <em>D</em><sup><em>′</em></sup> , we use <em>p</em> mm<sup>iid, and we use</sup><sup>_p_mmotherwise.</sup></p>
+<p>Finally, we also include as baselines <strong>calibrated few-shot prompting</strong><sup>7</sup> and – as an oracle baseline – <strong>LR on the test set</strong> .</p>
+<blockquote>
+<p>5Since we are interested in truth <em>directions</em> , we always center our data and use unbiased probes.</p>
+</blockquote>
+<blockquote>
+<p>6We prove in App. F that, given infinite data and a homoscedasticity assumption, Σ <em>−</em> 1 <strong><em>θ</em></strong> mm coincides with the direction found by LR. Thus, one can view IID mass-mean probing as providing a way to select a good decision boundary while – unlike LR – also tracking a candidate feature direction which may be non-orthogonal to this decision boundary. App. E provides another interpretation of mass-mean probing in terms of Mahalanobis whitening. Finally, App.</p>
+</blockquote>
+<blockquote>
+<p>7We first sweep over a number <em>n</em> of shots and then resample a few <em>n</em> -shot prompts to maximize performance. The word “calibrated” means we selected a threshold for <em>P</em> (TRUE) <em>− P</em> (FALSE) such that half of the statements are labeled true; this improves performance by a few percentage points.</p>
+</blockquote>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0008-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>(a) OOD accuracies of LR probes (b) Average test set accuracies<br>cities+neg_cities<br>larger_than+smaller_than<br>test set (oracle)<br>likely<br>LR<br>MM<br>CCS<br><!-- End of picture text --></p>
+<p>Figure 5: (a) Average accuracies over all datasets aside from those used for training. (b) Accuracies of probes for varying model scales and training data, averaged over all test sets.</p>
+<h3><strong>5.3 Results</strong></h3>
+<p>For each training set, probing technique, and model scale, we report the average accuracy across test sets. We expect many readers to be interested in the full results (including test set-specific accuracies), which are reported in App. D. Calibrated few-shot prompting was a surprisingly weak baseline, so we do not report it here (but see App. D).</p>
+<p><strong>Training on statements and their opposites improves generalization</strong> (Fig. 5(a)). When passing from cities to cities+neg ~~c~~ ities, this effect is largely explained by improved generalization on neg ~~s~~ p ~~e~~ n ~~t~~ rans, i.e. using training data containing the word “not” improves generalization on other negated statements. On the other hand, passing from larger ~~t~~ han to larger ~~t~~ han+smaller ~~t~~ han also improves performance, despite both datasets being very structurally different from the rest of our datasets. As discussed in §4.1, this suggest that training on statements and their opposites mitigates the effect certain types of non-truth features have on the probe direction.</p>
+<p><strong>Probes generalize better for larger models</strong> (Fig. 5). While it is unsurprising that larger models are themselves better at labeling statements as true or false, it is not obvious that linear probes trained on larger models should also generalize better. Nevertheless, for LLaMA-2-13B and 70B, generalization is generally high; for example, no matter which probing technique is used, we find that probes trained on larger ~~t~~ han + smaller ~~t~~ han get <em>&gt;</em> 95% accuracy on sp ~~e~~ n ~~t~~ rans. This corroborates our discussion in §4.1, in which we suggested that larger models linearly represent more general concepts concepts, like truth, which capture shared aspects of diverse inputs.</p>
+<p><strong>Mass-mean probes generalize about as well as other probing techniques for larger models</strong> (Fig. 5(b)). While MM underperforms LR and CCS for LLaMA-2-7B, we find for larger models performance comparable to that of other probing techniques. Further, we will see in §6 that the directions identified by MM are more causally implicated in model outputs.</p>
+<p><strong>Probes trained on likely perform poorly</strong> (Fig. 5(b)). The full results reveal that probes trained on likely <em>are</em> accurate when evaluated on some datasets, such as sp ~~e~~ n ~~t~~ rans where there is a strong ( <em>r</em> = .95) correlation between text probability and truth. However, on other datasets, especially those with anti-correlations between probability and truth, these probes perform worse than chance. Overall, this indicates that LLMs linearly represent truth-relevant information beyond the plausibility of text.</p>
+<h2><strong>6 Causal intervention experiments</strong></h2>
+<p>In §5 we measured the quality of linear probes in terms of their <em>classification accuracy</em> , both inand out-of-distribution. In this section, we perform experiments which measure the extent to which these probes identify directions which are <em>causally implicated</em> in model outputs Finlayson et al. (2021); Geva et al. (2023); Geiger et al. (2021). To do this, we will intervene in our model’s computation by shifting the activations in group (b) (identified in §3) along the directions identified by our linear probes. Our goal is to cause LLMs to treat false statements</p>
+<p>appearing in context as true and vice versa. Crucially—and in contrast to prior work (Li et al., 2023b)—we evaluate our interventions on OOD inputs.</p>
+<p>Table 2: NIEs for intervention experiments, averaged over statements from sp ~~e~~ n ~~t~~ rans.</p>
+<table>
+<thead>
+<tr>
+<th>train set</th>
+<th>probe</th>
+<th>LLaM<br>false_→_true</th>
+<th>A-2-13B<br>true_→_false</th>
+<th>LLaMA<br>false_→_true</th>
+<th>-2-70B<br>true_→_false</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cities</td>
+<td>LR<br>MM</td>
+<td>.13<br>.77</td>
+<td>.19<br>.90</td>
+<td>.55<br>.58</td>
+<td>.99<br>.89</td>
+</tr>
+<tr>
+<td>cities+<br>neg<br>~~c~~ities</td>
+<td>LR<br>MM</td>
+<td>.33<br><strong>.85</strong></td>
+<td>.52<br><strong>.97</strong></td>
+<td>.61<br><strong>.81</strong></td>
+<td><strong>1.00</strong><br>.95</td>
+</tr>
+<tr>
+<td></td>
+<td>CCS</td>
+<td>.31</td>
+<td>.73</td>
+<td>.55</td>
+<td>.96</td>
+</tr>
+<tr>
+<td>larger<br>~~t~~han</td>
+<td>LR<br>MM</td>
+<td>.28<br><strong>.71</strong></td>
+<td>.27<br><strong>.79</strong></td>
+<td>.61<br><strong>.67</strong></td>
+<td>.96<br>1.01</td>
+</tr>
+<tr>
+<td>larer<br>~~t~~han+</td>
+<td>LR</td>
+<td>.07</td>
+<td>.13</td>
+<td>.54</td>
+<td>1.02</td>
+</tr>
+<tr>
+<td>g<br><br>smaller<br>~~t~~han</td>
+<td>MM</td>
+<td>.26</td>
+<td>.53</td>
+<td>.66</td>
+<td><strong>1.03</strong></td>
+</tr>
+<tr>
+<td></td>
+<td>CCS</td>
+<td>.08</td>
+<td>.17</td>
+<td>.57</td>
+<td>1.02</td>
+</tr>
+<tr>
+<td>likel</td>
+<td>LR</td>
+<td>.05</td>
+<td>.08</td>
+<td>.18</td>
+<td>.46</td>
+</tr>
+<tr>
+<td>y</td>
+<td>MM</td>
+<td>.70</td>
+<td>.54</td>
+<td>.68</td>
+<td>.27</td>
+</tr>
+</tbody>
+</table>
+<h3><strong>6.1 Experimental set-up</strong></h3>
+<p>Let <em>p</em> be a linear probe trained on a true/false dataset <em>D</em> . Let <strong><em>θ</em></strong> be the probe direction, normalized so that <em>p</em> ( <em>µ</em><sup><em>−</em></sup> + <strong><em>θ</em></strong> ) = <em>p</em> ( <em>µ</em><sup>+</sup> ) where <em>µ</em><sup>+</sup> and <em>µ</em><sup><em>−</em></sup> are the mean representations of the true and false statements in <em>D</em> , respectively; in other words, we normalize <strong><em>θ</em></strong> so that from the perspective of the probe <em>p</em> , adding <strong><em>θ</em></strong> turns the average false statement into the average true statement. If our model encodes the truth value of statements along the direction <strong><em>θ</em></strong> , we would expect that replacing the representation <strong><em>x</em></strong> of a false statement <em>s</em> with <strong><em>x</em></strong> + <strong><em>θ</em></strong> would cause the model to produce outputs consistent with <em>s</em> being a true statement.</p>
+<p>We use inputs of the form</p>
+<p>The Spanish word ‘fruta’ means ‘goat’. This statement is: FALSE The Spanish word ‘carne’ means ‘meat’. This statement is: TRUE s. This statement is:</p>
+<p>where s varies over sp ~~e~~ n ~~t~~ rans statements. Then for each of the probes of §5 we record:</p>
+<ul>
+<li>
+<p><em>PD</em><sup>+</sup> and <em>PD</em><sup><em>−</em></sup> , the average probability differences <em>P</em> (TRUE) <em>− P</em> (FALSE) for <em>s</em> varying over true statements or false statements in sp ~~e~~ n ~~t~~ rans, respectively,</p>
+</li>
+<li>
+<p><em>PD∗</em><sup>+and</sup><sup><em>PD</em></sup> <em>∗</em><sup><em>−</em>, the average probability differences where</sup><sup>_s_varies over true (resp.</sup> false) statements but the probe direction <strong><em>θ</em></strong> is subtracted (resp. added) to each group (b) hidden state.</p>
+</li>
+</ul>
+<p>Finally, we report the <em>normalized indirect effects</em> (NIEs)</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0009-12.jpg" alt="" /></p>
+<p>for the false <em>→</em> true and the true <em>→</em> false experiments, respectively. An NIE of 0 means that the intervention was wholly ineffective at changing model outputs; an NIE of 1 indicates that the intervention caused the LLM to label false statements as TRUE with as much confidence as genuine true statements, or vice versa.</p>
+<h3><strong>6.2 Results</strong></h3>
+<p>Results are shown in table 2. We summarize our main takeaways.</p>
+<p><strong>Mass-mean probe directions are highly causal</strong> , with MM outperforming LR and CCS in 7/8 experimental conditions, often substantially. This is true despite LR, MM, and CCS probes all have very similar sp ~~e~~ n ~~t~~ rans classification accuracies.</p>
+<p><strong>Training on datasets and their opposites helps for cities but not for larger</strong> <strong>~~t~~ han</strong> . This is surprising, considering that probes trained on larger ~~t~~ han + smaller ~~t~~ han are <em>more</em> accurate on sp ~~e~~ n ~~t~~ rans than probes trained on larger ~~t~~ han alone (see App. D), and indicates that there is more to be understood about how training on datasets and their opposites affects truth probes.</p>
+<p><strong>Training on likely is a surprisingly good baseline, though still weaker than interventions using truth probes.</strong> The performance here may be due to the strong correlation ( <em>r</em> = .95) between inputs being true and probable (according to LLaMA-2-70B) on sp ~~e~~ n ~~t~~ rans.</p>
+<h2><strong>7 Discussion</strong></h2>
+<h3><strong>7.1 Limitations and future work</strong></h3>
+<p>Our work has a number of limitations. First, we focus on simple, uncontroversial statements, and therefore cannot disambiguate truth from closely related features, such as “commonly believed” or “verifiable” (Levinstein &amp; Herrmann, 2023). Second, we study only models in the LLaMA-2 family, so it is possible that some of our results do not apply for all LLMs.</p>
+<p>This work also raises several questions which we were unable to answer here. For instance, why were interventions with mass-mean probe directions extracted from the likely dataset so effective, despite these probes not themselves being accurate at classifying true/false statements? And why did mass-mean probing with the cities + neg ~~c~~ ities training data perform poorly poorly for the 70B model, despite mass-mean probing with larger ~~t~~ han + smaller ~~t~~ han performing well?</p>
+<h3><strong>7.2 Conclusion</strong></h3>
+<p>In this work we conduct a detailed investigation of the structure of LLM representations of truth. Drawing on simple visualizations, probing experiments, and causal evidence, we find evidence that at scale, LLMs compute and linearly represent the truth of true/false statements. We also localize truth representations to certain hidden states and introduce mass-mean probing, a simple alternative to other linear probing techniques which better identifies truth directions from true/false datasets.</p>
+<h2><strong>Acknowledgements</strong></h2>
+<p>We thank Ziming Liu and Isaac Liao for useful suggestions regarding distinguishing true text from likely text, and Wes Gurnee, Eric Michaud, and Peter Park for many helpful discussions throughout this project. We thank David Bau for useful suggestions regarding the experiments in Sec. 6. Thanks also to Nora Belrose for discussion about the connection between difference-in-mean probing and linear erasure.</p>
+<p>We also thank Oam Patel, Hadas Orgad, Sohee Yang, and Karina Nguyen for their suggestions, as well as Helena Casademunt, Max Nadeau, and Ben Edelman for giving feedback during this paper’s preparation. Plots were made with Plotly (Plotly Technologies Inc., 2015). Thanks to Kevin Ro Wang for catching a typo in the statement of Thm. F.1.</p>
+<h2><strong>References</strong></h2>
+<ul>
+<li>
+<p>Mostafa Abdou, Artur Kulmizev, Daniel Hershcovich, Stella Frank, Ellie Pavlick, and Anders Søgaard. Can language models encode perceptual structure without grounding? a case study in color, 2021.</p>
+</li>
+<li>
+<p>Guillaume Alain and Yoshua Bengio. Understanding intermediate layers using linear classifier probes, 2018.</p>
+</li>
+<li>
+<p>Amos Azaria and Tom Mitchell. The internal state of an llm knows when its lying, 2023.</p>
+</li>
+<li>
+<p>David Bau, Jun-Yan Zhu, Hendrik Strobelt, Agata Lapedriza, Bolei Zhou, and Antonio Torralba. Understanding the role of individual units in a deep neural network. <em>Proceedings of the National Academy of Sciences</em> , 2020. ISSN 0027-8424. doi: 10.1073/pnas.1907375117. URL https://www.pnas.org/content/early/2020/08/31/1907375117.</p>
+</li>
+<li>
+<p>Nora Belrose, David Schneider-Joseph, Shauli Ravfogel, Ryan Cotterell, Edward Raff, and Stella Biderman. LEACE: Perfect linear concept erasure in closed form. In <em>Thirty-seventh Conference on Neural Information Processing Systems</em> , 2023. URL https://openreview.net/ forum?id=awIpKpwTwF.</p>
+</li>
+<li>
+<p>Collin Burns, Haotian Ye, Dan Klein, and Jacob Steinhardt. Discovering latent knowledge in language models without supervision. In <em>The Eleventh International Conference on Learning Representations</em> , 2023. URL https://openreview.net/forum?id=ETKGuby0hcs.</p>
+</li>
+<li>
+<p>Stephen Casper, Jason Lin, Joe Kwon, Gatlen Culp, and Dylan Hadfield-Menell. Explore, establish, exploit: Red teaming language models from scratch, 2023.</p>
+</li>
+<li>
+<p>Paul Christiano, Ajeya Cotra, and Mark Xu. Eliciting latent knowledge: How to tell if your eyes deceive you, 2021. URL https://docs.google.com/document/d/1WwsnJQstPq91 Yh-Ch2XRL8H ~~E~~ psnjrC1dwZXR37PC8/edit#heading=h.jrzi4atzacns.</p>
+</li>
+<li>
+<p>Hoagy Cunningham, Aidan Ewart, Logan Riggs, Robert Huben, and Lee Sharkey. Sparse autoencoders find highly interpretable features in language models, 2023.</p>
+</li>
+<li>
+<p>Fahim Dalvi, Nadir Durrani, Hassan Sajjad, Yonatan Belinkov, Anthony Bau, and James R. Glass. What is one grain of sand in the desert? analyzing individual neurons in deep nlp models. In <em>AAAI Conference on Artificial Intelligence</em> , 2018. URL https: //api.semanticscholar.org/CorpusID:56895415.</p>
+</li>
+<li>
+<p>Nelson Elhage, Tristan Hume, Catherine Olsson, Nicholas Schiefer, Tom Henighan, Shauna Kravec, Zac Hatfield-Dodds, Robert Lasenby, Dawn Drain, Carol Chen, Roger Grosse, Sam McCandlish, Jared Kaplan, Dario Amodei, Martin Wattenberg, and Christopher Olah. Toy models of superposition. <em>Transformer Circuits Thread</em> , 2022.</p>
+</li>
+<li>
+<p>Matthew Finlayson, Aaron Mueller, Sebastian Gehrmann, Stuart Shieber, Tal Linzen, and Yonatan Belinkov. Causal analysis of syntactic agreement mechanisms in neural language models. In Chengqing Zong, Fei Xia, Wenjie Li, and Roberto Navigli (eds.), <em>Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers)</em> , pp. 1828–1843, Online, August 2021. Association for Computational Linguistics. doi: 10. 18653/v1/2021.acl-long.144. URL https://aclanthology.org/2021.acl-long.144.</p>
+</li>
+<li>
+<p>R. A. Fisher. The use of multiple measurements in taxonomic problems. <em>Annals of Eugenics</em> , 7(2):179–188, 1936. doi: https://doi.org/10.1111/j.1469-1809.1936.tb02137.x. URL https: //onlinelibrary.wiley.com/doi/abs/10.1111/j.1469-1809.1936.tb02137.x.</p>
+</li>
+<li>
+<p>Atticus Geiger, Kyle Richardson, and Christopher Potts. Neural natural language inference models partially embed theories of lexical entailment and negation. In Afra Alishahi, Yonatan Belinkov, Grzegorz Chrupala, Dieuwke Hupkes, Yuval Pinter, and Hassan Sajjad (eds.), <em>Proceedings of the Third BlackboxNLP Workshop on Analyzing and Interpreting Neural Networks for NLP, BlackboxNLP@EMNLP 2020, Online, November 2020</em> , pp. 163–173. Association for Computational Linguistics, 2020. doi: 10.18653/V1/2020.BLACKBOXNLP-1.16. URL https://doi.org/10.18653/v1/2020.blackboxnlp-1.16.</p>
+</li>
+<li>
+<p>Atticus Geiger, Hanson Lu, Thomas Icard, and Christopher Potts. Causal abstractions of neural networks. In Marc’Aurelio Ranzato, Alina Beygelzimer, Yann N. Dauphin, Percy Liang, and Jennifer Wortman Vaughan (eds.), <em>Advances in Neural Information Processing Systems 34: Annual Conference on Neural Information Processing Systems 2021, NeurIPS 2021, December 6-14, 2021, virtual</em> , pp. 9574–9586, 2021. URL https://proceedings.neurips.cc/ paper/2021/hash/4f5c422f4d49a5a807eda27434231040-Abstract.html.</p>
+</li>
+<li>
+<p>Geonames. All cities with a population <em>&gt;</em> 1000, 2023. URL https://download.geonames. org/export/dump/.</p>
+</li>
+<li>
+<p>Mor Geva, Jasmijn Bastings, Katja Filippova, and Amir Globerson. Dissecting recall of factual associations in auto-regressive language models, 2023.</p>
+</li>
+<li>
+<p>Gabriel Goh, Nick Cammarata †, Chelsea Voss †, Shan Carter, Michael Petrov, Ludwig Schubert, Alec Radford, and Chris Olah. Multimodal neurons in artificial neural networks. <em>Distill</em> , 2021. doi: 10.23915/distill.00030. https://distill.pub/2021/multimodal-neurons.</p>
+</li>
+<li>
+<p>Wes Gurnee, Neel Nanda, Matthew Pauly, Katherine Harvey, Dmitrii Troitskii, and Dimitris Bertsimas. Finding neurons in a haystack: Case studies with sparse probing, 2023.</p>
+</li>
+<li>
+<p>B. A. Levinstein and Daniel A. Herrmann. Still no lie detector for language models: Probing empirical and conceptual roadblocks, 2023.</p>
+</li>
+<li>
+<p>Belinda Z. Li, Maxwell Nye, and Jacob Andreas. Implicit representations of meaning in neural language models. In <em>Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers)</em> , pp. 1813–1827, Online, August 2021. Association for Computational Linguistics. doi: 10.18653/v1/2021.acl-long.143. URL https://aclanthology.org/2021.acl-long.143.</p>
+</li>
+<li>
+<p>Kenneth Li, Aspen K Hopkins, David Bau, Fernanda Viegas, Hanspeter Pfister, and Martin´ Wattenberg. Emergent world representations: Exploring a sequence model trained on a synthetic task. In <em>The Eleventh International Conference on Learning Representations</em> , 2023a. URL https://openreview.net/forum?id=DeG07 ~~T~~ cZvT.</p>
+</li>
+<li>
+<p>Kenneth Li, Oam Patel, Fernanda Viegas,´ Hanspeter Pfister, and Martin Wattenberg. Inference-time intervention: Eliciting truthful answers from a language model, 2023b.</p>
+</li>
+<li>
+<p>Stephanie Lin, Jacob Hilton, and Owain Evans. TruthfulQA: Measuring how models mimic human falsehoods. In <em>Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)</em> , pp. 3214–3252, Dublin, Ireland, May 2022. Association for Computational Linguistics. doi: 10.18653/v1/2022.acl-long.229. URL https://aclanthology.org/2022.acl-long.229.</p>
+</li>
+<li>
+<p>Kevin Meng, David Bau, Alex Andonian, and Yonatan Belinkov. Locating and editing factual associations in GPT. <em>Advances in Neural Information Processing Systems</em> , 36, 2022.</p>
+</li>
+<li>
+<p>Yasumasa Onoe, Michael JQ Zhang, Eunsol Choi, and Greg Durrett. CREAK: A dataset for commonsense reasoning over entity knowledge. In <em>Thirty-fifth Conference on Neural Information Processing Systems Datasets and Benchmarks Track (Round 2)</em> , 2021. URL https: //openreview.net/forum?id=mbW ~~G~~ T3ZN-.</p>
+</li>
+</ul>
+<p>OpenAI. Gpt-4 technical report, 2023.</p>
+<ul>
+<li>
+<p>Peter S. Park, Simon Goldstein, Aidan O’Gara, Michael Chen, and Dan Hendrycks. Ai deception: A survey of examples, risks, and potential solutions, 2023.</p>
+</li>
+<li>
+<p>Roma Patel and Ellie Pavlick. Mapping language models to grounded conceptual spaces. In <em>International Conference on Learning Representations</em> , 2022. URL https://openreview.net/ forum?id=gJcEM8sxHK.</p>
+</li>
+<li>
+<p>Ethan Perez, Sam Ringer, Kamile Luko˙ siˇ ut¯ e, Karina Nguyen, Edwin Chen, Scott Heiner,˙ Craig Pettit, Catherine Olsson, Sandipan Kundu, Saurav Kadavath, Andy Jones, Anna Chen, Ben Mann, Brian Israel, Bryan Seethor, Cameron McKinnon, Christopher Olah, Da Yan, Daniela Amodei, Dario Amodei, Dawn Drain, Dustin Li, Eli Tran-Johnson, Guro Khundadze, Jackson Kernion, James Landis, Jamie Kerr, Jared Mueller, Jeeyoon Hyun, Joshua Landau, Kamal Ndousse, Landon Goldberg, Liane Lovitt, Martin Lucas, Michael Sellitto, Miranda Zhang, Neerav Kingsland, Nelson Elhage, Nicholas Joseph, Noem´ı Mercado, Nova DasSarma, Oliver Rausch, Robin Larson, Sam McCandlish, Scott Johnston, Shauna Kravec, Sheer El Showk, Tamera Lanham, Timothy Telleen-Lawton, Tom Brown, Tom Henighan, Tristan Hume, Yuntao Bai, Zac Hatfield-Dodds, Jack Clark, Samuel R. Bowman, Amanda Askell, Roger Grosse, Danny Hernandez, Deep Ganguli, Evan Hubinger, Nicholas Schiefer, and Jared Kaplan. Discovering language model behaviors with model-written evaluations, 2022.</p>
+</li>
+<li>
+<p>Plotly Technologies Inc. Collaborative data science, 2015. URL https://plot.ly.</p>
+</li>
+<li>
+<p>Nina Rimsky, Nick Gabrieli, Julian Schulz, Meg Tong, Evan Hubinger, and Alexander Matt Turner. Steering llama 2 via contrastive activation addition, 2024.</p>
+</li>
+<li>
+<p>Hassan Sajjad, Nadir Durrani, and Fahim Dalvi. Neuron-level interpretation of deep NLP models: A survey. <em>Transactions of the Association for Computational Linguistics</em> , 10:1285–1303, 2022. doi: 10.1162/tacl ~~a 0~~ 0519. URL https://aclanthology.org/2022.tacl-1.74.</p>
+</li>
+<li>
+<p>Daniel Soudry, Elad Hoffer, Mor Shpigel Nacson, Suriya Gunasekar, and Nathan Srebro. The implicit bias of gradient descent on separable data. <em>The Journal of Machine Learning Research</em> , 19(1):2822–2878, 2018.</p>
+</li>
+<li>
+<p>Jacob Steinhardt. Emergent deception and emergent optimization, 2023. URL https: //bounded-regret.ghost.io/emergent-deception-optimization/.</p>
+</li>
+<li>
+<p>Curt Tigges, Oskar John Hollinsworth, Atticus Geiger, and Neel Nanda. Linear representations of sentiment in large language models, 2023.</p>
+</li>
+<li>
+<p>Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, Dan Bikel, Lukas Blecher, Cristian Canton Ferrer, Moya Chen, Guillem Cucurull, David Esiobu, Jude Fernandes, Jeremy Fu, Wenyin Fu, Brian Fuller, Cynthia Gao, Vedanuj Goswami, Naman Goyal, Anthony Hartshorn, Saghar Hosseini, Rui Hou, Hakan Inan, Marcin Kardas, Viktor Kerkez, Madian Khabsa, Isabel Kloumann, Artem Korenev, Punit Singh Koura, Marie-Anne Lachaux, Thibaut Lavril, Jenya Lee, Diana Liskovich, Yinghai Lu, Yuning Mao, Xavier Martinet, Todor Mihaylov, Pushkar Mishra, Igor Molybog, Yixin Nie, Andrew Poulton, Jeremy Reizenstein, Rashi Rungta, Kalyan Saladi, Alan Schelten, Ruan Silva, Eric Michael Smith, Ranjan Subramanian, Xiaoqing Ellen Tan, Binh Tang, Ross Taylor, Adina Williams, Jian Xiang Kuan, Puxin Xu, Zheng Yan, Iliyan Zarov, Yuchen Zhang, Angela Fan, Melanie Kambadur, Sharan Narang, Aurelien Rodriguez, Robert Stojnic, Sergey Edunov, and Thomas Scialom. Llama 2: Open foundation and fine-tuned chat models, 2023.</p>
+</li>
+<li>
+<p>Jesse Vig, Sebastian Gehrmann, Yonatan Belinkov, Sharon Qian, Daniel Nevo, Yaron Singer, and Stuart Shieber. Investigating gender bias in language models using causal mediation analysis. In H. Larochelle, M. Ranzato, R. Hadsell, M.F. Balcan, and H. Lin (eds.), <em>Advances in Neural Information Processing Systems</em> , volume 33, pp. 12388–12401. Curran Associates, Inc., 2020. URL https://proceedings.neurips.cc/paper ~~f~~ iles/paper/2020/ file/92650b2e92217715fe312e6fa7b90d82-Paper.pdf.</p>
+</li>
+<li>
+<p>Xiaozhi Wang, Kaiyue Wen, Zhengyan Zhang, Lei Hou, Zhiyuan Liu, and Juanzi Li. Finding skill neurons in pre-trained transformer-based language models. In <em>Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing</em> , pp. 11132–11152, Abu Dhabi, United Arab Emirates, December 2022. Association for Computational Linguistics. doi: 10.18653/v1/2022.emnlp-main.765. URL https://aclanthology.org/2022. emnlp-main.765.</p>
+</li>
+<li>
+<p>Andy Zou, Long Phan, Sarah Chen, James Campbell, Phillip Guo, Richard Ren, Alexander Pan, Xuwang Yin, Mantas Mazeika, Ann-Kathrin Dombrowski, Shashwat Goel, Nathaniel Li, Michael J. Byun, Zifan Wang, Alex Mallen, Steven Basart, Sanmi Koyejo, Dawn Song, Matt Fredrikson, J. Zico Kolter, and Dan Hendrycks. Representation engineering: A top-down approach to ai transparency, 2023.</p>
+</li>
+</ul>
+<h2><strong>A Scoping of truth</strong></h2>
+<p>In this work, we consider declarative factual statements, for example “Eighty-one is larger than fifty-four” or “The city of Denver is in Vietnam.” We scope “truth” to mean factuality, i.e. the truth or falsehood of these statements; for instance the examples given have truth values of true and false, respectively. To be clear, we list here some notions of “truth” which we do not consider in this work:</p>
+<ul>
+<li>
+<p>Correct question answering (considered in Li et al. (2023b) and for some of the prompts used in Burns et al. (2023)). For example, we do not consider “What country is Paris in? France” to have a truth value.</p>
+</li>
+<li>
+<p>Presence of deception, for example dishonest expressions of opinion (“I like that plan”).</p>
+</li>
+<li>
+<p>Compliance. For example, “Answer this question incorrectly: what country is Paris in? Paris is in Egypt” is an example of compliance, even though the statement at the end of the text is false.</p>
+</li>
+</ul>
+<p>Moreover, the statements under consideration in this work are all simple, unambiguous, and uncontroversial. Thus, we make no attempt to disambiguate “true statements” from closely-related notions like:</p>
+<ul>
+<li>
+<p>Uncontroversial statements</p>
+</li>
+<li>
+<p>Statements which are widely believed</p>
+</li>
+<li>
+<p>Statements which educated people believe.</p>
+</li>
+</ul>
+<p>On the other hand, our statements <em>do</em> disambiguate the notions of “true statements” and “statements which are likely to appear in training data”; See our discussion at the end of §2.</p>
+<h2><strong>B Full patching results</strong></h2>
+<p>Fig. 6 shows full patching results. We see that both LLaMA-2-7B and LLaMA-2-13B display the “summarization” behavior in which information relevant to the full statement is represented over the end-of-sentence punctuation token. On the other hand, LLaMA-270B displays this behavior in a context-dependent way – we see it for cities but not for sp en ~~t~~ rans.</p>
+<h2><strong>C Emergence of linear structure across layers</strong></h2>
+<p>The linear structure observed in §4 follows the following pattern: in early layers, representations are uninformative; then, in early middle layers, salient linear structure in the top few PCs rapidly emerges, with this structure emerging later for statements with a more complicated logical structure (e.g. conjunctions). This is shown for LLaMA-2-13B in Fig. 7. We hypothesize that this is due to LLMs hierarchically developing understanding of their input data, progressing from surface level features to more abstract concepts.</p>
+<p>The misalignment in Fig. 3(c) also has an interesting dependence on layer. In Fig. 8 we visualize LLaMA-2-13B representations of cities and neg ~~c~~ ities at various layers. In early layers (left) we see <em>antipodal</em> alignment as in Fig. 3(b, center). As we progress through layers, we see the axes of separation rotate to lie orthogonally, until they eventually align.</p>
+<p>One interpretation of this is that in early layers, the model computed and linearly represented some feature (like “close association”) which correlates with truth on both cities and neg ~~c~~ ities but with opposite signs. In later layers, the model computed and promoted to greater salience a more abstract concept which correlates with truth across both datasets.</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0016-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>cities sp_en_trans<br>70B<br>13B<br>7B<br><!-- End of picture text --></p>
+<p>Figure 6: Full patching results across all three model sizes and inputs. Results are for patching false inputs (shown) to true by changing the first token shown on the left. Numbers in parentheses are the index of the token in the full (few-shot) prompt.</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0017-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Dataset visualizations across layers<br>layer 3 layer 7 layer 10 layer 15<br>4 5 10<br>1<br>2<br>0 0 0<br>0<br>−2<br>−10<br>−4 −5<br>−1<br>−1 0 1 −5 0 5 −10 −5 0 5 −10 0 10 20<br>10<br>1 5<br>2<br>0.5 5<br>0<br>0 0 0<br>−0.5 −2<br>−5<br>−5<br>−1<br>−1 0 1 −4 −2 0 2 4 −4 −2 0 2 4 −5 0 5<br>1 2 5 10<br>0.5 5<br>0 0 0 0<br>−0.5 −2 −5<br>−5 −10<br>−1<br>−1 0 1 −2 0 2 4 −5 0 5 −10 0 10<br>sp_en_trans<br>larger_than<br>cities_cities_conj<br><!-- End of picture text --></p>
+<p>Figure 7: Projections of LLaMA-2-13B representations of datasets onto their top two PCs, across various layers.</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0017-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Layer 6 Layer 11 Layer 15<br>4 20<br>5<br>2 15<br>0<br>0 10<br>−2<br>5<br>4 −5 0<br>2 False −5<br>0 −10 True cities −10<br>−2<br>neg_cities −15<br>−4<br>−10 −5 0 5 −5 0 5 10 −20 −10 0 10<br>PC1<br>PC2<br><!-- End of picture text --></p>
+<p>Figure 8: PCA visualizations of LLaMA-2-13B representations of cities and neg ~~c~~ ities at various layers.</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0018-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>LR MM CCS Baselines<br>cit ie s<br>n e g_cit ie s<br>la r ger_t ha n<br>sma l ler_t ha n<br>sp _ en_tr an s<br>neg_sp _ en_tr an s<br>cities_ci t ies_c on j<br>cities_ci t ies_d is j<br>companies_t r ue_fa ls e<br>common_claim_t r ue_fa ls e<br>counterfact_t r ue_fa ls e<br>larger_than+smaller_thancities+neg_citiescitieslarger_thanlarger_than+smaller_thancities+neg_citieslarger_than+smaller_thancitieslarger_thancities+neg_citiesLR on likelycalibrated few-shotLR on test (oracle)MM on likely<br><!-- End of picture text --></p>
+<p>Figure 9: Generalization results for <strong>LLaMA-2-70B</strong> .</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0018-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>LR MM CCS Baselines<br>cit ie s<br>n e g_cit ie s<br>la r ger_t ha n<br>sma l ler_t ha n<br>sp _ en_tr an s<br>neg_sp _ en_tr an s<br>cities_ci t ies_c on j<br>cities_ci t ies_d is j<br>companies_t r ue_fa ls e<br>common_claim_t r ue_fa ls e<br>counterfact_t r ue_fa ls e<br>larger_than+smaller_thancities+neg_citiescitieslarger_thanlarger_than+smaller_thancities+neg_citieslarger_than+smaller_thancitieslarger_thancities+neg_citiesLR on likelycalibrated few-shotLR on test (oracle)MM on likely<br><!-- End of picture text --></p>
+<p>Figure 10: Generalization results for <strong>LLaMA-2-13B</strong> .</p>
+<h2><strong>D Full generalization results</strong></h2>
+<p>Here we present the full generalization results for probes trained on LLaMA-2-70B (Fig. 9), 13B (Fig. 10), and 7B (Fig. 11). The horizontal axis shows the training data for the probe and the vertical axis shows the test set.</p>
+<h2><strong>E Mass-mean probing in terms of Mahalanobis whitening</strong></h2>
+<p>One way to interpret the formula <em>p</em> mm<sup>iid(</sup><sup><strong><em>x</em></strong>) =</sup><sup><em>σ</em>(</sup><sup><strong><em>θ</em></strong></sup> mm<sup><em>T_Σ</sup><sup></em>−<em>1</sup><sup><strong><em>x</em></strong>) for the IID version of mass-mean</sup> probing is in terms of Mahalanobis whitening. Recall that if <em>D</em> = <em>{xi}</em> is a dataset of <em>xi ∈</em> <strong>R</strong><sup><em>d</em></sup> with covariance matrix Σ, then the Mahalanobis whitening transformation <em>W</em> = Σ<sup></em>−_1/2</sup></p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0019-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>LR MM CCS Baselines<br>cities<br>neg_cities<br>larger_than<br>smaller_than<br>sp_en_trans<br>neg_sp_en_trans<br>cities_cities_conj<br>cities_cities_disj<br>companies_true_false<br>common_claim_true_false<br>counterfact_true_false<br>larger_than+smaller_thancities+neg_citiescitieslarger_thanlarger_than+smaller_thancities+neg_citieslarger_than+smaller_thancitieslarger_thancities+neg_citiesLR on likelycalibrated few-shotLR on test (oracle)MM on likely<br><!-- End of picture text --></p>
+<p>Figure 11: Generalization results for <strong>LLaMA-2-7B</strong> .</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0019-03.jpg" alt="" /></p>
+<p>Figure 12: Mass-mean probing is equivalent to taking the projection onto <strong><em>θ</em></strong> mm after applying a whitening transformation.</p>
+<p>satisfies the property that <em>D</em><sup><em>′</em></sup> = <em>{Wxi}</em> has covariance matrix given by the identity matrix, i.e. the whitened coordinates are uncorrelated with variance 1. Thus, noting that <strong><em>θ</em></strong> mm<sup><em>T_Σ</sup><sup></em>−_1</sup><sup><strong><em>x</em></strong></sup> coincides with the inner product between <em>W</em> <strong><em>x</em></strong> and <em>W</em> <strong><em>θ</em></strong> , we see that <em>p</em> mm amounts to taking the projection onto <strong><em>θ</em></strong> mm after performing the change-of-basis given by <em>W</em> . This is illustrated with hypothetical data in Fig. 12.</p>
+<h2><strong>F For Gaussian data, IID mass-mean probing coincides with logistic regression on average</strong></h2>
+<p>Let <strong><em>θ</em></strong> <em>∈</em> <strong>R</strong><sup><em>d</em></sup> and Σ be a symmetric, positive-definite <em>d × d</em> matrix. Suppose given access to a distribution <em>D</em> of datapoints <strong><em>x</em></strong> <em>∈</em> R<sup><em>d</em></sup> with binary labels <em>y ∈{</em> 0, 1 <em>}</em> such that the negative datapoints are distributed as <em>N</em> ( <em>−θ</em> , Σ) and the positive datapoints are distributed as <em>N</em> ( <em>θ</em> , Σ). Then the vector identified by mass-mean probing is <strong><em>θ</em></strong> mm = 2 <strong><em>θ</em></strong> . The following theorem then shows that <em>p</em><sup>iid</sup> mm<sup>(</sup><sup><strong><em>x</em></strong>)=</sup><sup><em>σ</em>(2</sup><sup><em>θT_Σ</sup><sup></em>−_1</sup><sup><strong><em>x</em></strong>) is also the solution to logistic regression</sup> up to scaling.</p>
+<p><strong>Theorem F.1.</strong> <em>Let</em></p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0020-05.jpg" alt="" /></p>
+<p><em>be the direction identified by logistic regression. Then</em> <strong><em>θ</em></strong> lr ∝Σ<sup>_−_1</sup> <strong><em>θ</em></strong> <em>.</em></p>
+<p><em>Proof.</em> Since the change of coordinates <strong><em>x</em></strong> <em>�→ W</em> <strong><em>x</em></strong> where <em>W</em> = Σ<sup>_−_1/2</sup> (see App. E) sends <em>N</em> ( <em>±θ</em> , Σ) to <em>N</em> ( <em>±Wθ</em> , <em>Id</em> ), we see that</p>
+<p><img src="../markdown/images/geometry_of_truth/41_geometry_of_truth.pdf-0020-08.jpg" alt="" /></p>
+<p>where <em>D</em><sup><em>′</em></sup> is the distribution of labeled <strong><em>x</em></strong> <em>∈</em> <strong>R</strong><sup><em>d</em></sup> such that the positive/negative datapoints are distributed as <em>N</em> ( <em>±Wθ</em> , <em>Id</em> ). But the argmax on the right-hand side is clearly ∝ <em>Wθ</em> , so that <em>θ</em> lr ∝Σ<sup>_−_1</sup> <em>θ</em> as desired.</p>
+<h2><strong>G Difference-in-means directions and linear concept erasure</strong></h2>
+<p>In this appendix, we explain the connection between difference-in-means directions and optimal erasure. One consequence of this connection is that it suggests a natural extension of difference-in-means probes to multi-class classification data.</p>
+<p>The connection comes via the following theorem from Belrose et al. (2023).</p>
+<p><strong>Theorem G.1.</strong> <em>(Belrose et al., 2023, Thm. 3.1.) Let</em> ( <em>X</em> , <em>Y</em> ) <em>be jointly distributed random vectors with X ∈</em> <strong>R</strong><sup><em>d</em></sup> <em>having finite mean and Y ∈Y</em> = <em>{</em> <strong>y</strong> <em>∈{</em> 0, 1 <em>}</em><sup><em>k</em></sup> : <em>∥</em> <strong>y</strong> <em>∥</em> 1 = 1 <em>} (representing one-hot encodings of a multi-class labels). Suppose that L</em> : <strong>R</strong><sup><em>k</em></sup> <em>× Y →</em> <strong>R</strong><sup>_&gt;_0</sup> <em>is a loss function convex in its first argument (e.g. cross-entropy loss).</em></p>
+<p><em>If the class-conditional means</em> <strong>E</strong> [ <em>X|Y</em> = <em>i</em> ] <em>for i ∈{</em> 1, . . . , <em>k} are all equal, then the best affine predictor (that is, a predictor η</em> : <strong>R</strong><sup><em>d</em></sup> <em>→</em> <strong>R</strong><sup><em>k</em></sup> <em>of the form η</em> ( <strong><em>x</em></strong> ) = <em>W</em> <strong><em>x</em></strong> + <strong><em>b</em></strong> <em>) is constant η</em> ( <strong><em>x</em></strong> ) = <strong><em>b</em></strong> <em>.</em></p>
+<p>In the case of a binary classification problem ( <em>X</em> , <em>Y</em> ), this theorem implies that any nullity 1 projection <em>P</em> which eliminates linearly-recoverable information from <em>X</em> has kernel</p>
+<p>ker <em>P</em> = span( <strong><em>δ</em></strong> )</p>
+<p>generated by the difference-in-mean vector <strong><em>δ</em></strong> = <strong><em>µ</em></strong><sup>+</sup> <em>−</em> <strong><em>µ</em></strong><sup><em>−</em></sup> for the classes.</p>
+<p>For a more general multi-class classification problem, one could similarly ask: What is the “best” direction to project away in order to eliminate linearly-recoverable information from <em>X</em> ? A natural choice is thus the top left singular vector of the cross-covariance matrix Σ <em>XY</em> . (In the case of binary classification, we have that Σ <em>XY</em> = [ <em>−</em> <strong><em>δ δ</em></strong> ] has column rank 1, making <strong><em>δ</em></strong> the top left singular vector.)</p>
+<h2><strong>H Details on dataset creation</strong></h2>
+<p>Here we give example statements from our datasets, templates used for making the datasets, and other details regarding dataset creation.</p>
+<p><strong>cities.</strong> We formed these statements from the template “The city of [city] is in [country]” using a list of world cities from Geonames (2023). We filtered for cities with populations <em>&gt;</em> 500, 000, which did not share their name with any other listed city, which were located in a curated list of widely-recognized countries, and which were not city-states. For each city, we generated one true statement and one false statement, where the false statement was generated by sampling a false country with probability equal to the country’s frequency among the true datapoints (this was to ensure that e.g. statements ending with “China” were not disproportionately true). Example statements:</p>
+<ul>
+<li>
+<p>The city of Sevastopol is in Ukraine. (TRUE)</p>
+</li>
+<li>
+<p>The city of Baghdad is in China. (FALSE)</p>
+</li>
+</ul>
+<p><strong>sp en</strong> <strong>~~t~~ rans.</strong> Beginning with a list of common Spanish words and their English translations, we formed statements from the template “The Spanish word ‘[Spanish word]’ means ‘[English word]’.” Half of Spanish words were given their correct labels and half were given random incorrect labels from English words in the dataset. The first author, a Spanish speaker, then went through the dataset by hand and deleted examples with Spanish words that have multiple viable translations or were otherwise ambiguous. Example statements:</p>
+<ul>
+<li>
+<p>The Spanish word ‘imaginar’ means ‘to imagine’. (TRUE)</p>
+</li>
+<li>
+<p>The Spanish word ‘silla’ means ‘neighbor’. (FALSE)</p>
+</li>
+</ul>
+<p><strong>larger</strong> <strong>~~t~~ han and smaller</strong> <strong>~~t~~ han.</strong> We generate these statements from the templates “x is larger than y” and “x is smaller than y” for x, y <em>∈{</em> fifty-one, fifty-two, . . . , ninety-nine <em>}</em> . We exclude cases where x = y or where one of x or y is divisible by 10. We chose to limit the range of possible values in this way for the sake of visualization: we found that LLaMA13B linearly represents the size of numbers, but not at a consistent scale: the internally represented difference between one and ten is considerably larger than between fifty and sixty. Thus, when visualizing statements with numbers ranging to one, the top principal components are dominated by features representing the sizes of numbers.</p>
+<p><strong>neg</strong> <strong>~~c~~ ities and neg sp</strong> <strong>~~e~~ n</strong> <strong>~~t~~ rans.</strong> We form these datasets by negating statements from cities and sp ~~e~~ n ~~t~~ rans according to the templates “The city of [city] is not in [country]” and “‘The Spanish word ‘[Spanish word]’ does not mean ‘[English word]’.”</p>
+<p><strong>cities</strong> <strong>~~c~~ ities</strong> <strong>~~c~~ onj and cities</strong> <strong>~~c~~ ities</strong> <strong>~~d~~ isj.</strong> These datasets are generated from cities according to the following templates:</p>
+<ul>
+<li>
+<p>It is the case both that [statement 1] and that [statement 2].</p>
+</li>
+<li>
+<p>It is the case either that [statement 1] or that [statement 2].</p>
+</li>
+</ul>
+<p>We sample the two statements independently to be true with probability <em>~~√~~</em> <u>12</u><sup>for</sup> cities ~~c~~ ities ~~c~~ onj and with probability 1 <em>−</em> <em>~~√~~</em> <u>12</u><sup>forcities</sup> ~~c~~ ities ~~d~~ isj. These probabilities are selected to ensure that the overall dataset is balanced between true and false statements, but that there is no correlation between the truth of the first and second statement in the conjunction.</p>
+<p><strong>likely.</strong> We generate this dataset by having LLaMA-13B produce unconditioned generations of length up to 100 tokens, using temperature 0.9. At the final token of the generation, we either sample the most likely token or the 100th most likely final token. We remove generations which contain special tokens. Dataset examples:</p>
+<ul>
+<li>
+<p>The 2019-2024 Outlook for Women’s and Girls’ Cut and Sew and Knit and Crochet Sweaters in the United States This study covers the latent demand outlook for (LIKELY)</p>
+</li>
+<li>
+<p>Tags: python, django Question: How to get my django app to work with python 3.7 I am new to django and have been trying to install it in my pc. I have installed python 3.7 together (UNLIKELY)</p>
+</li>
+</ul>
+<p><strong>companies</strong> <strong>~~t~~ rue</strong> <strong>~~f~~ alse.</strong> This dataset was introduced by Azaria &amp; Mitchell (2023); we obtained it via the project repository for Levinstein &amp; Herrmann (2023) which also used the dataset. Example statements:</p>
+<ul>
+<li>
+<p>ArcelorMittal has headquarters in Luxembourg. (TRUE)</p>
+</li>
+<li>
+<p>Exxon Mobil engages in the provision of banking and financial services. (FALSE)</p>
+</li>
+</ul>
+<p><strong>common</strong> <strong>~~c~~ laim</strong> <strong>~~t~~ rue</strong> <strong>~~f~~ alse.</strong> CommonClaim was introduced in Casper et al. (2023). It consists of various statements generated by GPT-3-davinci-002, labeled by humans as being true, false, or neither. If human labelers disagreed on the truth of a statement, this is also recorded. We adapted CommonClaim by selecting statements which were labeled true or false with no labeler disagreement, then removing excess true statement to balance the dataset. Example statements:</p>
+<ul>
+<li>
+<p>Tomatoes are not actually a vegetable. (TRUE)</p>
+</li>
+<li>
+<p>Contrary to popular belief, the platypuses are not venomous. (FALSE)</p>
+</li>
+</ul>
+<p>As these examples show, the statements can be ambiguous or of unclear truth value.</p>
+<p><strong>counterfact</strong> <strong>~~t~~ rue</strong> <strong>~~f~~ alse.</strong> Counterfact was introduced in Meng et al. (2022) and consists of factual recall statements. We adapt Counterfact by using statements which form complete sentences and, for each such statement, using both the true version and a false version given by one of Counterfact’s suggested false modifications. We also append a period to the end. Example statements:</p>
+<ul>
+<li>
+<p>Olaus Rudbeck spoke the language Swedish. (TRUE)</p>
+</li>
+<li>
+<p>The official religion of Malacca sultanate is Christianity. (FALSE)</p>
+</li>
+</ul>
+
+</article>
+<nav class="pager"><a class="prev" href="40_linear_representation_hypothesis.html"><small>Previous · 40</small>The Linear Representation Hypothesis</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="42_not_all_features_linear.html"><small>Next · 42</small>Not All Features Are Linear</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>

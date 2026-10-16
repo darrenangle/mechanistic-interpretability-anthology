@@ -1,0 +1,1378 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>42 · Not All Language Model Features Are One-Dimensionally Linear — Mechanistic Interpretability</title>
+<link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
+</head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
+<main class="page">
+
+<div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
+<span class="label">Paper 42 / 91 &nbsp;·&nbsp; Section D</span></div>
+<header class="cover">
+<div class="numeral">42</div>
+<div class="tag"><span class="pri P0" aria-hidden="true"></span><span class="label" style="color:var(--ink)">P0 — ESSENTIAL</span>
+</div>
+<h1>Not All Language Model Features Are One-Dimensionally Linear</h1>
+<p class="cite">Engels et al. — 2024</p>
+<p class="authors">Joshua Engels, Eric J. Michaud, Isaac Liao, Wes Gurnee, Max Tegmark</p>
+</header>
+<section class="notes">
+<div class="note"><div class="label">Why read this</div><p>Defines irreducible multi-dimensional features, uses sparse autoencoders to find them in GPT-2 and Mistral 7B, and shows circular day-of-week and month representations that models use for modular arithmetic on those cycles.</p></div><div class="note"><div class="label">Reading focus</div><p>The separability and mixture criteria for irreducibility, the SAE-based search, the days-of-week and months circles, the intervention experiments on Mistral 7B and Llama 3 8B, and whether the circles are truly the unit of computation.</p></div><div class="note"><div class="label">In context</div><p>The sharpest empirical challenge here to the one-dimensional features assumed by <a href="33_toy_models_of_superposition.html">33</a> and formalized by <a href="40_linear_representation_hypothesis.html">40</a>: its circles echo the modular-arithmetic mechanisms of <a href="14_grokking_progress_measures.html">14</a> and <a href="15_clock_and_pizza.html">15</a>, now in pretrained LLMs. <a href="43_sae_feature_geometry.html">43</a> draws the general lesson for feature geometry, and <a href="69_sae_concept_manifolds.html">69</a> asks whether sparse autoencoders can capture such structure at all.</p></div><div class="note"><div class="label">Note</div><p>arXiv v1 was titled “Not All Language Model Features Are Linear”; the latest version (v3, ICLR 2025) is printed here.</p></div>
+</section>
+<dl class="meta">
+<dt>Section</dt><dd>D — What is a feature?</dd>
+<dt>Source</dt><dd><a href="https://arxiv.org/abs/2405.14860v3">https://arxiv.org/abs/2405.14860v3</a> &nbsp;·&nbsp; arXiv:2405.14860v3</dd>
+<dt>Licence</dt><dd>CC BY 4.0</dd>
+<dt>In print</dt><dd>PDF pages 1315–1347 &nbsp;·&nbsp; <a href="https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf">download the anthology</a></dd>
+</dl>
+<nav class="pager"><a class="prev" href="41_geometry_of_truth.html"><small>Previous · 41</small>The Geometry of Truth</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="43_sae_feature_geometry.html"><small>Next · 43</small>SAE Feature Geometry and Superposition</a></nav>
+<p class="disclaimer">Text extracted automatically from the source PDF. Display equations, figures and some tables appear as
+images; inline mathematics may be garbled — the PDF is authoritative.</p>
+<article>
+<h1>NOT ALL LANGUAGE MODEL FEATURES ARE ONE-DIMENSIONALLY LINEAR</h1>
+<p><strong>Joshua Engels Eric J. Michaud Isaac Liao</strong> MIT MIT &amp; IAIFI MIT jengels@mit.edu ericjm@mit.edu iliao@mit.edu</p>
+<p><strong>Wes Gurnee</strong> MIT wesg@mit.edu</p>
+<p><strong>Max Tegmark</strong> MIT &amp; IAIFI tegmark@mit.edu</p>
+<h2>ABSTRACT</h2>
+<p>Recent work has proposed that language models perform computation by manipulating one-dimensional representations of concepts (“features”) in activation space. In contrast, we explore whether some language model representations may be inherently multi-dimensional. We begin by developing a rigorous definition of irreducible multi-dimensional features based on whether they can be decomposed into either independent or non-co-occurring lower-dimensional features. Motivated by these definitions, we design a scalable method that uses sparse autoencoders to automatically find multi-dimensional features in GPT-2 and Mistral 7B. These auto-discovered features include strikingly interpretable examples, e.g. <em>circular</em> features representing days of the week and months of the year. We identify tasks where these exact circles are used to solve computational problems involving modular arithmetic in days of the week and months of the year. Next, we provide evidence that these circular features are indeed the fundamental unit of computation in these tasks with intervention experiments on Mistral 7B and Llama 3 8B, and we examine the continuity of the days of the week feature in Mistral 7B. Overall, our work argues that understanding multi-dimensional features is necessary to mechanistically decompose some model behaviors.</p>
+<h2>1 INTRODUCTION</h2>
+<p>Language models trained for next-token prediction on large text corpora have demonstrated remarkable capabilities, including coding, reasoning, and in-context learning (Bubeck et al., 2023; Achiam et al., 2023; Anthropic, 2024; Team et al., 2023). However, the specific algorithms models learn to achieve these capabilities remain largely a mystery to researchers; we do not understand how language models write poetry. Mechanistic interpretability is a field that seeks to address this gap by reverse-engineering trained models from the ground up into variables (features) and the programs (circuits) that process these variables (Olah et al., 2020).</p>
+<p>One mechanistic interpretability research direction has focused on understanding toy models in detail. This work has found multi-dimensional representations of inputs such as lattices (Michaud et al., 2024) and circles (Liu et al., 2022; Nanda et al., 2023a), and has successfully reverse-engineered the algorithms that models use to manipulate these representations. A separate direction has identified onedimensional representations of high level concepts and quantities in large language models (Gurnee &amp; Tegmark, 2023; Marks &amp; Tegmark, 2023; Heinzerling &amp; Inui, 2024; Bricken et al., 2023). These findings have led to the <em>linear representation hypothesis</em> (LRH): a hypothesis which has historically claimed both that 1. all representations in pretrained large language models lie along one-dimensional lines, and 2. model states are a simple sparse sum of these representations (Park et al., 2023; Bricken et al., 2023). In this work, we specifically call into question the first part of the LRH.<sup>1</sup></p>
+<p>1An earlier version of this manuscript sparked discussion in the mechanistic interpretability community on the distinction between non-linear features and multi-dimensional features, and in fact this discussion directly led</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0002-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Days of the Week Months of the Year Years of the 20th Century<br>Monday Friday January October<br>TuesdayWednesday SaturdaySunday FebruaryMarch NovemberDecember 1900 1950 1999<br>Thursday Other April Other<br>May<br>June<br>July<br>August<br>September<br>PCA axis 2 PCA axis 2 PCA axis 3<br>PCA axis 3 PCA axis 3 PCA axis 4<br><!-- End of picture text --></p>
+<p>Figure 1: Circular representations of days of the week, months of the year, and years of the 20th century in layer 7 of GPT-2-small colored by the token they fire on. These representations were discovered via clustering SAE dictionary elements, described in Section 4. Points are colored according to the token which created the representation. See Fig. 14 for other axes and Fig. 15 for similar plots for Mistral 7B.</p>
+<p>For the most part, these two directions have been disconnected: Yedidia (2023a) and Gould et al. (2023) find intriguing hints of circular language model representations, and Bricken et al. (2023) speculate about the existence of feature manifolds, but these brief results only serve to further emphasize the lack of a unifying and satisfying perspective on the nature of language model features. In this work, we seek to bridge this gap by formalizing, investigating, and systematically searching for multi-dimensional language model features.</p>
+<h3>1.1 CONTRIBUTIONS</h3>
+<ol>
+<li>
+<p>In Section 3, we generalize the one-dimensional definition of a language model feature to multidimensional features and provide an updated multi-dimensional superposition hypothesis to account for these new features.</p>
+</li>
+<li>
+<p>In Section 4, we build on the definitions proposed in Section 3 to develop a theoretically grounded and empirically practical test that uses sparse autoencoders to find irreducible features. Using this test, we identify multi-dimensional representations automatically in GPT-2 and Mistral 7B, including circular representations for the day of the week and month of the year.</p>
+</li>
+<li>
+<p>In Section 5, we show that Mistral 7B and Llama 3 8B use these circular representations when performing modular addition in days of the week and in months of the year. To the best of our knowledge, we are the first to find causal circular representations of concepts in a language model. We additionally find that the model’s circular representations respect a continuous notion of time.</p>
+</li>
+</ol>
+<h2>2 RELATED WORK</h2>
+<p><strong>Linear Representations:</strong> Early word embedding methods such as GloVe and Word2vec, although only trained using co-occurrence data, contained directions in their vector spaces corresponding to semantic concepts (Mikolov et al., 2013b; Pennington et al., 2014; Mikolov et al., 2013a). Recent research has found similar evidence of one-dimensional linear representations in sequence models trained only on next token prediction, including Othello board positions (Nanda et al., 2023b; Li et al., 2022), the truth value of assertions (Marks &amp; Tegmark, 2023), and numeric quantities such as longitude, latitude, birth year, and death year (Gurnee &amp; Tegmark, 2023; Heinzerling &amp; Inui, 2024). These results have inspired the linear representation hypothesis (Park et al., 2023; Elhage et al., 2022)</p>
+<p>to a consensus around the two part LRH we describe above (see (Olah, 2024; Csordás et al., 2024; Mendel, 2024; Kantamneni &amp; Tegmark, 2025)). To clarify, we agree with these discussions, and believe the multi-dimensional features we find are &quot;linear&quot; in the sense that they are contained in a low-dimensional linear subspace, but &quot;non-linear&quot; in the sense that this low-dimensional subspace is not one-dimensional (and this is the sense we mean in the title).</p>
+<p>defined above. Jiang et al. (2024) provide theoretical evidence for this hypothesis, assuming a latent (binary) variable-based model of language. Empirically, Bricken et al. (2023) and Cunningham et al. (2023) successfully use sparse autoencoders to break down a model’s feature space into an over-complete basis of linear features. These works assume that the number of linear features stored in superposition exceeds the model dimensionality (Elhage et al., 2022).</p>
+<p><strong>Multi-Dimensional Representations:</strong> There has been comparatively little research on multidimensional features in language models. Shai et al. (2024) predict and verify that a transformer trained on a hidden Markov model uses a fractal structure to represent the probability of each next token, a clear example of a necessary multi-dimensional feature, but the analysis is restricted to a toy setting. Yedidia (2023a;b) finds that GPT-2 learned position vectors form a helix, which implies a circle when “viewed” from below. Thus, we are not the first to find a circular feature in a language model. However, our work finds circular features that represent latent concepts from text, while the GPT-2 learned position vectors are specific to tokenization, separate from the rest of the model parameters, and causally implicated only due to positional attention masking. Another suggestive result, due to Hanna et al. (2024), is the presence of a U-shape in the representation of numbers between 0 and 100; however, Hanna et al. (2024) find that this representation is not causal, and they only show it exists within a specific prompt distribution. Recent work on dictionary learning (Bricken et al., 2023) has speculated about multi-dimensional <em>feature manifolds</em> ; our work is similar to this direction and develops the idea of feature manifolds theoretically and empirically. Finally, in a separate direction, Black et al. (2022) argue for interpreting neural networks through the polytopes they split the input space into, and identifies regions of low polytope density as “valid” regions for a potential linear representation.</p>
+<p><strong>Circuits:</strong> Circuits research seeks to identify and understand <em>circuits</em> , subsets of a model (usually represented as a directed acyclic graph) that explain specific behaviors (Olah et al., 2020). The base units that form a circuit can be layers, neurons (Olah et al., 2020), or sparse autoencoder features (Marks et al., 2024). In the first circuits-style work, Olah et al. (2020) found line features that were combined into curve detection features in the InceptionV1 image model. More recent work has examined language models, for example the indirect object identification circuit in GPT-2 (Wang et al., 2022). Given the difficulty of designing bespoke experiments, there has been increased research in automated circuit discovery methods (Marks et al., 2024; Conmy et al., 2023; Syed et al., 2023).</p>
+<p><strong>Interpretability for Arithmetic Problems:</strong> Liu et al. (2022) study models trained on modular arithmetic problems <em>a</em> + <em>b</em> = <em>c</em> (mod <em>m</em> ) and find that models that generalize well have circular representations for <em>a</em> and <em>b</em> . Further work by Nanda et al. (2023a) and Zhong et al. (2024) shows that models use these circular representations to compute <em>c</em> via a “clock” algorithm and a separate “pizza” algorithm. These papers are limited to the case of a small model trained only on modular arithmetic. Another direction has studied how large language models perform basic arithmetic, including a circuits level description of the greater-than operation in GPT-2 (Hanna et al., 2024) and addition in GPT-J (Stolfo et al., 2023). These works find that to perform a computation, models copy pertinent information to the token before the computed result and perform the computation in the subsequent MLP layers. Finally, recent work by Gould et al. (2023) investigates language models’ ability to increment numbers and finds linear features that fire on tokens equivalent modulo 10.</p>
+<h2>3 DEFINITIONS</h2>
+<p>This section focuses on hypotheses for how hidden states of language models can be decomposed into sums of functions of the input (features). We focus on <em>L</em> layer transformer models <em>M</em> that take in token input <strong>t</strong> = ( <em>t</em> 1 <em>, . . . , tn</em> ) from input token distribution <em>T</em> , have hidden states <strong>x</strong> 1 <em>,l, . . . ,</em> <strong>x</strong> <em>n,l</em> for layers <em>l</em> , and output logit vectors <strong>y</strong> 1 <em>, . . . ,</em> <strong>y</strong> <em>n</em> . Given a set of inputs <em>T</em> , we let <em>Xi,l</em> be the set of all corresponding <strong>x</strong> <em>i,l</em> . We write matrices in capital bold, vectors and vector valued functions in lowercase bold, and sets in capital non-bold.</p>
+<h3>3.1 MULTI-DIMENSIONAL FEATURES</h3>
+<p><strong>Definition 1</strong> (Feature) <strong>.</strong> We define a <em>df -dimensional feature</em> as a function <strong>f</strong> that maps a subset of the input space into R<sup><em>df</em></sup> . We say that a feature is <em>active</em> on the aforementioned subset.</p>
+<p>The input token distribution <em>T</em> induces a <em>df</em> -dimensional probability distribution over feature vectors <strong>f</strong> ( <em>t</em> ). As an example, let <em>n</em> = 1 (so inputs are single tokens) and consider a feature <strong>f</strong> that maps integer tokens to their integer values in R<sup>1</sup> . Then <strong>f</strong> is a 1-dimensional feature that is active on integer tokens, and <strong>f</strong> ( <em>t</em> ) is the marginal integer occurrence distribution from the token distribution.</p>
+<p>How can we differentiate &quot;true&quot; multi-dimensional features from sums of lower dimensional features? We make this distinction by examining the <em>reducibility</em> of a potential multi-dimensional feature. That is, <strong>f</strong> is a &quot;true&quot; multi-dimensional feature if it cannot be written as the sum of two statistically independent features <strong>and</strong> it cannot be written as the sum of two non-co-occurring features. Formally, we have the following definition:</p>
+<p><strong>Definition 2.</strong> A feature <strong>f</strong> is <em>reducible</em> into features <strong>a</strong> and <strong>b</strong> if there exists an affine transformation</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0004-04.jpg" alt="" /></p>
+<p>for some orthonormal <em>df × df</em> matrix <strong>R</strong> and additive constant <strong>c</strong> , such that the transformed feature probability distribution <em>p</em> ( <strong>a</strong> <em>,</em> <strong>b</strong> ) satisfies at least one of these conditions:</p>
+<ol>
+<li>
+<p><em>p</em> is <em>separable</em> , i.e., factorizable as a product of its marginal distributions: <em>p</em> ( <strong>a</strong> <em>,</em> <strong>b</strong> ) = <em>p</em> ( <strong>a</strong> ) <em>p</em> ( <strong>b</strong> ).</p>
+</li>
+<li>
+<p><em>p</em> is a <em>mixture</em> , i.e., a sum of disjoint distributions, one of which is lower dimensional: <em>p</em> ( <strong>a</strong> <em>,</em> <strong>b</strong> ) = <em>wp</em> ( <strong>a</strong> ) <em>δ</em> ( <strong><em>b</em></strong> ) + (1 <em>− w</em> ) <em>p</em> ( <strong>a</strong> <em>,</em> <strong>b</strong> )</p>
+</li>
+</ol>
+<p>Here, <em>p</em> is a probability density function that is conditional on the subset of <em>T</em> that <strong><em>f</em></strong> is active on, <em>δ</em> is the Dirac delta function, and 0 <em>&lt; w &lt;</em> 1. By two probability distributions being disjoint, we mean that they have disjoint support (there is no set where both have positive probability measure, or equivalently the two features <strong>a</strong> and <strong>b</strong> cannot be active at the same time). In Eq. (1), <strong>a</strong> is the first <em>k</em> components of the vector <strong>Rf</strong> + <strong>c</strong> and <strong>b</strong> is the remaining <em>df − k</em> components. When <em>p</em> is separable or a mixture, we also say that <strong>f</strong> is separable or a mixture. We term a feature <em>irreducible</em> if it is not reducible, i.e., if no rotation and translation makes it separable or a mixture.</p>
+<p>An example of a feature that is a mixture is a one hot encoding along a simplex; an example of a feature that is separable is a normal distribution<sup>2</sup> . In natural language, a mixture might be a one hot encoding of “breed of dog”, while a separable distribution might be the “latitude” and “longitude” of location tokens.</p>
+<p>In practice, the mixture and separability definitions may not be precisely satisfied. Thus, we soften our definitions to permit degrees of reducibility:</p>
+<p><strong>Definition 3</strong> (Separability Index and <em>ϵ</em> -Mixture Index) <strong>.</strong> Consider a feature <strong>f</strong> . The <strong>separability index</strong> <em>S</em> ( <strong>f</strong> ) measures the minimal mutual information between all possible <strong>a</strong> and <strong>b</strong> defined in Eq. (1):</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0004-12.jpg" alt="" /></p>
+<p>where <em>I</em> denotes the mutual information. Smaller values of <em>S</em> ( <strong>f</strong> ) mean that <strong>f</strong> is more separable.</p>
+<p>The <em>ϵ</em> <strong>-mixture index</strong> <em>Mϵ</em> ( <strong>f</strong> ) tests how often <strong>f</strong> can be projected near zero while it is active:</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0004-15.jpg" alt="" /></p>
+<p>In Appendix B, we expand on the intuition behind why the separability and <em>ϵ</em> -mixture indices as defined here correspond to weakened versions of Definition 2.</p>
+<p>We develop optimization procedures to empirically solve for the separability and <em>ϵ</em> -mixture indices of two dimensional feature distributions. At a high level, the separability procedure iterates over a sweep of rotations and estimates the mutual information between the axes for each angle, while the <em>ϵ</em> -mixture index procedure performs gradient descent to find the <em>ϵ</em> band that contains the largest possible fraction of the feature distribution. For more details on the implementation of the tests, see Appendix B.2. In Section 4, we apply these empirical tests to real language model feature distributions to find irreducible multi-dimensional features; we show the detailed test results on the “days of the week” cluster in Fig. 2</p>
+<blockquote>
+<p>2since any multidimensional Gaussian can be rotated to have a diagonal covariance matrix</p>
+</blockquote>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0005-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>M (f) = 0.4750 S(f) = 0.9506<br>600<br>1.0<br>400<br>0.5<br>200<br>0 0.0<br>PCA 2 2 0 2 0 3 2<br>2 2<br>Norm. v f + c<br>Angle<br>PCA 3 Count<br>Mutual Info (bits)<br><!-- End of picture text --></p>
+<p>Figure 2: Empirical <em>ϵ</em> -mixture index and separability index for the “days of the week” cluster along PCA components 2 and 3. <strong>Left:</strong> The <em>ϵ</em> band parameterized by <strong>v</strong> and <em>c</em> that the optimization procedure found contained the highest fraction of points. <strong>Mid:</strong> Dot products of points in the feature distribution with the <em>ϵ</em> band; <em>Mϵ</em> ( <strong><em>f</em></strong> ) is the percent of dot products within <em>ϵ</em> = 0 <em>.</em> 1 of 0. <strong>Right:</strong> Estimated mutual information for different rotations of the space; <em>S</em> ( <strong><em>f</em></strong> ) is the minimum over all rotations. This point cloud has a lower <em>ϵ</em> -mixture index and higher separability index than PCA projections within typical clusters (see Fig. 3), indicating that it is more likely to be an irreducible multi-dimensional feature.</p>
+<h3>3.2 SUPERPOSITION</h3>
+<p>In this section, we propose an updated <em>superposition hypothesis</em> (Elhage et al., 2022) that takes into account multi-dimensional features. First, we restate the original superposition hypothesis: <strong>Definition 4</strong> ( <em>δ</em> -orthogonal matrices) <strong>.</strong> Two matrices <strong>A</strong> 1 <em>∈</em> R<sup>_d×d_1</sup> and <strong>A</strong> 2 <em>∈</em> R<sup>_d×d_2</sup> are <em>δ</em> - <em>orthogonal</em> if <em>|</em> <strong>x</strong> 1 <em>·</em> <strong>x</strong> 2 <em>| ≤ δ</em> for all unit vectors <strong>x</strong> 1 <em>∈</em> colspace( <strong>A</strong> 1) and <strong>x</strong> 2 <em>∈</em> colspace( <strong>A</strong> 2). <strong>Hypothesis 1</strong> (One-Dimensional Superposition Hypothesis, paraphrased from (Elhage et al., 2022)) <strong>.</strong> Hidden states <strong>x</strong> <em>i,l</em> are the sum of many ( <em>≫ d</em> ) sparse one-dimensional features <em>fi</em> and pairwise <em>δ</em> -orthogonal vectors <strong>v</strong> <em>i</em> such that <strong>x</strong> <em>i,l</em> ( <em>t</em> ) =<sup>�</sup> <em>i</em><sup><strong>v</strong></sup><sup><em>ifi</em>(</sup><sup><em>t</em>).We set</sup><sup><em>fi</em>(</sup><sup><em>t</em>) to zero when</sup><sup>_t_is outside the</sup> domain of <em>fi</em> .</p>
+<p>In contrast, our new superposition hypothesis posits independence between irreducible multidimensional features instead of unknown levels of independence between one-dimensional features: <strong>Hypothesis 2</strong> (Multi-Dimensional Superposition Hypothesis, changes underlined) <strong>.</strong> Hidden states <strong>x</strong> <em>i,l</em> are the sum of many ( <em>≫ d</em> ) sparse low-dimensional irreducible features <strong>f</strong> <em>i</em> and pairwise <em>δ</em> -orthogonal matrices <strong>V</strong> <em><u>i</u> ∈</em> R<sup><em>d×d</em></sup><sup><strong>f</strong></sup><sup><em>i</em></sup> such that <strong>x</strong> <em>i,l</em> ( <em>t</em> ) =<sup>�</sup> <em>i</em><sup><strong>V</strong></sup><sup><em><u>i</u></em></sup> <strong>f</strong> <em>i</em> ( <em>t</em> ). We set <strong>f</strong> <em>i</em> ( <em>t</em> ) to zero when <em>t</em> is outside the domain of <strong>f</strong> <em>i</em> .</p>
+<p>Note that since multi-dimensional features can be written as the sums of projections of lowerdimensional features, our new superposition hypothesis is a stricter version of Hypothesis 1. In the next section, we will explore empirical evidence for our hypothesis, while in Appendix A, we prove upper and lower bounds on the number of <em>δ</em> -almost orthogonal matrices <strong>V</strong> <em>i</em> that can be packed into <em>d</em> dimensional space.</p>
+<h2>4 SPARSE AUTOENCODERS FIND MULTI-DIMENSIONAL FEATURES</h2>
+<p>In this section, we describe a method to identify multi-dimensional features in language model hidden states using sparse autoencoders (SAEs). Sparse autoencoders (SAEs) deconstruct model hidden states into sparse vector sums from an over-complete basis (Bricken et al., 2023; Cunningham et al., 2023). For hidden states <em>Xi,l</em> , a one-layer SAE of size <em>m</em> with sparsity penalty <em>λ</em> minimizes the following dictionary learning loss (Bricken et al., 2023; Cunningham et al., 2023):</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0005-09.jpg" alt="" /></p>
+<p>In practice, the <em>L</em> 0 loss on the last term is relaxed to <em>Lp</em> for 0 <em>&lt; p ≤</em> 1 to make the loss differentiable. We call the <em>m</em> columns of <strong>D</strong> (vectors in R<sup><em>d</em></sup> ) <strong>dictionary elements</strong> .</p>
+<p>We now argue that SAEs can discover irreducible multi-dimensional features by <em>clustering</em> <strong>D</strong> . We will consider a simple form of clustering: build a complete graph on <strong>D</strong> with edge weights equal to the cosine similarity between dictionary elements, prune all edges below a threshold <em>T</em> , and then set the clusters equal to the connected components of the graph. If we now consider the spaces spanned by each cluster, they will be approximately <em>T</em> -orthogonal by construction, since their basis vectors are all <em>T</em> -orthogonal. Now, consider some irreducible two-dimensional feature <strong>f</strong> ; we claim that if the SAE is large enough and <strong>f</strong> is active enough such that the SAE can reconstruct <strong>f</strong> when <strong>f</strong> is active, one of the clusters is likely to be exactly equal to <strong>f</strong> . If <strong>D</strong> includes just two dictionary elements spanning <strong>f</strong> , then these elements both must have nonzero activations post-ReLU to reconstruct <strong>f</strong> (otherwise <strong>f</strong> is a mixture). Because of the sparsity penalty in Eq. (4), this two-vector solution to reconstruct <strong>f</strong> is disincentivized, so instead the dictionary is likely to learn many elements that span <strong>f</strong> . These dictionary elements will then have a high cosine similarity, and so the edges between them will not be pruned away during the clustering process; hence, they will be in a cluster.</p>
+<p>Thus, we have a way to operationalize Hypothesis 2: clustering <strong>D</strong> finds <em>T</em> -orthogonal subspaces, and if irreducible multi-dimensional features exist, they are likely to be equal to some of these subspaces. This suggests a natural approach to using sparse autoencoders to search for irreducible multi-dimensional features:</p>
+<ol>
+<li>
+<p>Cluster dictionary elements by their pairwise cosine similarity. We use both the simple similaritybased pruning technique described above, as well as spectral clustering; see Appendix F for details, including comments on scalability.</p>
+</li>
+<li>
+<p>For each cluster, run the SAEs on all <strong>x</strong> <em>i,l ∈ Xi,l</em> and ablate all dictionary elements not in the cluster. This will give the reconstruction of each <strong>x</strong> <em>i,l</em> restricted to the cluster found in step 1 (if no cluster dictionary elements are non-zero for a given point, we ignore the point).</p>
+</li>
+<li>
+<p>Examine the resulting reconstructed activation vectors for irreducible multi-dimensional features. This step can be done manually by visually inspecting the PCA projections for known irreducible multi-dimensional structures (e.g. circles, see Fig. 10) or automatically by passing the PCA projections to the tests for Definition 3.</p>
+</li>
+</ol>
+<p>Pseudocode for this method is in the appendix in Alg. 1. This method succeeds on toy datasets of synthetic irreducible multi-dimensional features; see Appendix D.<sup>3</sup> We apply this method to language models using GPT-2 (Radford et al., 2019) SAEs trained by Bloom (2024) for every layer and Mistral 7B (Jiang et al., 2023) SAEs that we train on layers 8, 16, and 24 (training details in Appendix E).</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0006-08.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>1.0<br>Other cluster<br>Cluster shown in Figure 1<br>0.8<br>days<br>0.6<br>months<br>years<br>0.4<br>0.2<br>0.0<br>1.0 0.8 0.6 0.4 0.2 0.0<br>M (f): more irreducible<br>f): more irreducible (S<br><!-- End of picture text --></p>
+<p>Strikingly, we reconstruct irreducible multi-dimensional features that are <em>interpretable</em> circles: in GPT-2, days, months, and years are arranged circularly in order (see Fig. 1); in Mistral 7B, days and months are arranged circularly in order (see Fig. 15). These plots contain the PCA dimensions that most clearly show circular structure; these best dimensions are usually the second and third because the first PCA dim is an “intensity” direction that manifests as the radius of the circle in Fig. 1 (thus the overall structure for these multi-d features is perhaps best thought of as a cone). See Fig. 14 for all PCA dimensions visualized).</p>
+<p>Figure 3: Mixture index and separability index of GPT-2 features. Features from Fig. 1, which we had manually identified, score highly as candidate multidimensional features with these metrics.</p>
+<p>For each cluster of GPT-2 SAE features, we take the reconstructed activations and project them onto PCA components 1-2, 2-3, 3-4, and 4-5 (or fewer if there are fewer features in the cluster) and measure the separability index and <em>ϵ</em> -mixture index of each 2D point cloud as described in Appendix B.2. The mean scores across these planes are a computationally tractable approximation of Definition 3. We plot these mean scores in Fig. 3, and find that the features which we had manually identified in Fig. 1 are among the top scoring features along</p>
+<blockquote>
+<p>3Code: https://github.com/JoshEngels/MultiDimensionalFeatures</p>
+</blockquote>
+<p>Table 1: Aggregate model accuracy on days of the week and months of the year modular arithmetic tasks. Performance broken down by problem instance in Appendix I.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Weekdays</th>
+<th>Months</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Llama 3 8B</td>
+<td>29 / 49</td>
+<td>143 / 144</td>
+</tr>
+<tr>
+<td>Mistral 7B</td>
+<td>31 / 49</td>
+<td>125 / 144</td>
+</tr>
+<tr>
+<td>GPT-2</td>
+<td>8 / 49</td>
+<td>10 / 144</td>
+</tr>
+</tbody>
+</table>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0007-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Tue Jan Feb<br>Mon Mar<br>Wed Dec<br>Apr<br>Sun Nov May<br>Oct<br>Sat Thu Jun<br>Fri Sep Jul<br>Aug<br><!-- End of picture text --></p>
+<p>Figure 4: Top two PCA components on the <em>α</em> token. Colors show <em>α</em> . <strong>Left:</strong> Layer 30 of Mistral on Weekdays. <strong>Right:</strong> Layer 5 of Llama on Months.</p>
+<p>both measures of irreducibility. Thus, our theoretical tests can indeed be used to find interpretable irreducible features. We show the top 20 feature clusters, measured by the product of (1 <em>− ϵ</em> -mixture index ) and separability index, in Appendix G. Out of all 1000 clusters, the Fig. 1 clusters rank 9 <em>,</em> 28 <em>,</em> and 15 by this metric, respectively.<sup>4</sup></p>
+<h2>5 CIRCULAR REPRESENTATIONS IN LARGE LANGUAGE MODELS</h2>
+<p>In this section, we examine tasks in which models <em>use</em> the multi-dimensional features we discovered in Section 4, thereby providing evidence that these representations are indeed the fundamental unit of computation for some problems. Inspired by prior work studying circular representations in modular arithmetic (Liu et al., 2022), we define two prompts that represent “natural” modular arithmetic tasks:</p>
+<ul>
+<li>Weekdays task: <em>“Let’s do some day of the week math. Two days from Monday is”</em> Months task: <em>“Let’s do some calendar math. Four months from January is”</em></li>
+</ul>
+<p>For Weekdays, we range over the 7 days of the week and durations between 1 and 7 days to get 49 prompts. For Months, we range over the 12 months of the year and durations between 1 and 12 months to get 144 prompts. Mistral 7B and Llama 3 8B (AI@Meta, 2024) achieve reasonable performance on the Weekdays task and excellent performance on the Months task (measured by comparing the highest logit valid token against the ground truth answer), as summarized in Table 1. Interestingly, although these problems are equivalent to modular arithmetic problems <em>α</em> + <em>β ≡</em> ? (mod <em>m</em> ) for <em>m</em> = 7 <em>,</em> 12, both models get trivial accuracy on plain modular addition prompts, e.g. “5 + 3 (mod 7) <em>≡</em> ”. Finally, although GPT-2 has circular representations, it gets trivial accuracy on Weekdays and Months.</p>
+<p>To simplify discussion, let <em>α</em> be the day of the week or month of the year token (e.g. “Monday” or “April”), <em>β</em> be the duration token (e.g. “four” or “eleven”), and <em>γ</em> be the target ground truth token the model should predict, such that (abusing notation) we have <em>α</em> + <em>β</em> = <em>γ</em> . Let the prompts of the task be parameterized by <em>j</em> , such that the <em>j</em> th prompt asks about <em>αj</em> , <em>βj</em> , and <em>γj</em> .</p>
+<p>We confirm that Llama 3 8B and Mistral 7B have circular representations of <em>α</em> on this task by examining the PCA projections of hidden states across prompts at various layers on the <em>α</em> token. We plot two of these in Fig. 4 and show all layers in Fig. 18. These plots show circular representations as the highest varying two components in the model’s representation of <em>α</em> at many layers.</p>
+<h3>5.1 INTERVENING ON CIRCULAR DAY AND MONTH REPRESENTATIONS</h3>
+<p>We now experiment with <em>intervening</em> on these circular representations. We base our experiments on the common interpretability technique of activation patching, which replaces activations from a “dirty” run of the model with the corresponding activations from a “clean” run (Zhang &amp; Nanda, 2023). Activation patching empirically tests whether a specific model component, position, and/or representation has a causal influence on the model’s output. We employ a custom subspace patching</p>
+<blockquote>
+<p>4We also tried an alternative ranking scheme: we sorted the clusters by separability and irreducibility and set the cluster score equal to the minimum sorted position between the two sorted lists. The Fig. 1 clusters rank 8 <em>,</em> 105 <em>,</em> and 12 by this metric.</p>
+</blockquote>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0008-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Step 1: Learn Circular Probe<br>TrainingPoints  Find +Apply MatrixPCA Circular Probe  Learn 0 16 25 34<br>Step 2: Intervene with<br>Initial<br>point Apply MatrixPCA  5 6 5 0 4 132 Circular Probe Apply  00 1166 2255 3344<br>Apply intervention<br>New Apply<br>point  transpose of PCA  00 11 Apply  1 2 3<br>Matrix 5665 44 3322 pinv(P)  0 6 5 4<br><!-- End of picture text --></p>
+<p>Figure 5: Visual representation of the circular intervention process. <strong>Top:</strong> We learn a circular probe on the PCA projection of a training set. <strong>Bot:</strong> To intervene, we change the circular representation to <em>αj</em><sup>_′_and average ablate other dimensions.</sup></p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0008-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Mistral Weekdays Mistral Months<br>2.5 5<br>0.0 0<br>2.5 5<br>Llama Weekdays Llama Months<br>2<br>5<br>0 0<br>5<br>2<br>0 10 20 0 10 20<br>Layer<br>No-op Patch circle Average ablate<br>Patch layer Patch PCA<br>Average logit diff<br><!-- End of picture text --></p>
+<p>Figure 6: Mean and 96% error bars for intervening on the <em>α</em> token across layers using different intervention methods. The circular intervention technique outperforms patching only the top 5 PCA components and leaving the rest unchanged, and almost reaches the upper bound performance of patching the entire layer.</p>
+<p>method to allow testing for whether a specific <em>circular subspace</em> of a hidden state is sufficient to causally explain model output. Specifically, our patching technique relies on the following steps (visualized in Fig. 5):</p>
+<ol>
+<li><strong>Find a subspace with a circle to intervene on</strong> : Using a PCA reduced activation subspace to avoid overfitting, we train a “circular probe” to identify representations which exhibit strong circular patterns. More formally, let <strong>x</strong><sup><em>j</em></sup> <em>i,l</em><sup>be the hidden state at layer</sup><sup>_l_token position</sup><sup><em>i_for prompt</sup> <em>j</em> . Let <strong>W</strong> <em>i,l ∈</em> R<sup><em>k×d</em></sup> be the matrix consisting of the top <em>k</em> principal component directions of <strong>x</strong><sup><em>j</em></sup> <em>i,l</em><sup>.Inourexperiments,weset</sup><sup><em>k</em>=5.Welearnalinearprobe</sup><sup><strong>P</strong></sup><sup></em>∈<em>R2</sup><sup></em>,k_from</sup><sup><strong>W</strong></sup><sup>_i,l· Xi,l_toa</sup> unit circle in <em>α</em> . In other words, if circle( <em>α</em> ) = [cos(2 <em>πα/</em> 7) <em>,</em> sin(2 <em>πα/</em> 7)] for Weekdays and circle( <em>α</em> ) = [cos(2 <em>πα/</em> 12) <em>,</em> sin(2 <em>πα/</em> 12)] for Months, <strong>P</strong> is defined as follows:</li>
+</ol>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0008-07.jpg" alt="" /></p>
+<ol start="2">
+<li><strong>Intervene on the subspace</strong> : Say our initial prompt had <em>α</em> = <em>αj</em> and we are intervening with <em>α</em> = <em>αj′</em> . In this step, we replace the model’s projection on the subspace <strong>P</strong> <em>·</em> <strong>W</strong> <em>i,l</em> , which will be close to circle( <em>αj</em> ), with the “clean” point circle( <em>αj′</em> ). Note that we do not use the hidden state <strong>x</strong><sup><em>j</em></sup> <em>i,l</em><sup>_′_from the “clean” run, only the “clean” label</sup><sup><em>αj′</em>.In practice, other subspaces of</sup><sup><strong>x</strong></sup><sup><em>j</em></sup> <em>i,l</em><sup>may be</sup> used concurrently by the model in “backup” circuits (see e.g. Wang et al. (2022)) to compute the answer, so if we just intervene on the circular subspace the remaining components of the activation may interfere in downstream computations. Thus, to isolate the effect of our intervention, we set the average ablate the portion of the activation not in the intervened subspace. Letting <strong><u>x</u></strong> <em>i,l</em> be the average of <strong>x</strong><sup><em>j</em></sup> <em>i,l</em><sup>across all prompts indexed by</sup><sup>_j_and</sup><sup><strong>P</strong>+be the pseudoinverse of</sup><sup><strong>P</strong>, we intervene via</sup> the formula</li>
+</ol>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0008-09.jpg" alt="" /></p>
+<p>We run our patching on all 49 Weekday problems and 144 Month problems and use as “clean” runs the 6 or 11 other possible values for <em>β</em> , resulting in a total of 49 <em>∗</em> 6 patching experiments for Weekdays and 144 <em>∗</em> 11 patching experiments for Months. We also run baselines where we (1) replace the entire subspace corresponding to the first 5 PCA dimensions with the corresponding subspace from the clean run, (2) replace the entire layer with the corresponding layer from the clean run, and (3) replace the entire layer with the average across the task. The metric we use is <em>average logit difference</em> across all patching experiments between the original correct token ( <em>αj</em> ) and the</p>
+<p>target token ( <em>αj′</em> ). See Fig. 6 for these interventions on all layers of Mistral 7B and Llama 3 8B on Weekdays and Months.</p>
+<p>The main takeaway from Fig. 6 is that circular subspaces are causally implicated in computing <em>γ</em> , especially for Weekdays. Across all models and tasks, early layer interventions on the circular subspace have almost the same intervention effect as patching the entire layer, and are usually better than patching the top PCA dimensions from the clean problem.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0009-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Task Duration = 2 Days Task Duration = 3 Days<br>2 2<br>1 1<br>0 0<br>1 1<br>2 2<br>2 0 2 2 0 2<br>Task Duration = 4 Days Task Duration = 5 Days<br>2 2<br>1 1<br>0 0<br>1 1<br>2 2<br>2 0 2 2 0 2<br>Monday Wednesday Friday Sunday<br>Tuesday Thursday Saturday<br><!-- End of picture text --></p>
+<p>Patching experiments in Appendix J show <em>α</em> is copied to the final token on layers 15 to 17, which is why interventions drop off there. Additionally, while in this section we train a probe on a dataset of prompts, in Section 5.2, we show that intervening on the circle discovered via SAE clustering in Section 4 also works.</p>
+<p>To investigate exactly how models use the circular subspace, we perform <em>off distribution</em> interventions. We modify Eq. (6) so that instead of intervening on the circumference circle( <em>α</em> ), we sweep over a grid of positions ( <em>r, θ</em> ) within the circle:</p>
+<p>Figure 7: Off distribution interventions on Mistral layer 5 on the Weekdays task. The color corresponds to the highest logit <em>γ</em> after performing the circular subspace intervention on that point.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0009-07.jpg" alt="" /></p>
+<p>We intervene with <em>r ∈</em> [0 <em>,</em> 0 <em>.</em> 1 <em>, . . . ,</em> 2] <em>, θ ∈</em> subspace intervention on that point. [0 <em>,</em> 2 <em>π/</em> 100 <em>, . . . ,</em> 198 <em>π/</em> 100] and record the highest logit <em>γ</em> after the forward pass. Fig. 7 displays these results on Mistral layer 5 for <em>β ∈</em> [2 <em>,</em> 3 <em>,</em> 45]. They imply that Mistral treats the circle as a multi-dimensional representation with <em>α</em> encoded in the angle.</p>
+<h3>5.2 INTERVENING WITH THE SAE PLANE</h3>
+<p>In the last section, we train probes manually on the PCA of the activations to fit a circle. A perhaps more natural approach is intervening with the precise circle we found in Section 4. To determine if this approach is feasible, we first project layer 8 Mistral 7B Weekdays activations into the weekdays plane that was discovered by clustering (see Fig. 15; the plane is defined by PCA dimensions 2 and 3 of the cluster). In the rest of this section, we call this plane the SAE plane. In Fig. 19, we find that indeed, the Weekdays representations projected into the SAE plane form a circle (see Fig. 19). We thus can fit a circular probe to this 2D plane as in Eq. (5). Similarly, we call this probe the SAE probe.</p>
+<p>Because we only have layer 8 clustering results for Mistral, we train an SAE probe only on layer 8. We then evaluate interventions using this SAE probe on layer 8 of Mistral, but also at neighboring layers, since nearby layers should have similar representations (see e.g. Belrose et al. (2023)). We compare to two baselines: 1) training a normal circular probe on the PCA projections of each layer as described in Section 5.1, and 2) training a circular probe only on layer 8 and then evaluating on adjacent layers (in the same way as for the layer 8 SAE probe). We show the results of these methods in Fig. 8.</p>
+<p>We find that on all layers, using the SAE probe only slightly decreases intervention performance as compared to training a circular probe (from -2.58 to -2.01 average logit difference on layer</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0009-13.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Intervene w/ Layer 8 Probe<br>0.0 Intervene w/ SAE Probe<br>Intervene w/ Per-Layer Probe<br>0.5<br>1.0<br>1.5<br>2.0<br>2.5<br>3.0<br>6 7 8 9 10<br>Layer<br>Average logit difference after intervention<br><!-- End of picture text --></p>
+<p>Figure 8: Interventions on the Mistral 7B Weekdays task with different methods of determining the probe.</p>
+<p>8). Even more interestingly, the layer 8 SAE probe is much more robust to layer shifts than the layer 8 circular probe; for example, using the layer 8 circular probe on layer 6 results in an average logit difference of 0.029, whereas using the layer 8 SAE probe results in an average logit difference of</p>
+<p>-2.32. This is intriguing evidence that the SAE is perhaps finding more “true” (or at least more robust) features than our circular probing technique.</p>
+<h3>5.3 CONTINUITY OF CIRCULAR REPRESENTATIONS</h3>
+<p>In past sections, the representations of the interpretable numeric quantities we have discovered have been mostly <em>discontinuous</em> ; that is, the days of the week and months of the year in Fig. 1 and Fig. 15 are clustered at the vertices of a heptagon and dodecagon, and there is nothing &quot;between&quot; adjacent weekdays or months along the circle. In this section, we will examine the &quot;continuity&quot; of the circular features we have discovered. Although continuity of the representation is not a requirement of Definition 3, it would further decrease the <em>ϵ</em> -mixture index, and would also increase our subjective perception of the circular feature as an intrinsic model feature representing a continuous quantity (time). Thus, we create a synthetic dataset containing the text &quot;[very early/very late] on [Monday/Tuesday/.../Sunday]&quot; and simply plot the projections of the layer 30 activations into the top two PCA components of the activations of [Monday/Tuesday/.../Sunday].</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0010-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Fri<br>Thu Evening ThuMorning FriEvening Fri Morning SatSat<br>Morning Thu Evening Sat<br>Evening Wed<br>Wed Morning Wed Morning Sun Sun<br>Evening Sun<br>Evening Tue<br>Tue Morning TueEvening MonMorning Mon<br>Mon<br><!-- End of picture text --></p>
+<p>Figure 9: Layer 30 Mistral 7B activations for [morning/evening] on [Monday/Tuesday/.../Sunday], plotted projected into the PCA plane for [Monday/Tuesday/.../Sunday].</p>
+<p>The results, shown in Fig. 9, show that Mistral 7B indeed can map intermediate quantities to their expected place in the circle: the very early and very late version of each weekday are more towards the last and the next weekday along the circle, respectively. We show similar results for &quot;[morning/evening] on [Monday/Tuesday/.../Sunday]&quot; in Appendix Fig. 22.</p>
+<h2>6 DISCUSSION</h2>
+<p>Our work proposes a significant refinement to the simple one-dimensional linear representation hypothesis. While previous work has convincingly shown the existence of one-dimensional features, we find evidence for irreducible multi-dimensional representations, requiring us to generalize the notion of a feature to higher dimensions. Fortunately, we find that existing unsupervised feature extraction methodologies like sparse autoencoders can readily be applied to discover multi-dimensional representations. However, we think our work raises interesting questions about whether individual SAE features are appropriate “mediators” (Mueller et al., 2024) for understanding model computation, if some features are in fact multi-dimensional. Although taking a multi-dimensional representation perspective may be more complicated, we believe that uncovering the true (perhaps multi-dimensional) nature of model representations is necessary for discovering the underlying algorithms that use these representations. Ultimately, our field aims to turn complex circuits in future more-capable models into formally verifiable programs (Tegmark &amp; Omohundro, 2023; Dalrymple et al., 2024), which requires the ground truth “variables” of language models; we believe this work takes an important step towards discovering these variables.</p>
+<p><strong>Limitations:</strong> It is unclear why we did not find more interpretable multi-dimensional features. We are unsure if we are failing to interpret some of the high-scoring multi-dimensional features, if most multi-dimensional features lie in dimensions higher than two, if our clustering technique is not powerful enough to find some features, or if there are truly not that many. Additionally, our definitions for irreducible features (Definition 2) are purely statistical and not intervention based, and also had to be relaxed to hold in practice, resulting in measures that return a possibly subjective “degree” of reducibility (Definition 3). Thus, although this work provides preliminary evidence for the multi-dimensional superposition hypothesis (Hypothesis 2), it is still unclear if this theory provides the best description for the representations models use. Future work might make progress on this question by investigating new techniques for decomposing model representations, exploring higher dimensional representations, or determining conclusively whether models use representations in ways that necessitate the representations are non-linear.</p>
+<h3>ACKNOWLEDGMENTS</h3>
+<p>We thank (in alphabetical order) Dowon Baek, Kaivu Hariharan, Vedang Lad, Ziming Liu, and Tony Wang for helpful discussions and suggestions. This work is supported by Erik Otto, Jaan Tallinn, the Rothberg Family Fund for Cognitive Science, the NSF Graduate Research Fellowship (Grant No. 2141064), and IAIFI through NSF grant PHY-2019786.</p>
+<h2>REFERENCES</h2>
+<ul>
+<li>
+<p>Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. <em>arXiv preprint arXiv:2303.08774</em> , 2023.</p>
+</li>
+<li>
+<p>AI@Meta. Llama 3 model card, 2024. URL https://github.com/meta-llama/llama3/ blob/main/MODEL_CARD.md.</p>
+</li>
+<li>
+<p>Noga Alon. Problems and results in extremal combinatorics—i. <em>Discrete Mathematics</em> , 273(1-3): 31–53, 2003.</p>
+</li>
+</ul>
+<p>Anthropic. The claude 3 model family: Opus, sonnet, haiku. Technical report, Anthropic, 2024.</p>
+<ul>
+<li>
+<p>Nora Belrose, Zach Furman, Logan Smith, Danny Halawi, Igor Ostrovsky, Lev McKinney, Stella Biderman, and Jacob Steinhardt. Eliciting latent predictions from transformers with the tuned lens. <em>arXiv preprint arXiv:2303.08112</em> , 2023.</p>
+</li>
+<li>
+<p>Sid Black, Lee Sharkey, Leo Grinsztajn, Eric Winsor, Dan Braun, Jacob Merizian, Kip Parker, Carlos Ramón Guevara, Beren Millidge, Gabriel Alfour, et al. Interpreting neural networks through the polytope lens. <em>arXiv preprint arXiv:2211.12312</em> , 2022.</p>
+</li>
+<li>
+<p>Joseph Bloom. Open source sparse autoencoders for all residual stream layers of gpt2 small. https://www.alignmentforum.org/posts/f9EgfLSurAiqRJySD/ open-source-sparse-autoencoders-for-all-residual-stream, 2024.</p>
+</li>
+<li>
+<p>Trenton Bricken, Adly Templeton, Joshua Batson, Brian Chen, Adam Jermyn, Tom Conerly, Nick Turner, Cem Anil, Carson Denison, Amanda Askell, Robert Lasenby, Yifan Wu, Shauna Kravec, Nicholas Schiefer, Tim Maxwell, Nicholas Joseph, Zac Hatfield-Dodds, Alex Tamkin, Karina Nguyen, Brayden McLean, Josiah E Burke, Tristan Hume, Shan Carter, Tom Henighan, and Christopher Olah. Towards monosemanticity: Decomposing language models with dictionary learning. <em>Transformer Circuits Thread</em> , 2023. https://transformer-circuits.pub/2023/monosemanticfeatures/index.html.</p>
+</li>
+<li>
+<p>Sébastien Bubeck, Varun Chandrasekaran, Ronen Eldan, Johannes Gehrke, Eric Horvitz, Ece Kamar, Peter Lee, Yin Tat Lee, Yuanzhi Li, Scott Lundberg, et al. Sparks of artificial general intelligence: Early experiments with gpt-4. <em>arXiv preprint arXiv:2303.12712</em> , 2023.</p>
+</li>
+<li>
+<p>Arthur Conmy, Augustine Mavor-Parker, Aengus Lynch, Stefan Heimersheim, and Adrià GarrigaAlonso. Towards automated circuit discovery for mechanistic interpretability. <em>Advances in Neural Information Processing Systems</em> , 36:16318–16352, 2023.</p>
+</li>
+<li>
+<p>Róbert Csordás, Christopher Potts, Christopher D Manning, and Atticus Geiger. Recurrent neural networks learn to store and generate sequences using non-linear representations. <em>arXiv preprint arXiv:2408.10920</em> , 2024.</p>
+</li>
+<li>
+<p>Hoagy Cunningham, Aidan Ewart, Logan Riggs, Robert Huben, and Lee Sharkey. Sparse autoencoders find highly interpretable features in language models. <em>arXiv preprint arXiv:2309.08600</em> , 2023.</p>
+</li>
+<li>
+<p>David Dalrymple, Joar Skalse, Yoshua Bengio, Stuart Russell, Max Tegmark, Sanjit Seshia, Steve Omohundro, Christian Szegedy, Ben Goldhaber, Nora Ammann, et al. Towards guaranteed safe ai: A framework for ensuring robust and reliable ai systems. <em>arXiv preprint arXiv:2405.06624</em> , 2024.</p>
+</li>
+<li>
+<p>Nelson Elhage, Tristan Hume, Catherine Olsson, Nicholas Schiefer, Tom Henighan, Shauna Kravec, Zac Hatfield-Dodds, Robert Lasenby, Dawn Drain, Carol Chen, Roger Grosse, Sam McCandlish, Jared Kaplan, Dario Amodei, Martin Wattenberg, and Christopher Olah. Toy models of superposition. <em>Transformer Circuits Thread</em> , 2022. https://transformer-circuits.pub/ 2022/toy_model/index.html.</p>
+</li>
+<li>
+<p>Simon Foucart and Holger Rauhut. <em>A Mathematical Introduction to Compressive Sensing</em> . 2013.</p>
+</li>
+<li>
+<p>Leo Gao, Stella Biderman, Sid Black, Laurence Golding, Travis Hoppe, Charles Foster, Jason Phang, Horace He, Anish Thite, Noa Nabeshima, et al. The pile: An 800gb dataset of diverse text for language modeling. <em>arXiv preprint arXiv:2101.00027</em> , 2020.</p>
+</li>
+<li>
+<p>Semyon Aranovich Gershgorin. über die abgrenzung der eigenwerte einer matrix. <em>Izvestiya Rossi˘ıskoi akademii nauk. Seriya matematicheskaya</em> , (6):749–754, 1931.</p>
+</li>
+<li>
+<p>Rhys Gould, Euan Ong, George Ogden, and Arthur Conmy. Successor heads: Recurring, interpretable attention heads in the wild. <em>arXiv preprint arXiv:2312.09230</em> , 2023.</p>
+</li>
+<li>
+<p>Wes Gurnee and Max Tegmark. Language models represent space and time. <em>arXiv preprint arXiv:2310.02207</em> , 2023.</p>
+</li>
+<li>
+<p>Michael Hanna, Ollie Liu, and Alexandre Variengien. How does gpt-2 compute greater-than?: Interpreting mathematical abilities in a pre-trained language model. <em>Advances in Neural Information Processing Systems</em> , 36, 2024.</p>
+</li>
+<li>
+<p>Benjamin Heinzerling and Kentaro Inui. Monotonic representation of numeric properties in language models. <em>arXiv preprint arXiv:2403.10381</em> , 2024.</p>
+</li>
+<li>
+<p>Nicholas J. Higham. Singular value inequalities. https://nhigham.com/2021/05/04/ singular-value-inequalities/, May 2021.</p>
+</li>
+<li>
+<p>Bill Johnson (https://mathoverflow.net/users/2554/bill johnson). Almost orthogonal vectors. MathOverflow. URL https://mathoverflow.net/q/24873. URL:https://mathoverflow.net/q/24873 (version: 2010-05-16).</p>
+</li>
+<li>
+<p>Albert Q Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, Florian Bressand, Gianna Lengyel, Guillaume Lample, Lucile Saulnier, et al. Mistral 7b. <em>arXiv preprint arXiv:2310.06825</em> , 2023.</p>
+</li>
+<li>
+<p>Yibo Jiang, Goutham Rajendran, Pradeep Ravikumar, Bryon Aragam, and Victor Veitch. On the origins of linear representations in large language models. <em>arXiv preprint arXiv:2403.03867</em> , 2024.</p>
+</li>
+<li>
+<p>William B. Johnson and Joram Lindenstrauss. Extensions of lipschitz mappings into a hilbert space. In <em>Conference in modern analysis and probability (New Haven, Conn., 1982)</em> , volume 26 of <em>Contemporary Mathematics</em> , pp. 189–206. American Mathematical Society, Providence, RI, 1984. ISBN 0-8218-5030-X. doi: 10.1090/conm/026/737400.</p>
+</li>
+<li>
+<p>Subhash Kantamneni and Max Tegmark. Language models use trigonometry to do addition. <em>arXiv preprint arXiv:2502.00873</em> , 2025.</p>
+</li>
+<li>
+<p>Silvio Lattanzi, Thomas Lavastida, Kefu Lu, and Benjamin Moseley. A framework for parallelizing hierarchical clustering methods. In <em>Machine Learning and Knowledge Discovery in Databases: European Conference, ECML PKDD 2019, Würzburg, Germany, September 16–20, 2019, Proceedings, Part I</em> , pp. 73–89. Springer, 2020.</p>
+</li>
+<li>
+<p>Kenneth Li, Aspen K Hopkins, David Bau, Fernanda Viégas, Hanspeter Pfister, and Martin Wattenberg. Emergent world representations: Exploring a sequence model trained on a synthetic task. <em>arXiv preprint arXiv:2210.13382</em> , 2022.</p>
+</li>
+<li>
+<p>Ziming Liu, Ouail Kitouni, Niklas S Nolte, Eric Michaud, Max Tegmark, and Mike Williams. Towards understanding grokking: An effective theory of representation learning. <em>Advances in Neural Information Processing Systems</em> , 35:34651–34663, 2022.</p>
+</li>
+<li>
+<p>Samuel Marks and Max Tegmark. The geometry of truth: Emergent linear structure in large language model representations of true/false datasets. <em>arXiv preprint arXiv:2310.06824</em> , 2023.</p>
+</li>
+<li>
+<p>Samuel Marks, Can Rager, Eric J Michaud, Yonatan Belinkov, David Bau, and Aaron Mueller. Sparse feature circuits: Discovering and editing interpretable causal graphs in language models. <em>arXiv preprint arXiv:2403.19647</em> , 2024.</p>
+</li>
+<li>
+<p>Jake Mendel. Sae feature geometry is outside the superposition hypothesis. <em>AI Alignment Forum</em> , 2024. URL https://www.alignmentforum.org/posts/MFBTjb2qf3ziWmzz6/ sae-feature-geometry-is-outside-the-superposition-hypothesis.</p>
+</li>
+<li>
+<p>Eric J Michaud, Isaac Liao, Vedang Lad, Ziming Liu, Anish Mudide, Chloe Loughridge, Zifan Carl Guo, Tara Rezaei Kheirkhah, Mateja Vukeli´c, and Max Tegmark. Opening the ai black box: program synthesis via mechanistic interpretability. <em>arXiv preprint arXiv:2402.05110</em> , 2024.</p>
+</li>
+<li>
+<p>Tomas Mikolov, Ilya Sutskever, Kai Chen, Greg S Corrado, and Jeff Dean. Distributed representations of words and phrases and their compositionality. <em>Advances in neural information processing systems</em> , 26, 2013a.</p>
+</li>
+<li>
+<p>Tomáš Mikolov, Wen-tau Yih, and Geoffrey Zweig. Linguistic regularities in continuous space word representations. In <em>Proceedings of the 2013 conference of the north american chapter of the association for computational linguistics: Human language technologies</em> , pp. 746–751, 2013b.</p>
+</li>
+<li>
+<p>Depen Morwani, Benjamin L Edelman, Costin-Andrei Oncescu, Rosie Zhao, and Sham Kakade. Feature emergence via margin maximization: case studies in algebraic tasks. <em>arXiv preprint arXiv:2311.07568</em> , 2023.</p>
+</li>
+<li>
+<p>Aaron Mueller, Jannik Brinkmann, Millicent Li, Samuel Marks, Koyena Pal, Nikhil Prakash, Can Rager, Aruna Sankaranarayanan, Arnab Sen Sharma, Jiuding Sun, et al. The quest for the right mediator: A history, survey, and theoretical grounding of causal interpretability. <em>arXiv preprint arXiv:2408.01416</em> , 2024.</p>
+</li>
+<li>
+<p>Neel Nanda and Joseph Bloom. Transformerlens. https://github.com/ TransformerLensOrg/TransformerLens, 2022.</p>
+</li>
+<li>
+<p>Neel Nanda, Lawrence Chan, Tom Lieberum, Jess Smith, and Jacob Steinhardt. Progress measures for grokking via mechanistic interpretability. <em>arXiv preprint arXiv:2301.05217</em> , 2023a.</p>
+</li>
+<li>
+<p>Neel Nanda, Andrew Lee, and Martin Wattenberg. Emergent linear representations in world models of self-supervised sequence models. <em>arXiv preprint arXiv:2309.00941</em> , 2023b.</p>
+</li>
+<li>
+<p>Chris Olah. What is a linear representation? what is a multidimensional feature? <em>Transformer Circuits Thread</em> , 2024. URL https://transformer-circuits.pub/2024/july-update/ index.html#linear-representations.</p>
+</li>
+<li>
+<p>Chris Olah, Nick Cammarata, Ludwig Schubert, Gabriel Goh, Michael Petrov, and Shan Carter. Zoom in: An introduction to circuits. <em>Distill</em> , 2020. doi: 10.23915/distill.00024.001. https://distill.pub/2020/circuits/zoom-in.</p>
+</li>
+<li>
+<p>Kiho Park, Yo Joong Choe, and Victor Veitch. The linear representation hypothesis and the geometry of large language models. <em>arXiv preprint arXiv:2311.03658</em> , 2023.</p>
+</li>
+<li>
+<p>Baolin Peng, Chunyuan Li, Pengcheng He, Michel Galley, and Jianfeng Gao. Instruction tuning with gpt-4. <em>arXiv preprint arXiv:2304.03277</em> , 2023.</p>
+</li>
+<li>
+<p>Jeffrey Pennington, Richard Socher, and Christopher D Manning. Glove: Global vectors for word representation. In <em>Proceedings of the 2014 conference on empirical methods in natural language processing (EMNLP)</em> , pp. 1532–1543, 2014.</p>
+</li>
+<li>
+<p>Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, Ilya Sutskever, et al. Language models are unsupervised multitask learners. <em>OpenAI blog</em> , 2019.</p>
+</li>
+<li>
+<p>Adam Shai, Paul Riechers, Lucas Teixeira, Alexander Oldenziel, and Sarah Marzen. Transformers represent belief state geometry in their residual stream. https://www.alignmentforum.org/posts/gTZ2SxesbHckJ3CkF/ transformers-represent-belief-state-geometry-in-their, 2024.</p>
+</li>
+<li>
+<p>Alessandro Stolfo, Yonatan Belinkov, and Mrinmaya Sachan. A mechanistic interpretation of arithmetic reasoning in language models using causal mediation analysis. In <em>Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing</em> , pp. 7035–7052, 2023.</p>
+</li>
+<li>
+<p>Aaquib Syed, Can Rager, and Arthur Conmy. Attribution patching outperforms automated circuit discovery. <em>arXiv preprint arXiv:2310.10348</em> , 2023.</p>
+</li>
+<li>
+<p>Gemini Team, Rohan Anil, Sebastian Borgeaud, Yonghui Wu, Jean-Baptiste Alayrac, Jiahui Yu, Radu Soricut, Johan Schalkwyk, Andrew M Dai, Anja Hauth, et al. Gemini: a family of highly capable multimodal models. <em>arXiv preprint arXiv:2312.11805</em> , 2023.</p>
+</li>
+<li>
+<p>Max Tegmark and Steve Omohundro. Provably safe systems: the only path to controllable agi. <em>arXiv preprint arXiv:2309.01933</em> , 2023.</p>
+</li>
+<li>
+<p>Kevin Wang, Alexandre Variengien, Arthur Conmy, Buck Shlegeris, and Jacob Steinhardt. Interpretability in the wild: a circuit for indirect object identification in gpt-2 small. <em>arXiv preprint arXiv:2211.00593</em> , 2022.</p>
+</li>
+<li>
+<p>Adam Yedidia. Gpt-2’s positional embedding matrix is a helix, 2023a. URL https://www.lesswrong.com/posts/qvWP3aBDBaqXvPNhS/ gpt-2-s-positional-embedding-matrix-is-a-helix. Accessed: 2024-0916.</p>
+</li>
+<li>
+<p>Adam Yedidia. The positional embedding matrix and previous-token heads: how do they actually work?, 2023b. URL https://www.lesswrong.com/posts/zRA8B2FJLtTYRgie6/ the-positional-embedding-matrix-and-previous-token-heads-how. Accessed: 2024-09-17.</p>
+</li>
+<li>
+<p>Fred Zhang and Neel Nanda. Towards best practices of activation patching in language models: Metrics and methods. <em>arXiv preprint arXiv:2309.16042</em> , 2023.</p>
+</li>
+<li>
+<p>Ziqian Zhong, Ziming Liu, Max Tegmark, and Jacob Andreas. The clock and the pizza: Two stories in mechanistic explanation of neural networks. <em>Advances in Neural Information Processing Systems</em> , 36, 2024.</p>
+</li>
+</ul>
+<h2>A MULTI-DIMENSIONAL FEATURE CAPACITY</h2>
+<p>The Johnson-Lindenstrauss (JL) Lemma (Johnson &amp; Lindenstrauss, 1984) implies that we can choose <em>e</em><sup>_Cdδ_2</sup> pairwise one-dimensional <em>δ</em> -orthogonal vectors to satisfy Hypothesis 1 for some constant <em>C</em> , thus allowing us to build the model’s feature space with a number of one-dimensional <em>δ</em> -orthogonal features exponential in <em>d</em> . We now prove a similar result for low-dimensional projections (the main idea of the proof is to combine <em>δ</em> -orthogonal vectors as guaranteed from the JL lemma):</p>
+<p><strong>Theorem 1.</strong> <em>For any d</em><sup><em>′</em></sup> <em>and δ, it is possible to choose d</em> max1<sup>_eC_1(</sup><sup>_d/d′_2)</sup><sup>_δ_2</sup><sup><em>pairwiseδ-orthogonal</em></sup> <em>matrices</em> <strong>A</strong> <em>i ∈</em> R<sup><em>ni×d′</em></sup> <em>for some constant C</em> 1 <em>. Furthermore, it is not possible to choose more than e</em><sup>_C_2(</sup><sup>_d−d_max</sup><sup>_δ_log(</sup> <em>δ</em><sup><u>1</u>))</sup> <em>for some constant C</em> 2 <em>.</em></p>
+<p>We will first prove a lemma that will help us prove Theorem 1.</p>
+<p><strong>Lemma 1.</strong> <em>Pick n pairwise δ-orthogonal unit vectors in</em> <strong>v</strong> 1 <em>, . . . ,</em> <strong>v</strong> <em>n ∈</em> R<sup><em>d</em></sup> <em>. Let</em> <strong>y</strong> <em>∈</em> R<sup><em>d</em></sup> <em>be a unit norm vector that is a linear combination of unit norm vectors</em> <strong>v</strong> 1 <em>, . . . ,</em> <strong>v</strong> <em>n with coefficients z</em> 1 <em>. . . , zn ∈</em> R <em>. We can write</em> <strong>A</strong> = [ <strong>v</strong> 1 <em>, . . . ,</em> <strong>v</strong> <em>n</em> ] <em>and</em> <strong>z</strong> = [ <em>z</em> 1 <em>, . . . , zn</em> ]<sup><em>T</em></sup> <em>, so that we have</em> <strong>y</strong> =<sup>�</sup><sup><em>n</em></sup> <em>k</em> =1<sup><em>zk</em></sup><sup><strong>v</strong></sup><sup><em>k</em>=</sup><sup><strong>Az</strong></sup><sup><em>T</em></sup> <em>with ∥</em> <strong>y</strong> <em>∥</em> 2 = 1 <em>. Then,</em></p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0015-06.jpg" alt="" /></p>
+<p><em>Proof.</em> We will first bound the <em>L</em> 2 norm of <strong>z</strong> . If <em>σn</em> is the minimum singular value of <strong>A</strong> , then we have via standard singular value inequalities (Higham, 2021)</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0015-08.jpg" alt="" /></p>
+<p>Thus we now lower bound <em>σn</em> . The singular values are the square roots of the eigenvalues of the matrix <strong>A</strong><sup><em>T</em></sup> <strong>A</strong> , so we now examine <strong>A</strong><sup><em>T</em></sup> <strong>A</strong> . Since all elements of <strong>A</strong> are unit vectors, the diagonal of <strong>A</strong><sup><em>T</em></sup> <strong>A</strong> is all ones. The off diagonal elements are dot products of pairs of <em>δ</em> -orthogonal vectors, and so are within the range [ <em>−δ, δ</em> ]. Then by the Gershgorin circle theorem (Gershgorin, 1931), all eigenvalues <em>λi</em> of <strong>A</strong><sup><em>T</em></sup> <strong>A</strong> are in the range</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0015-10.jpg" alt="" /></p>
+<p>In particular, <em>σn</em><sup>2=</sup><sup><em>λn≥<em>1</sup><sup></em>−δ</em>(</sup><sup><em>n −<em>1), and thus</sup><sup><em>σn≥</em></sup> �1 <em>− δ</em> ( <em>n −</em> 1). Plugging into our upper bound for <em>∥</em> <strong>z</strong> <em>∥</em> 2, we have that <em>∥</em> <strong>z</strong> <em>∥</em> 2 <em>≤</em> 1 <em>/</em> ~~�~~ 1 <em>− δ</em> ( <em>n −</em> 1). Finally, the largest <em>L</em> 1 for a point on an <em>n</em> -hypersphere of radius <em>r</em> is when all dimensions are equal and such a point has magnitude<sup></em>√</em></sup> <em><u>nr</u></em> , so <em><u>n</u> n ∥</em> <strong>z</strong> <em>∥</em> 1 <em>≤</em> � 1 <em>− δ</em> ( <em>n −</em> 1)<sup><em>≤</em></sup> ~~�~~ 1 <em>− δn</em> <strong>Theorem 1.</strong> <em>For any d</em><sup><em>′</em></sup> <em>and δ, it is possible to choose d</em> max1<sup>_eC_1(</sup><sup>_d/d′_2)</sup><sup>_δ_2</sup><sup><em>pairwiseδ-orthogonal</em></sup> <em>matrices</em> <strong>A</strong> <em>i ∈</em> R<sup><em>ni×d′</em></sup> <em>for some constant C</em> 1 <em>. Furthermore, it is not possible to choose more than e</em><sup>_C_2(</sup><sup>_d−d_max</sup><sup>_δ_log(</sup> <em>δ</em><sup><u>1</u>))</sup> <em>for some constant C</em> 2 <em>.</em></p>
+<p><em>Proof.</em> By the JL lemma (Johnson &amp; Lindenstrauss, 1984; , https://mathoverflow.net/users/2554/bill johnson), for any <em>d</em> and <em>δ</em> , we can choose <em>e</em><sup>_Cdδ_2</sup> <em>δ</em> -orthogonal unit vectors in R<sup><em>d</em></sup> indexed as <strong>v</strong> <em>i</em> , for some constant <em>C</em> . Let <strong>A</strong> <em>i</em> = [ <strong>v</strong> <em>d</em> max <em>∗i, . . . ,</em> <strong>v</strong> <em>d</em> max <em>∗i</em> + <em>ni−</em> 1] where each element in the brackets is a column. Then by construction all <strong>A</strong> <em>i</em> are matrices composed of unique <em>δ</em> -orthogonal vectors and there are <u>1</u> <em>d</em> max<sup>_eCdδ_2matrices</sup><sup><strong>A</strong></sup><sup><em>i</em>.</sup></p>
+<p>Now, consider two of these matrices <strong>A</strong> <em>i</em> = [ <strong>v</strong> 1 <em>, . . . ,</em> <strong>v</strong> <em>ni</em> ] and <strong>A</strong> <em>j</em> = [ <strong>u</strong> 1 <em>, . . . ,</em> <strong>u</strong> <em>nj</em> ], <em>i̸</em> = <em>j</em> ; we will prove that they are <em>f</em> ( <em>δ</em> )-orthogonal for some function <em>f</em> . Let <strong>y</strong> <em>i</em> =<sup>�</sup><sup><em>n</em></sup> <em>k</em> =1<sup><em>izi,k</em></sup><sup><strong>v</strong></sup><sup>_k_be a vector in the</sup> colspace of <strong>A</strong> <em>i</em> and <strong>y</strong> <em>j</em> =<sup>�</sup><sup><em>n</em></sup> <em>k</em> =1<sup><em>jzj,k</em></sup><sup><strong>u</strong></sup><sup>_k_be a vector in the colspace of</sup><sup><strong>A</strong></sup><sup><em>j</em>, such that</sup><sup><strong>y</strong></sup><sup>_i_and</sup><sup><strong>y</strong></sup><sup>_j_are</sup> unit vectors. To prove <em>f</em> ( <em>δ</em> )-orthogonality, we must bound the absolute dot product between <strong>y</strong> <em>i</em> and <strong>y</strong> <em>j</em> :</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0016-01.jpg" alt="" /></p>
+<p>Thus <strong>A</strong> <em>i</em> and <strong>A</strong> <em>j</em> are <em>f</em> ( <em>δ</em> )-orthogonal for <em>f</em> ( <em>δ</em> ) = <em>δd</em> max <em>/</em> (1 <em>− δd</em> max), and so it is possible to choose <u>1</u> <em>d</em> max<sup>_eCdδ_2pairwise</sup><sup><em>f</em>(</sup><sup><em>δ</em>)-orthogonalprojection matrices.Remappingthevariable</sup><sup><em>δ_with</sup> <em>δ �→ f</em><sup></em>−<em>1</sup> ( <em>δ</em> ) = <em>δ/</em> ( <em>d</em> max(1 + <em>δ</em> )), we find that it is possible to choose <em>d</em> max1<sup><em>eCdδ_2</sup><sup></em>/</em>((1+</sup><sup><em>δ</em>)2</sup><sup><em>d</em></sup> max<sup>2)</sup> pairwise <em>δ</em> -orthogonal projection matrices. Because 1 + <em>δ</em> is at most 2 with <em>δ ∈</em> (0 <em>,</em> 1), we can further simplify the exponent and find that it is possible to choose <em>d</em> max1<sup><em>eC</em>(</sup><sup><em>d/d</em></sup> max<sup>2)</sup><sup><em>δ_2</sup><sup></em>/_4</sup> pairwise <em>δ</em> -orthogonal projection matrices. Absorbing the 4 into the constant <em>C</em> finishes the proof of the lower bound.</p>
+<p>For the upper bound, we can proceed much more simply. Consider <em>k</em> pairwise <em>δ</em> -orthogonal matrices <em>Ai ∈</em> R<sup><em>d′</em></sup> . Since these matrices are full rank, their column spaces each parameterize a subspace of dimension <em>d</em><sup><em>′</em></sup> , and so by a result from (Alon, 2003) it is possible to choose <em>e</em><sup>_Cd′δ_2 log(</sup> <em>δ</em><sup><u>1</u>)</sup> almost orthogonal vectors in this subspace. Furthermore, by our definition of <em>δ</em> -orthogonal matrices, all pairs of these vectors between subspaces will be <em>δ</em> -orthogonal. Finally, again by (Alon, 2003) we cannot have more than <em>e</em><sup>_Cdδ_2 log(</sup> <em>δ</em><sup><u>1</u>)</sup> <em>δ</em> -orthogonal vectors overall, so we have that</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0016-04.jpg" alt="" /></p>
+<p>and simplfying,</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0016-06.jpg" alt="" /></p>
+<p>These results imply that models can still represent an exponential number of higher dimensional features. However, there is a large exponential gap between the lower and upper bound we have shown. If the lower bound is reasonably tight, then this would mean that models would be highly incentivized to fit features within the smallest dimensional space possible, suggesting a reason for recent work showing interesting compressed encodings of multi-dimensional features in toy problems (Morwani et al., 2023).</p>
+<p>Note that the proof assumes the “worst case” scenario that all of the features are dimension <em>d</em> max, while in practice many of the features may be 1 or low dimensional, so the effect on the capacity of a real model that represents multi-dimensional features is unlikely to be this extreme.</p>
+<p>Finally, we note that the dictionary learning literature may have discovered similar results in the past (which we were unaware of), see Foucart &amp; Rauhut (2013).</p>
+<h2>B MORE ON REDUCIBILITY</h2>
+<h3>B.1 ADDITIONAL INTUITION FOR DEFINITIONS</h3>
+<p>Here, we present some extra intuition and high level ideas for understanding our definitions and the motivation behind them. Roughly, we intend for our definitions in the main text to identify representations in the model that describe an object or concept in a way that fundamentally takes multiple dimensions. We operationalize this as finding a subspace of representations that 1. has basis vectors that “always co-occur” no matter the orientation 2. is not made up of combinations of independent lower-dimensional features.</p>
+<ol>
+<li>
+<p>The first condition is met by the mixture part of our definition. The feature in question should be part of an irreducible manifold, and so should “fill” a plane or hyperplane. There shouldn’t be any part of the plane where the probability distribution of the feature is concentrated, because this region is then likely part of a lower dimensional feature. The idea of this part of the definition is to capture multi-dimensional objects; if the entire multi-dimensional space is truly being used to represent a high-dimensional object, then the representations for the object should be “spread out” entirely through the space.</p>
+</li>
+<li>
+<p>The second condition is met by the separability part of our definition. This part of the definition is intended to rule out features that co-occur frequently but are fundamentally not describing the same object or concept. For example, latitude and longitude are not a mixture in that they frequently cooccur, but we do not think it is necessarily correct to say they are part of the same multi-dimensional feature because they are independent.</p>
+</li>
+</ol>
+<h3>B.2 EMPIRICAL IRREDUCIBLE FEATURE TEST DETAILS</h3>
+<p>Our tests for reducibility require the computation of two quantities <em>S</em> ( <strong>f</strong> ) for the separability index and <em>Mϵ</em> ( <strong>f</strong> ) for the <em>ϵ</em> -mixture index. We describe how we compute each index in the following two subsections.</p>
+<h3>B.2.1 SEPARABILITY INDEX</h3>
+<p>We define the separability index in Equation 2 as</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0017-11.jpg" alt="" /></p>
+<p>where the min is over rotations <strong>R</strong> used to split <strong>f</strong><sup><em>′</em></sup> = <strong>Rf</strong> + <strong>c</strong> into <strong>a</strong> and <strong>b</strong> . In two dimensions, the rotation is defined by a single angle, so we can iterate over a grid of 1000 angles and estimate the mutual information between <strong>a</strong> and <strong>b</strong> for each angle. We first normalize <strong>f</strong> by subtracting off the mean and then dividing by the root mean squared norm of <strong>f</strong> (and multiplying by <em>√</em> 2 since the toy datasets are in two dimensions). To estimate the mutual information, we first clip the data <strong>f</strong> to a 6 by 6 square centered on the origin. We then bin the points into a 40 by 40 grid, to produce a discrete distribution <em>p</em> ( <em>a, b</em> ). After computing the marginals <em>p</em> ( <em>a</em> ) and <em>p</em> ( <em>b</em> ) by summing the distribution over each axis, we obtain the mutual information via the formula</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0017-13.jpg" alt="" /></p>
+<p>B.2.2 <em>ϵ</em> -MIXTURE INDEX</p>
+<p>We define the <em>ϵ</em> -mixture index in Equation 3 as</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0017-16.jpg" alt="" /></p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0018-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>2<br>2000<br>1<br>1000<br>Mϵ ( f ) = 0 . 6396<br>S ( f ) = 0 . 3691<br>representation dim 1 0 − 5 normalized0 v  ·  f +  c 5 00 π 2 angle π θ 32 π 2 π<br>(a) Testing  S ( a ) and  Mϵ ( a ) on a reducible feature  a .<br>S ( f ) = 2 . 683<br>200 2<br>Mϵ ( f ) = 0 . 1784<br>100 1<br>representation dim 1 0 − 1 . 5normalized − 1 . 0 v − ·  f 0 . 5+  c 0 . 0 00 π 2 angle π θ 32 π 2 π<br>(b) Testing  S ( b ) and  Mϵ ( b ) on an irreducible feature  b<br>count<br>(bits)infoMutual<br>dim2representation<br>count<br>(bits)infoMutual<br>dim2representation<br><!-- End of picture text --></p>
+<p>Figure 10: Testing irreducibility of synthetic features. <strong>Left in each subfigure:</strong> Distributions of <strong>x</strong> . For feature <strong>a</strong> , 63.96% lies within the narrow dotted lines, indicating the feature is likely a mixture. For feature <strong>b</strong> , 17.84% lies within the wide lines, indicating the feature is unlikely to be a mixture. The green cross indicates the angle <em>θ</em> that minimizes mutual information. <strong>Middle in each subfigure:</strong> Histograms of the distribution of <strong>v</strong> <em>·</em> <strong>x</strong> with red lines indicating a 2 <em>ϵ</em> -wide region. <strong>Right in each subfigure:</strong> Mutual information between <strong>a</strong> and <strong>b</strong> as a function of the rotation angle <em>θ</em> of matrix <strong>R</strong> . Feature <strong>b</strong> has a large minimum mutual information so is unlikely to be separable; feature <strong>a</strong> has a medium value of minimum mutual information of about 0 <em>.</em> 37 bits.</p>
+<p>The challenge with computing <em>Mϵ</em> ( <strong>f</strong> ) is to compute the maximum. We opted to maximize via gradient descent; and we guaranteed differentiability by softening the inequality <em>&lt;</em> with a sigmoid,</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0018-04.jpg" alt="" /></p>
+<p>where <em>T</em> is a temperature, which we linearly decay from 1 to 0 throughout training. We optimize for <strong>v</strong> and <em>c</em> using this loss <em>Mϵ,T</em> ( <strong>f</strong> <em>,</em> <strong>v</strong> <em>, c</em> ) using full batch gradient descent over 10000 steps with learning rate 0 <em>.</em> 1. With the solution ( <strong>v</strong><sup><em>∗</em></sup> <em>, c</em><sup><em>∗</em></sup> ), the final value of <em>Mϵ,T</em> =0( <strong>f</strong> <em>,</em> <strong>v</strong><sup><em>∗</em></sup> <em>, c</em><sup><em>∗</em></sup> ) is then our estimate of <em>Mϵ</em> ( <strong>f</strong> ).</p>
+<p>We also run the irreducibility tests on additional synthetic feature distributions in Fig. 11a and Fig. 11b.</p>
+<h2>C ALTERNATIVE DEFINITIONS</h2>
+<p>In this section, we present an alternative definition of a reducible feature that we considered during our work. This chiefly deals with multi-dimensional features from the angle of <em>computational</em> reducibility as opposed to <em>statistical</em> reducibility. In other words, this definition considers whether representations of features on a specific set of tasks can be split up without changing the accuracy of the task. This captures an interesting (and important) aspect of feature reducibility, but because it requires a specific set of prompts (as opposed to allowing unsupervised discovery) we chose not to use it as our main definition.</p>
+<p>Our alternative definitions consider <em>representation spaces</em> that are possibly multi-dimensional, and defines these spaces through whether they can completely explain a function <em>h</em> on the output logits. We consider a <em>group theoretic</em> approach to irreducible representations, via whether computation involving multiple group elements can be decomposed.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0019-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>100 0 . 50<br>Mϵ ( f ) = 0 . 0794<br>50 0 . 25<br>S ( f ) = 0 . 1156<br>representation dim 1 0 − normalized2 0 v  ·  f +  c 2 0 . 000 π 2 angle π θ 32 π 2 π<br>(a) Testing  S ( c ) and  Mϵ ( c ) on a reducible feature  c .<br>1000 1 . 0<br>Mϵ ( f ) = 0 . 259<br>500 0 . 5<br>S ( f ) = 0 . 2541<br>representation dim 1 0 − 2 . normalized5 0 . 0 v  ·  f +2  c. 5 0 . 00 π 2 angle π θ 32 π 2 π<br>(b) Testing  S ( d ) and  Mϵ ( d ) on an irreducible feature  d<br>count<br>(bits)infoMutual<br>dim2representation<br>count<br>(bits)infoMutual<br>dim2representation<br><!-- End of picture text --></p>
+<p>Figure 11: Testing irreducibility of synthetic features. <strong>Left in each subfigure:</strong> Distributions of <strong>x</strong> . For feature <strong>c</strong> , 7.94% lies within the narrow dotted lines, indicating the feature is unlikely to be a mixture. For feature <strong>d</strong> , 25.90% lies within the wide lines, indicating the feature is likely a mixture. The green cross indicates the angle <em>θ</em> that minimizes mutual information. <strong>Middle in each subfigure:</strong> Histograms of the distribution of <strong>v</strong> <em>·</em> <strong>x</strong> with red lines indicating a 2 <em>ϵ</em> -wide region. <strong>Right in each subfigure:</strong> Mutual information between <strong>a</strong> and <strong>b</strong> as a function of the rotation angle <em>θ</em> of matrix <strong>R</strong> . Both features have a small ( <em>&lt;</em> 0 <em>.</em> 5 bits) minimum mutual information and so are likely separable.</p>
+<h3>C.1 ALTERNATIVE DEFINITION: INTERVENTIONS AND REPRESENTATION SPACES</h3>
+<p>Assume that we restrict the input set of prompts <em>T</em> = <em>{</em> <strong>t</strong><sup><em>j</em></sup> <em>}</em> to some subset of prompts and that we have some evaluation function <em>h</em> that maps from the output logit distribution of <em>M</em> to a real number. For example, for the Weekdays problems, <em>T</em> is the set of 49 prompts and <em>h</em> could be the arg max over the days of week logits. Abusing notation, we let <em>M</em> also be the function from the layer we are intervening on; this is always clear from context. Then we can define a representation space of <strong>x</strong><sup><em>j</em></sup> <em>i,l</em><sup>as</sup> a subspace in which interventions always work:</p>
+<p><strong>Definition 5</strong> (Representation Space) <strong>.</strong> Given a prompt set <em>T</em> = <em>{</em> <strong>t</strong><sup><em>j</em></sup> <em>}</em> , a rank- <em>r</em> dimensional <em>representation space</em> of intermediate value <strong>x</strong><sup><em>j</em></sup> <em>i,l</em><sup>isarank</sup><sup><em>r_projectionmatrix</sup><sup><em>P_suchthatforall</sup><sup><em>j, j′</em>,</sup> <em>h</em> ( <em>M</em> (( <em>I − P</em> ) <strong>x</strong><sup><em>j</em></sup> <em>i,l</em><sup>+</sup><sup><em>P</em></sup><sup><strong>x</strong></sup> <em>i,l</em><sup><em>j′</em>)) =</sup><sup><em>h</em>(</sup><sup><em>M</em>(</sup><sup><strong>x</strong></sup><sup><em>j</em></sup> <em>i,l</em><sup></em>′</em>)).</sup></p>
+<p>Note that it immediately follows that the rank <em>d</em> dimensional matrix <em>Id</em> is trivially a rank <em>d</em> representation space for all prompt sets <em>T</em> .</p>
+<p><strong>Definition 6</strong> (Minimality) <strong>.</strong> A representation space <em>P</em> of rank <em>r</em> is <em>minimal</em> if there does not exist a lower rank representation space.</p>
+<p>A minimal representation with rank &gt; 1 is a <em>multi-dimensional representation</em> .</p>
+<p><strong>Definition 7</strong> (Alternative Reducibility) <strong>.</strong> A representation space <em>P</em> of rank <em>r</em> is <em>reducible</em> if there are orthonormal representation spaces <em>P</em> 1 and <em>P</em> 2 (such that <em>P</em> 1 + <em>P</em> 2 = <em>P</em> , <em>P</em> 1 <em>P</em> 2 = 0) where</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0019-10.jpg" alt="" /></p>
+<p>for all <em>j, j</em><sup><em>′</em></sup> .</p>
+<p>Suppose <em>T</em> , <em>h</em> and <em>M</em> define the multiplication of two elements in a finite group <em>G</em> of order <em>n</em> . Then if we interpret the embedding vectors as the group representations, our definition of reducibility implies to the standard group-theoretical definition of irreducibility –– specifically, reducibility into a tensor product representation.</p>
+<h2>D TOY CASE OF TRAINING SAES ON CIRCLES</h2>
+<p>To explore how SAEs behave when reconstructing irreducible features of dimension <em>df &gt;</em> 1, we perform experiments with the following toy setup. Inspired by the circular representations of integers that networks learn when trained on modular addition (Nanda et al., 2023a; Liu et al., 2022), we create synthetic datasets of activations containing multiple features which are each 2d irreducible circles.</p>
+<p>First however, consider activations for a single circle – points uniformly distributed on the unit circle in R<sup>2</sup> . We train SAEs on this data with encoder Enc( <strong>x</strong> ) = ReLU( <strong>We</strong> ( <strong>x</strong> <em>−</em> <strong>bd</strong> ) + <strong>be</strong> ) and decoder Dec( <strong>f</strong> ) = <strong>Wdf</strong> + <strong>bd</strong> . We train SAEs with <em>m</em> = 2 and <em>m</em> = 10 with the Adam optimizer and a learning rate of 10<sup>_−_3</sup> , sparsity penalty <em>λ</em> = 0 <em>.</em> 1, for 20,000 steps, and a warmup of 1000 steps. In Fig. 12 we show the dictionary elements of these SAEs. When <em>m</em> = 2, the SAE must use both SAE features on each input point, and uses <strong>db</strong> to shift the reconstructed circle so it is centered at the origin. When <em>m</em> = 10, the SAE learns <strong>db</strong> <em>≈</em> 0 and the features spread out across the circle, arranged close together, and only a subset are active on each input.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0020-04.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>sparsity loss: 1.93 sparsity loss: 1.27, seed=2 sparsity loss: 1.28, seed=4<br>2 SAE hidden activations<br>db<br>Reconstruction 1 1<br>1 Dictionary element<br>0 0 0<br>1<br>db db<br>1 Reconstruction 1 Reconstruction<br>2 Dictionary element Dictionary element<br>2 1 0 1 2 1 0 1 1 0 1<br><!-- End of picture text --></p>
+<p>Figure 12: SAEs trained to reconstruct a single 2d circle with <em>m</em> = 2 (left) and <em>m</em> = 10 (middle and right) dictionary elements. When there are several SAE features, there is no natural/canonical choice of feature directions, and the dictionary elements spread out across the circle.</p>
+<p>We now consider synthetic activations with multiple circular features. Our data consists of points in R<sup>10</sup> , where we choose two orthogonal planes spanned by ( <strong>e1</strong> <em>,</em> <strong>e2</strong> ) and ( <strong>e3</strong> <em>,</em> <strong>e4</strong> ), respectively. With probability one half a points is sampled uniformly on the unit circle in the <strong>e1</strong> - <strong>e2</strong> plane, otherwise the point will be sampled uniformly on the unit circle in the <strong>e3</strong> - <strong>e4</strong> plane. We train SAEs with <em>m</em> = 64 on this data with the same hyperparameters as the single-circle case.</p>
+<p>We now apply the procedure described in Section 4 to see if we can automatically rediscover these circles. Encouragingly, we first find that the alive SAE features align almost exactly with either the <strong>e1</strong> - <strong>e2</strong> or the <strong>e3</strong> - <strong>e4</strong> plane. When we apply spectral clustering with n_clusters = 2 to the features with the pairwise angular similarities between dictionary elements as the similarity matrix (Fig. 13, left), the two clusters correspond exactly to the features which span each plane. As described in Section 4, given a cluster of dictionary elements <em>S ⊂{</em> 1 <em>, . . . , m}</em> , we run a large set of activations through the SAE, then filter out samples which don’t activate any element in <em>S</em> . For samples which do activate an element of <em>S</em> , reconstruct the activation while setting all SAE features not in <em>S</em> to have a hidden activation of zero. If some collection of SAE features together represent some irreducible feature, we want to remove all other features from the activation vector, and so we only allow SAE features in the collection to participate in reconstructing the input activation. We find that this procedure almost exactly recovers the original two circles, which encouraged us to apply this method for discovering the features shown in Fig. 1 and Fig. 15.</p>
+<h2>E TRAINING MISTRAL SAES</h2>
+<p>Our Mistral 7B (Jiang et al., 2023) sparse autoencoders (SAEs) are trained on over one billion tokens from a subset of the Pile (Gao et al., 2020) and Alpaca (Peng et al., 2023) datasets. We train our SAEs</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0021-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Cosine sim between alive features Cluster 1 reconstruction Cluster 2 reconstruction<br>0 1<br>1 1<br>15<br>0 0 0<br>30<br>1 1<br>1<br>0 15 30 1 0 1 1 0 1<br>alive SAE feature PCA axis 1 PCA axis 1<br>PCA axis 2 PCA axis 2<br>alive SAE feature<br><!-- End of picture text --></p>
+<p>Figure 13: Automatic discovery of synthetic circular features by clustering SAE dictionary elements.</p>
+<p>on layers 8, 16, and 24 out of 32 total layers to maximize coverage of the model’s representations. We use a 16 <em>×</em> expansion factor, yielding a total of 65536 dictionary elements for each SAE.</p>
+<p>To train our SAEs, we use an <em>Lp</em> sparsity penalty for <em>p</em> = 1 <em>/</em> 2 with sparsity coefficient <em>λ</em> = 0 <em>.</em> 012. Before an SAE forward pass, we normalize our activation vectors to have norm<sup><em>√</em></sup> <em>dmodel</em> = 64 in the case of Mistral. We do not apply a pre-encoder bias. We use an AdamW optimizer with weight decay 10<sup>_−_3</sup> and learning rate 0.0002 with a linear warm up. We apply dead feature resampling (Bricken et al., 2023) five times over the course of training to converge on SAEs with around 1000 dead features.</p>
+<h2>F GPT-2 AND MISTRAL 7B DICTIONARY ELEMENT CLUSTERING</h2>
+<p>In this section, we first present pseudocode in Alg. 1 for the overall high level technique that finds multi-dimensional features and that uses clustering as a subroutine. We then provide the specific clustering algorithm implementations we use for GPT-2 and Mistral.</p>
+<p><strong>Algorithm 1:</strong> High Level Clustering Approach For Finding Multi-D Features</p>
+<p><strong>Input:</strong> Dictionary elements <em>D</em> , activation vectors <em>Xi,l</em> , SAE <strong>Output:</strong> Irreducible multi-dimensional features <em>Si,j ←</em> CosineSim( <em>Di, Dj</em> ); <em>clusters ←</em> Cluster( <em>S</em> ); <em>reconstructions ←{}</em> ; <strong>for</strong> <em>cluster in clusters</em> <strong>do</strong> <em>Rcluster ←</em> ids of dictionary elements in <em>cluster</em> ; <strong>for</strong> <strong><em>x</em></strong> <em>i,l in Xi,l</em> <strong>do</strong> <em>encoding ←</em> ReLU( <em>E ·</em> <strong><em>x</em></strong> <em>i,l</em> ); <strong>if</strong> max( <em>encoding</em> [ <em>Rcluster</em> ]) <em>&gt;</em> 0 <strong>then</strong> <em>r ← D</em> [: <em>, Rcluster</em> ] <em>· encoding</em> ; <em>reconstructions ← reconstructions ∪{r}</em> ; <strong>end end end</strong> <em>features ←{}</em> ; <strong>for</strong> <em>R in reconstructions</em> <strong>do</strong> <em>proj ←</em> PCA( <em>R</em> ); <strong>if</strong> TestIrreducible( <em>proj</em> ) <strong>then</strong> Add <em>proj</em> to <em>features</em> ; <strong>end end return</strong> <em><u>f</u> eatures</em></p>
+<h3>F.1 GPT-2-SMALL METHODS AND RESULTS</h3>
+<p>For GPT-2-small, we perform spectral clustering on the roughly 25k layer 7 SAE features from (Bloom, 2024), using pairwise angular similarities between dictionary elements as the similarity matrix. We use n_clusters = 1000 and manually looked at roughly 500 of these clusters. For each cluster, we looked at projections onto principal components 1-4 of the reconstructed activations for these clusters. In Fig. 14, we show projections for the most interesting clusters we identified, which appear to be circular representations of days of the week, months of the year, and years of the 20th century.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0022-03.jpg" alt="" /></p>
+<p>Figure 14: Projections of days of week, months of year, and years of the 20th century representations onto top four principal components, showing additional dimensions of the representations than Fig. 1.</p>
+<h3>F.2 MISTRAL 7B METHODS AND RESULTS</h3>
+<p>For Mistral 7B, our SAEs have 65536 dictionary elements and we found it difficult to run spectral clustering on all of these at once. We therefore develop a simple graph based clustering algorithm that we run on Mistral 7B SAEs:</p>
+<ol>
+<li>
+<p>Create a graph <em>G</em> out of the dictionary elements by adding directed edges from each dictionary element to its <em>k</em> closest dictionary elements by cosine similarity. We use <em>k</em> = 2.</p>
+</li>
+<li>
+<p>Make the graph undirected by turning every directed edge into an undirected edge.</p>
+</li>
+<li>
+<p>Prune edges with cosine similarity less than a threshold value <em>τ</em> . We use <em>τ</em> = 0 <em>.</em> 5.</p>
+</li>
+<li>
+<p>Return the connected components as clusters.</p>
+</li>
+</ol>
+<p>We run this algorithm on the Mistral 7B layer 8 SAE (2<sup>16</sup> dictionary elements) and find roughly 2700 clusters containing between 2 and 1000 elements. We manually inspected roughly 2000 of these. From these, we re-discover circular representations of days of the week and months of the year, shown in Fig. 15. However, we did not find other obviously interesting and clearly irreducible features.</p>
+<p>We also investigate the sensitivity of this method to <em>τ</em> and <em>k</em> by varying <em>τ</em> and <em>k</em> and showing the max Jaccard similarity between any of the resulting clusters and the days of the week cluster we show in Fig. 15. We show the results in Fig. 16, where we find that varying <em>k</em> has minimal effect, while varying <em>τ</em> shows 3 regimes: small <em>τ</em> causes all features to group in one cluster, so the days of the week cluster is not found; medium <em>τ</em> causes the days of the week cluster to become identifiable; large <em>τ</em> causes all features to be divided into their own clusters.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0023-06.jpg" alt="" /></p>
+<p>Figure 15: Circular representations of days of the week and months of the year which we discover with our unsupervised SAE clustering method in Mistral 7B. Unlike similar features in GPT-2, we also find an additional “weekend” representation in between Saturday and Sunday representations (left) and additional representations of seasons among the months (right). For instance, “winter” tokens activate a region of the circle in between the representation of January and December.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0023-08.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>0.10 Cluster Stability Across Parameters 1.0 Mean Cluster Size Across Parameters<br>0.11<br>0.13<br>0.140.16 Cluster part of large super cluster 0.8 10 3<br>0.18<br>0.21<br>0.23<br>0.26 0.6<br>0.30 10 2<br>0.34<br>0.38<br>0.43 0.4<br>0.48 Cluster formed<br>0.50<br>0.55 10 1<br>0.62 0.2<br>0.70<br>0.78<br>0.89 Cluster broken apart<br>1.00 10 0<br>k=2 k=3 k=4 k=2 k=3 k=4<br>Top-k for Graph (k=2,3,4) Top-k for Graph (k=2,3,4)<br>Similarity Cutoff<br>Mean Cluster Size (log scale)<br>Max Jaccard Similarity With GT Cluster<br><!-- End of picture text --></p>
+<p>Figure 16: Hyperparameter regimes where the days of the week cluster exists. The cluster exists in the regime between all features clumping together and all features being in their own cluster; this regime seems reasonably stable.</p>
+<p>As future work, we think it would be exciting to develop better clustering techniques for SAE features. Our graph based clustering technique could likely be improved by more recent efficient and high-quality graph based clustering techniques, e.g. hierarchical agglomerate clustering with single-linkage (Lattanzi et al., 2020). Additionally, we believe we would see a large improvement by setting edge weights to be a combination of both the cosine and Jaccard similarity of the dictionary elements, e.g. max(cosine, Jaccard).</p>
+<h2>G OTHER DISCOVERED CLUSTERS</h2>
+<p>In Fig. 17, we plot the top 11 ranked clusters by the product of a) the measured separability index and b) one minus the measured <em>ϵ</em> -mixture index with <em>ϵ</em> = 0 <em>.</em> 1 (this is just one of many possible ways to get an ordered ranking from a two-parameter score). We color by both the current token (which results in clear patterns for all tokens) and the next token (to see if we find belief states as found by Shai et al. (2024) in toy transformers). We note that weekdays are ranked 9 and so are shown in the plot. Additionally, the next token patterns of the ‘such’ cluster and the ‘B’ cluster do seem to display some clustering independently of the the current token pattern, which might lend the belief state hypothesis some support.</p>
+<h2>H FURTHER EXPERIMENT DETAILS</h2>
+<h3>H.1 ASSETS INFORMATION</h3>
+<p>We use the following open source models for our experiments: Llama 3 8B (AI@Meta, 2024) (custom Llama 3 license https://llama.meta.com/llama3/license/), Mistral 7B (Jiang et al., 2023) (released under the Apache 2 License), and GPT-2 (Radford et al., 2019) (modified MIT license, see https://github.com/openai/gpt-2/blob/master/LICENSE).</p>
+<h3>H.2 MACHINE INFORMATION</h3>
+<p>Intervention experiments were run on two V100 GPUs using less than 64 GB of CPU RAM; all experiments can be reproduced from our open source repository in less than a day with this configuration. We use the TransformerLens library (Nanda &amp; Bloom, 2022) for intervention experiments. <em>ϵ</em> -mixture index measurements on toy datasets took about one minute each, on 8GB of CPU RAM. EVR experiments take seconds on 8GB of CPU RAM and are dominated by time taken to human-interpret the RGB plots.</p>
+<p>GPT-2 SAE clustering and plotting was run on a cluster of heterogeneous hardware. Spectral clustering and computing reconstructions + plotting was done on CPUs only. We made reconstruction plots for 500 clusters, with each taking less than 10 minutes. Mistral 7B SAE reconstruction plots were made on the same cluster. We made roughly 2000 reconstruction plots for Mistral 7B (and manually inspected each), with each taking less than 20 minutes to generate. Jobs were allocated 64GB of memory each.</p>
+<p>Mistral SAE training was run on a single V100 GPU. Initially caching activations from Mistral 7B on one billion tokens took approximately 60 hours. Training the SAEs on the saved activations took another 36 hours.</p>
+<h3>H.3 ERROR BAR CALCULATION</h3>
+<p>In Fig. 6 we report 96% error bars for all intervention methods. To compute these error bars, we loop over all intervention methods and all layers and compute a confidence interval for each (method, layer) pair across all prompts. Assuming normally distributed errors, we compute error bars with the following standard formula:</p>
+<p><em>EB</em> = <em>µ ± z ∗ SE</em></p>
+<p>where <em>µ</em> is the sample mean, <em>z</em> is the z score (slightly larger than 2 for 96% error bars), and <em>SE</em> is the standard error (the standard deviation divided by the square root of the number of samples). We use standard Python functions to compute this value.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0025-01.jpg" alt="" /></p>
+<p>Figure 17: Top 10 GPT-2 clusters by Mixture and Separability Index.</p>
+<p>Layer 0 Layer 1 Layer 2 Layer 3 Layer 4 Layer 5 Layer 6 Layer 7 Layer 8 Layer 9 Layer 10 Layer 11 Layer 12 Layer 13 Layer 14 Layer 15 Layer 16 Layer 17 Layer 18 Layer 19 Layer 20 Layer 21 Layer 22 Layer 23 Layer 24 Layer 25 Layer 26 Layer 27 Layer 28 Layer 29 Layer 30 Layer 31 Monday Tuesday Wednesday Thursday Friday Saturday Sunday</p>
+<p>Layer 0 Layer 1 Layer 2 Layer 3 Layer 4 Layer 5 Layer 6 Layer 7 Layer 8 Layer 9 Layer 10 Layer 11 Layer 12 Layer 13 Layer 14 Layer 15 Layer 16 Layer 17 Layer 18 Layer 19 Layer 20 Layer 21 Layer 22 Layer 23 Layer 24 Layer 25 Layer 26 Layer 27 Layer 28 Layer 29 Layer 30 Layer 31 Monday Tuesday Wednesday Thursday Friday Saturday Sunday</p>
+<h4>(a) Mistral 7B, Weekdays</h4>
+<h4>(b) Llama 3 8B, Weekdays</h4>
+<p>Layer 0 Layer 1 Layer 2 Layer 3 Layer 4 Layer 5 Layer 6 Layer 7 Layer 8 Layer 9 Layer 10 Layer 11 Layer 12 Layer 13 Layer 14 Layer 15 Layer 16 Layer 17 Layer 18 Layer 19 Layer 20 Layer 21 Layer 22 Layer 23 Layer 24 Layer 25 Layer 26 Layer 27 Layer 28 Layer 29 Layer 30 Layer 31 January March May July September November February April June August October December</p>
+<p>Layer 0 Layer 1 Layer 2 Layer 3 Layer 4 Layer 5 Layer 6 Layer 7 Layer 8 Layer 9 Layer 10 Layer 11 Layer 12 Layer 13 Layer 14 Layer 15 Layer 16 Layer 17 Layer 18 Layer 19 Layer 20 Layer 21 Layer 22 Layer 23 Layer 24 Layer 25 Layer 26 Layer 27 Layer 28 Layer 29 Layer 30 Layer 31 January March May July September November February April June August October December</p>
+<h4>(c) Mistral 7B, Months</h4>
+<h4>(d) Llama 3 8B, Months</h4>
+<p>Figure 18: Projections onto the top two PCA dimensions of model hidden states on the <em>α</em> token show that circular representations of <em>α</em> are present in various layers.</p>
+<p>The reason that the Months error bars are smaller than the Weekdays error bars is because there are more Months prompts: there are 12 <em>∗</em> 12 <em>∗</em> 11 = 1584 intervention effect values, rather than 7 <em>∗</em> 7 <em>∗</em> 6 = 294 intervention effect values.</p>
+<h2>I MORE WE E K D A Y S AND MONTHS PLOTS AND DETAILS</h2>
+<h3>I.0.1 BASIC PLOTS</h3>
+<p>We show the results of Mistral 7B and Llama 3 8B on all individual instances of Weekdays that at least one of the models get wrong in Table 2 and present a similar table for Months in Table 3.</p>
+<p>We show projections onto the top two PCA directions for both Mistral 7B and Llama 3 8B in Fig. 18 on the hidden layers on top of the <em>α</em> token, colored by <em>α</em> . These are similar plots to Fig. 4, except they are on all layers. The circular structure in <em>α</em> is visible on many—but not all—layers. Much of the linear structure visible is due to <em>β</em> .</p>
+<h3>I.0.2 INTERVENING WITH THE SAE PROBE</h3>
+<p>We show the results of projecting Mistral Weekdays representations into the plane discovered by clustering SAE features in Fig. 19. The result is clearly circular.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0026-17.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Monday Wednesday Friday Sunday<br>Tuesday Thursday Saturday<br>0.4<br>0.2<br>0.0<br>0.2<br>0.4<br>0.4 0.2 0.0 0.2 0.4 0.6<br>Projection onto second SAE PCA component<br>Projection onto third SAE PCA component<br><!-- End of picture text --></p>
+<p>Figure 19: Projections of Mistral 7B Weekdays task activations at layer 8 into the plane discovered by clustering layer 8 SAE features.</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0027-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>*Monday 0.3 *Monday 0.4<br>is is 0.3<br>0.2<br>two two 0.2<br>days 0.1 days<br>0.1<br>from from<br>0.0 0.0<br>0 10 20 30 0 10 20 30<br>Layer Layer<br>(a) Mistral 7B MLP Patching (b) Mistral 7B attention patching<br>*Monday *Monday<br>0.4<br>is is 0.2<br>two two<br>0.2 0.1<br>days days<br>from from<br>0.0 0.0<br>0 10 20 30 0 10 20 30<br>Layer Layer<br>(c) Llama 3 8B MLP patching (d) Llama 3 8B attention patching<br><!-- End of picture text --></p>
+<p>Figure 20: Attention and MLP patching results on Weekdays. Results are averaged over 20 different runs with fixed <em>α</em> and varying <em>β</em> and 20 different runs with fixed <em>β</em> and varying <em>α</em> .</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0027-03.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>*Two 0.3 *Two 0.4<br>months months 0.3<br>0.2<br>from from<br>0.2<br>*January 0.1 *January<br>0.1<br>is is<br>0.0 0.0<br>0 10 20 30 0 10 20 30<br>Layer Layer<br>(a) Mistral 7B MLP Patching (b) Mistral 7B attention patching<br>*Two 0.4 *Two<br>0.3<br>months 0.3 months<br>0.2<br>from from<br>0.2<br>*January *January 0.1<br>0.1<br>is is<br>0.0 0.0<br>0 10 20 30 0 10 20 30<br>Layer Layer<br>(c) Llama 3 8B MLP patching (d) Llama 3 8B attention patching<br><!-- End of picture text --></p>
+<p>Figure 21: Attention and MLP patching results on Months. Results are averaged over 20 different runs with fixed <em>α</em> and varying <em>β</em> and 20 different runs with fixed <em>β</em> and varying <em>α</em> .</p>
+<h3>I.0.3 BASIC PATCHING</h3>
+<p>In Fig. 20 and Fig. 21, we report MLP and attention head patching results for Weekdays and Months. We experiment on 20 pairs of problems with the same <em>α</em> and different <em>β</em> and 20 pairs of problems with the same <em>β</em> and different <em>α</em> , for a total of 40 pairs of problems. For each pair</p>
+<p>Table 2: Weekdays finegrained results. Row ommited if both models get it correct.</p>
+<table>
+<thead>
+<tr>
+<th><em>α</em></th>
+<th><em>β</em></th>
+<th>Ground truth_γ_</th>
+<th>Mistral top_γ_</th>
+<th>Mistral correct?</th>
+<th>Llama top_γ_</th>
+<th>Llama correct?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>1</td>
+<td>Wednesday</td>
+<td>Wednesday</td>
+<td>Yes</td>
+<td>Thursday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>3</td>
+<td>1</td>
+<td>Friday</td>
+<td>Friday</td>
+<td>Yes</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>4</td>
+<td>1</td>
+<td>Saturday</td>
+<td>Saturday</td>
+<td>Yes</td>
+<td>Thursday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>3</td>
+<td>2</td>
+<td>Saturday</td>
+<td>Saturday</td>
+<td>Yes</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>4</td>
+<td>2</td>
+<td>Sunday</td>
+<td>Sunday</td>
+<td>Yes</td>
+<td>Wednesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>5</td>
+<td>2</td>
+<td>Monday</td>
+<td>Monday</td>
+<td>Yes</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>2</td>
+<td>3</td>
+<td>Saturday</td>
+<td>Friday</td>
+<td>No</td>
+<td>Saturday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>3</td>
+<td>3</td>
+<td>Sunday</td>
+<td>Sunday</td>
+<td>Yes</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>4</td>
+<td>3</td>
+<td>Monday</td>
+<td>Monday</td>
+<td>Yes</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>0</td>
+<td>4</td>
+<td>Friday</td>
+<td>Thursday</td>
+<td>No</td>
+<td>Friday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>3</td>
+<td>4</td>
+<td>Monday</td>
+<td>Monday</td>
+<td>Yes</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>0</td>
+<td>5</td>
+<td>Saturday</td>
+<td>Friday</td>
+<td>No</td>
+<td>Saturday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>1</td>
+<td>5</td>
+<td>Sunday</td>
+<td>Saturday</td>
+<td>No</td>
+<td>Wednesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>2</td>
+<td>5</td>
+<td>Monday</td>
+<td>Sunday</td>
+<td>No</td>
+<td>Monday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>4</td>
+<td>5</td>
+<td>Wednesday</td>
+<td>Tuesday</td>
+<td>No</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>6</td>
+<td>5</td>
+<td>Friday</td>
+<td>Thursday</td>
+<td>No</td>
+<td>Thursday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>1</td>
+<td>6</td>
+<td>Monday</td>
+<td>Sunday</td>
+<td>No</td>
+<td>Thursday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>2</td>
+<td>6</td>
+<td>Tuesday</td>
+<td>Monday</td>
+<td>No</td>
+<td>Tuesday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>3</td>
+<td>6</td>
+<td>Wednesday</td>
+<td>Tuesday</td>
+<td>No</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>4</td>
+<td>6</td>
+<td>Thursday</td>
+<td>Thursday</td>
+<td>Yes</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>5</td>
+<td>6</td>
+<td>Friday</td>
+<td>Friday</td>
+<td>Yes</td>
+<td>Thursday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>6</td>
+<td>6</td>
+<td>Saturday</td>
+<td>Thursday</td>
+<td>No</td>
+<td>Thursday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>0</td>
+<td>7</td>
+<td>Monday</td>
+<td>Sunday</td>
+<td>No</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>1</td>
+<td>7</td>
+<td>Tuesday</td>
+<td>Sunday</td>
+<td>No</td>
+<td>Tuesday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>2</td>
+<td>7</td>
+<td>Wednesday</td>
+<td>Sunday</td>
+<td>No</td>
+<td>Wednesday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>3</td>
+<td>7</td>
+<td>Thursday</td>
+<td>Sunday</td>
+<td>No</td>
+<td>Thursday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>4</td>
+<td>7</td>
+<td>Friday</td>
+<td>Thursday</td>
+<td>No</td>
+<td>Tuesday</td>
+<td>No</td>
+</tr>
+<tr>
+<td>5</td>
+<td>7</td>
+<td>Saturday</td>
+<td>Friday</td>
+<td>No</td>
+<td>Saturday</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>6</td>
+<td>7</td>
+<td>Sunday</td>
+<td>Friday</td>
+<td>No</td>
+<td>Thursday</td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+<p>of problems, we patch the MLP/attention outputs from the &quot;clean&quot; to the &quot;dirty&quot; problem for each layer and token, and then complete the forward pass. Defining the logit difference as the logit of the clean <em>γ</em> minus the logit of the dirty <em>γ</em> , we record what percent of the difference between the original logit difference of the dirty problem and the logit difference of the clean problem is recovered upon intervening, and average across these 40 percentages for each layer and token. This gives us a score we call the <em>Average Intervention Effect</em> .</p>
+<p>For simplicity of presentation, we clip all of the (few) negative intervention averages to 0 (prior work (Zhang &amp; Nanda, 2023) has also found negative-effect attention heads during patching experiments).</p>
+<h3>I.0.4 CIRCLE CONTINUITY</h3>
+<p>Finally, in Fig. 22, we show another example of the continuity of the circular days of the week representation in Mistral 7B.</p>
+<h2>J PATCHING</h2>
+<p>In this section, we present results to support a claim that MLPs (and not attention blocks) are responsible for computing <em>γ</em> . In Fig. 25, we deconstruct states on top of the final token (before predicting <em>γ</em> ) on Llama 3 8B Months (we show a similar plot for the states on the final token of Mistral 7B on Weekdays in the main text in Fig. 24. These plots show that the value of <em>γ</em> is computed on the final token around layers 20 to 25. To show that this computation of occurs in the MLPs, we must show that no attention head is copying <em>γ</em> from a prior token or directly computing <em>γ</em> .</p>
+<p>Table 3: Months finegrained results. Row ommited if both models get it correct.</p>
+<table>
+<thead>
+<tr>
+<th><em>α</em></th>
+<th><em>β</em></th>
+<th>Ground truth_γ_</th>
+<th>Mistral top_γ_</th>
+<th>Mistral correct?</th>
+<th>Llama top_γ_</th>
+<th>Llama correct?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>4</td>
+<td>May</td>
+<td>April</td>
+<td>No</td>
+<td>May</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>6</td>
+<td>4</td>
+<td>November</td>
+<td>October</td>
+<td>No</td>
+<td>November</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>0</td>
+<td>6</td>
+<td>July</td>
+<td>June</td>
+<td>No</td>
+<td>July</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>0</td>
+<td>7</td>
+<td>August</td>
+<td>July</td>
+<td>No</td>
+<td>August</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>1</td>
+<td>7</td>
+<td>September</td>
+<td>October</td>
+<td>No</td>
+<td>September</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>3</td>
+<td>7</td>
+<td>November</td>
+<td>October</td>
+<td>No</td>
+<td>November</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>5</td>
+<td>7</td>
+<td>January</td>
+<td>December</td>
+<td>No</td>
+<td>January</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>6</td>
+<td>7</td>
+<td>February</td>
+<td>January</td>
+<td>No</td>
+<td>February</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>7</td>
+<td>7</td>
+<td>March</td>
+<td>February</td>
+<td>No</td>
+<td>March</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>9</td>
+<td>7</td>
+<td>May</td>
+<td>April</td>
+<td>No</td>
+<td>May</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>4</td>
+<td>9</td>
+<td>February</td>
+<td>February</td>
+<td>Yes</td>
+<td>January</td>
+<td>No</td>
+</tr>
+<tr>
+<td>2</td>
+<td>10</td>
+<td>January</td>
+<td>December</td>
+<td>No</td>
+<td>January</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>8</td>
+<td>10</td>
+<td>July</td>
+<td>June</td>
+<td>No</td>
+<td>July</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>1</td>
+<td>11</td>
+<td>January</td>
+<td>December</td>
+<td>No</td>
+<td>January</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>2</td>
+<td>11</td>
+<td>February</td>
+<td>December</td>
+<td>No</td>
+<td>February</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>3</td>
+<td>11</td>
+<td>March</td>
+<td>February</td>
+<td>No</td>
+<td>March</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>7</td>
+<td>11</td>
+<td>July</td>
+<td>June</td>
+<td>No</td>
+<td>July</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>8</td>
+<td>11</td>
+<td>August</td>
+<td>July</td>
+<td>No</td>
+<td>August</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>9</td>
+<td>11</td>
+<td>September</td>
+<td>August</td>
+<td>No</td>
+<td>September</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>0</td>
+<td>12</td>
+<td>January</td>
+<td>December</td>
+<td>No</td>
+<td>January</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<p>We first perform a patching experiment with the same setup Fig. 21 and Fig. 20 on individual attention heads on the final token. From the patching results we identify the top 10 attention heads by average intervention effect. For each attention head, we compute one EVR run with explanatory functions equal to one-hot functions of <em>α</em> and <em>β</em> (resulting in 14 functions <strong>g</strong> <em>i</em> for Weekdays and 24 for Months) and one with explanatory functions equal to onehot functions of <em>α</em> , <em>β</em> , and <em>γ</em> . We find that for all layers before 25, adding <em>γ</em> to the explanatory functions adds almost no explanatory power. Since we established above that the model has already computed <em>γ</em> at this point, we know that attention heads do not participate in computing <em>γ</em> .</p>
+<p>To isolate the rough circuit for Weekdays and Months, we perform layer-wise activation patching on 40 random pairs of prompts. The results, displayed in Fig. 21 show</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0029-05.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>Fri<br>Early FriLate Fri Sat<br>Thu Early ThuLate Thu Late SatEarly Sat<br>Late Wed<br>Wed Early Wed Late SunEarly Sun Sun<br>Late Tue<br>Tue Early Tue Late MonEarly Mon<br>Mon<br><!-- End of picture text --></p>
+<p>Figure 22: Layer 30 Mistral 7B activations for [very early/very late] on [Monday/Tuesday/.../Sunday], plotted projected into the PCA plane for [Monday/Tuesday/.../Sunday].</p>
+<p>that the circuit to compute <em>γ</em> consists of MLPs on top of the <em>α</em> and <em>β</em> tokens, a copy to the token before <em>γ</em> , and further MLPs there (roughly similar to prior work studying arithmetic circuits (Stolfo et al., 2023)). Moreover, fine-grained patching in Appendix K shows that there are just a few responsible attention heads for the writes to the token before <em>γ</em> . However, patching alone cannot tell use <em>how</em> or <em>where γ</em> is represented. For that, we need a new technique, which we expand on in the next section.</p>
+<h2>K EXPLANATION VIA REGRESSION (EVR)</h2>
+<p>So far, we have focused on examining and intervening on the representation for <em>α</em> , which we present as a circle in the top PCA components on top of the <em>α</em> token. In this section, we examine how the generated output, <em>γ</em> , is represented.</p>
+<p>First, to isolate the rough circuit for Weekdays and Months, we perform layer-wise activation patching on 40 random pairs of prompts. The results, displayed in Fig. 21 and Fig. 20, show that the circuit to compute <em>γ</em> consists of MLPs on top of the <em>α</em> and <em>β</em> tokens, a copy to the token before</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0030-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>layer 17 layer 18 layer 19 layer 20 layer 21 layer 22 layer 23 layer 24 layer 25 layer 26 layer 27 layer 28 layer 29<br>original original original original original original original original original original original original original<br>r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0%<br>one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β one hot α , β<br>r2: 94.0% r2: 95.6% r2: 96.3% r2: 94.5% r2: 91.4% r2: 89.0% r2: 87.3% r2: 85.4% r2: 81.9% r2: 78.4% r2: 74.8% r2: 72.3% r2: 70.4%<br>α for tmr α for tmr α for tmr circle γ circle γ circle γ circle γ circle γ circle γ circle γ circle γ circle γ<br>r2: 98.1% r2: 98.2% r2: 96.8% r2: 94.4% r2: 93.6% r2: 93.4% r2: 92.2% r2: 91.2% r2: 88.7% r2: 87.7% r2: 86.4% r2: 84.6%<br>circle α − β circle γ circle γ circle α − β circle α − β circle α − β circle α − β circle α − β circle α − β circle α − β<br>r2: 98.6% r2: 98.7% r2: 98.1% r2: 96.3% r2: 95.6% r2: 95.5% r2: 94.4% r2: 93.7% r2: 91.0% r2: 89.9%<br>circle α − β circle α − β α for tmr α for tmr α for tmr<br>r2: 99.2% r2: 99.0% r2: 98.0% r2: 98.1% r2: 97.6%<br><!-- End of picture text --></p>
+<p>Figure 24: EVR residual RGB plots on Mistral hidden states on the Weekdays final token, layers 17 to 29. From top to bottom, we show each residual RGB plot after adding the function(s) <strong>g</strong> <em>i</em> labelled just underneath, as well as the resulting <em>r</em><sup>2</sup> value. We write “tmr” meaning “tomorrow” for <em>β</em> = 1. We also write “circle for <em>x</em> ” meaning the inclusion of two functions <strong>g</strong> <em>i</em> ( <em>x</em> ) = <em>{</em> cos <em>,</em> sin <em>}</em> (2 <em>πx/</em> 7).</p>
+<p><em>γ</em> , and further MLPs there (roughly similar to what Stolfo et al. (2023) find in prior work studying arithmetic circuits). Thus, we know <em>where</em> to look for a representation of <em>γ</em> : in the second half of the layers on the token before <em>γ</em> . However, patching alone cannot tell use <em>how γ</em> is represented.</p>
+<p>Unlike <em>α</em> , <em>γ</em> has no obvious circular (or linear) pattern in the top PCA components on these layers. To determine the representation for <em>γ</em> , we introduce a more powerful technique we call Explanation via Regression (EVR): given a set of token sequences with a corresponding set of hidden states <em>Xi,l</em> , we choose a set of interpretable explanation functions of the input tokens <em>{</em> <strong>g</strong> <em>j</em> ( <em>t</em> ) <em>}</em> . The <em>r</em><sup>2</sup> value of a linear regression from <em>{</em> <strong>g</strong> <em>j</em> ( <em>t</em> ) <em>}</em> to <em>Xi,l</em> tells us how much of the variance in the activations the <em>{</em> <strong>g</strong> <em>j</em> ( <em>t</em> ) <em>}</em> explain, and conversely the residuals show the exact components of the representation we have yet to explain.</p>
+<h3>K.1 USING</h3>
+<p>EVR TO UNCOVER A CIRCULAR REPRESENTATION FOR <em>γ</em></p>
+<p>We first use EVR to determine the representation for <em>γ</em> by plotting the top two PCA components of the layer 25 Mistral 7B activations after subtracting the components that can be explained using a regression</p>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0030-08.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>3<br>Tue Wed<br>2<br>Mon 1 Thu<br>0<br>4 2 1 0 2 Fri 4<br>2<br>Sun Sat<br>3<br><!-- End of picture text --></p>
+<p>Figure 23: Top two PCA components of residual errors after EVR with one-hot in <em>α</em> and <em>β</em> . Mistral 7B Weekdays, layer 25, final token. Colored by <em>γ</em> .</p>
+<p>with one hot functions in <em>α</em> and <em>β</em> (i.e. <strong>g</strong> 1 = [ <em>α</em> = 0] <em>,</em> <strong>g</strong> 2 = [ <em>β</em> = 1] <em>,</em> <strong>g</strong> 3 = [ <em>α</em> = 1] <em>, . . .</em> ). The result, shown in Fig. 23, is an incredibly clear circle in <em>γ</em> , which suggests that the model’s generated representation of <em>γ</em> lies along a circle. A simple PCA projection was not enough to find this result because the representation for <em>γ</em> has interference from <em>α</em> and <em>β</em> , which the EVR removes. This suggests that the models may be generating <em>γ</em> by using a trigonometry based algorithm like the “clock” Nanda et al. (2023a) or “pizza” Zhong et al. (2024) algorithm in late MLP layers.</p>
+<h3>K.2 MORE EXPERIMENTS WITH EVR</h3>
+<p>We now apply EVR to Months and Weekdays to break down <em>Xi,l</em> completely into interpretable functions. We build a list of <strong>g</strong> <em>i iteratively</em> and <em>greedily</em> . At each iteration, we perform a linear regression with the current list <strong>g</strong> 1 <em>. . .</em> <strong>g</strong> <em>k</em> , visualize and interpret the residual prediction errors, and build a new function <strong>g</strong> <em>k</em> +1 representing these errors to add to the list. Once most variance is explained, we can conclude that <strong>g</strong> 1 <em>, . . . ,</em> <strong>g</strong> <em>k</em> constitutes the entirety of what is represented in the hidden states.</p>
+<p>This information tells us what can and cannot be extracted via a linear probe, without having to train any probes. Furthermore, if we treat each <strong>g</strong> <em>i</em> as a <em>feature</em> (see Definition 1), then the linear regression coefficients tell us which directions in <em>Xi,l</em> these features are represented in, connecting back to Hypothesis 2.</p>
+<p>Since <em>Xi,l</em> consists of modular addition problems with two inputs <em>α</em> and <em>β</em> , we can visualize the errors as we iteratively construct <strong>g</strong> 1 <em>, . . . ,</em> <strong>g</strong> <em>k</em> by making a heatmap with <em>α</em> and <em>β</em> on the two axes, where the color shows what kind of error is made. More specifically, we take the top 3 PCA components of the error distribution and assign them to the colors red, green, and blue. We call the resulting heatmap a <strong>residual RGB plot</strong> . Errors that depend primarily on <em>α</em> , <em>β</em> , or <em>γ</em> show up as horizontal, vertical, or diagonal stripes on the residual RGB plot.</p>
+<p>In Fig. 24, we perform EVR on the layer 17-29 hidden states of Mistral 7B on the Weekdays task; additional deconstructions are in Appendix K. We find that a circle in <em>γ</em> develops and grows in explanatory power; we plot the layer 25 residuals after explaining with one hot functions in <em>α</em> and <em>β</em> (i.e. <strong>g</strong> 1 = [ <em>α</em> = 0] <em>,</em> <strong>g</strong> 2 = [ <em>β</em> = 1] <em>,</em> <strong>g</strong> 3 = [ <em>α</em> = 1] <em>, . . .</em> ) in Fig. 23 to show this incredibly clear circle in <em>γ</em> . This suggests that the models may be generating <em>γ</em> by using a trigonometry based algorithm like the “clock” (Nanda et al., 2023a) or “pizza” (Zhong et al., 2024) algorithm in late MLP layers.</p>
+<p>Table 4: Highest intervention effect attention heads from fine-grained attention head patching, as well as EVR results with one hot <em>α, β</em> and one hot <em>α, β, γ</em> .</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>(</th>
+<th>a) Mistral 7B</th>
+<th>,Weekdays</th>
+<th>.</th>
+<th></th>
+<th>(b</th>
+<th>) Llama 3 8</th>
+<th>B,Weekday</th>
+<th>s.</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>L</td>
+<td>H</td>
+<td>Average<br>Inter-<br>vention<br>Effect</td>
+<td>EVR_R_<sup>2</sup><br>One Hot<br><em>α</em>,<em>β</em></td>
+<td>EVR_R_<sup>2</sup><br>One Hot<br><em>α</em>,<em>β</em>,<em>γ</em></td>
+<td>L</td>
+<td>H</td>
+<td>Average<br>Inter-<br>vention<br>Effect</td>
+<td>EVR_R_<sup>2</sup><br>One Hot<br><em>α</em>,<em>β</em></td>
+<td>EVR_R_<sup>2</sup><br>One Hot<br><em>α</em>,<em>β</em>,<em>γ</em></td>
+</tr>
+<tr>
+<td>28</td>
+<td>18</td>
+<td>0.22</td>
+<td>0.39</td>
+<td>0.73</td>
+<td>17</td>
+<td>0</td>
+<td>0.18</td>
+<td>0.98</td>
+<td>0.99</td>
+</tr>
+<tr>
+<td>18</td>
+<td>30</td>
+<td>0.17</td>
+<td>0.95</td>
+<td>0.96</td>
+<td>17</td>
+<td>1</td>
+<td>0.08</td>
+<td>0.98</td>
+<td>0.98</td>
+</tr>
+<tr>
+<td>15</td>
+<td>13</td>
+<td>0.17</td>
+<td>0.94</td>
+<td>0.95</td>
+<td>19</td>
+<td>10</td>
+<td>0.08</td>
+<td>0.95</td>
+<td>0.96</td>
+</tr>
+<tr>
+<td>22</td>
+<td>15</td>
+<td>0.11</td>
+<td>0.77</td>
+<td>0.82</td>
+<td>30</td>
+<td>17</td>
+<td>0.07</td>
+<td>0.85</td>
+<td>0.90</td>
+</tr>
+<tr>
+<td>16</td>
+<td>21</td>
+<td>0.09</td>
+<td>0.92</td>
+<td>0.93</td>
+<td>17</td>
+<td>3</td>
+<td>0.07</td>
+<td>0.93</td>
+<td>0.95</td>
+</tr>
+<tr>
+<td>28</td>
+<td>16</td>
+<td>0.08</td>
+<td>0.42</td>
+<td>0.69</td>
+<td>17</td>
+<td>27</td>
+<td>0.06</td>
+<td>1.00</td>
+<td>1.00</td>
+</tr>
+<tr>
+<td>15</td>
+<td>14</td>
+<td>0.06</td>
+<td>0.98</td>
+<td>0.99</td>
+<td>31</td>
+<td>22</td>
+<td>0.05</td>
+<td>0.37</td>
+<td>0.78</td>
+</tr>
+<tr>
+<td>30</td>
+<td>24</td>
+<td>0.05</td>
+<td>0.43</td>
+<td>0.79</td>
+<td>21</td>
+<td>9</td>
+<td>0.04</td>
+<td>0.73</td>
+<td>0.78</td>
+</tr>
+<tr>
+<td>21</td>
+<td>26</td>
+<td>0.04</td>
+<td>0.53</td>
+<td>0.63</td>
+<td>20</td>
+<td>28</td>
+<td>0.04</td>
+<td>1.00</td>
+<td>1.00</td>
+</tr>
+<tr>
+<td>14</td>
+<td>2</td>
+<td>0.04</td>
+<td>0.93</td>
+<td>0.95</td>
+<td>30</td>
+<td>16</td>
+<td>0.04</td>
+<td>0.73</td>
+<td>0.85</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td>(c) Mistral 7</td>
+<td>B,Months.</td>
+<td></td>
+<td></td>
+<td></td>
+<td>(d) Llama 3</td>
+<td>8B,Months</td>
+<td>.</td>
+</tr>
+<tr>
+<td>L</td>
+<td>H</td>
+<td>Average<br>Inter-<br>vention<br>Effect</td>
+<td>EVR_R_<sup>2</sup><br>One Hot<br><em>α</em>,<em>β</em></td>
+<td>EVR_R_<sup>2</sup><br>One Hot<br><em>α</em>,<em>β</em>,<em>γ</em></td>
+<td>L</td>
+<td>H</td>
+<td>Average<br>Inter-<br>vention<br>Effect</td>
+<td>EVR_R_<sup>2</sup><br>One Hot<br><em>α</em>,<em>β</em></td>
+<td>EVR_R_<sup>2</sup><br>One Hot<br><em>α</em>,<em>β</em>,<em>γ</em></td>
+</tr>
+<tr>
+<td>20</td>
+<td>28</td>
+<td>0.15</td>
+<td>0.76</td>
+<td>0.76</td>
+<td>15</td>
+<td>13</td>
+<td>0.26</td>
+<td>0.62</td>
+<td>0.62</td>
+</tr>
+<tr>
+<td>17</td>
+<td>0</td>
+<td>0.10</td>
+<td>0.77</td>
+<td>0.77</td>
+<td>16</td>
+<td>21</td>
+<td>0.17</td>
+<td>0.76</td>
+<td>0.76</td>
+</tr>
+<tr>
+<td>25</td>
+<td>14</td>
+<td>0.08</td>
+<td>0.19</td>
+<td>0.61</td>
+<td>18</td>
+<td>30</td>
+<td>0.13</td>
+<td>0.77</td>
+<td>0.77</td>
+</tr>
+<tr>
+<td>17</td>
+<td>1</td>
+<td>0.07</td>
+<td>0.80</td>
+<td>0.82</td>
+<td>28</td>
+<td>18</td>
+<td>0.11</td>
+<td>0.13</td>
+<td>0.52</td>
+</tr>
+<tr>
+<td>17</td>
+<td>3</td>
+<td>0.06</td>
+<td>0.71</td>
+<td>0.71</td>
+<td>28</td>
+<td>16</td>
+<td>0.07</td>
+<td>0.13</td>
+<td>0.52</td>
+</tr>
+<tr>
+<td>31</td>
+<td>22</td>
+<td>0.06</td>
+<td>0.12</td>
+<td>0.67</td>
+<td>21</td>
+<td>25</td>
+<td>0.05</td>
+<td>0.65</td>
+<td>0.70</td>
+</tr>
+<tr>
+<td>17</td>
+<td>27</td>
+<td>0.05</td>
+<td>0.58</td>
+<td>0.58</td>
+<td>15</td>
+<td>14</td>
+<td>0.03</td>
+<td>0.72</td>
+<td>0.72</td>
+</tr>
+<tr>
+<td>19</td>
+<td>4</td>
+<td>0.05</td>
+<td>0.40</td>
+<td>0.66</td>
+<td>17</td>
+<td>26</td>
+<td>0.02</td>
+<td>0.77</td>
+<td>0.77</td>
+</tr>
+<tr>
+<td>19</td>
+<td>10</td>
+<td>0.04</td>
+<td>0.62</td>
+<td>0.62</td>
+<td>31</td>
+<td>1</td>
+<td>0.02</td>
+<td>0.11</td>
+<td>0.57</td>
+</tr>
+<tr>
+<td>30</td>
+<td>26</td>
+<td>0.04</td>
+<td>0.51</td>
+<td>0.62</td>
+<td>21</td>
+<td>24</td>
+<td>0.02</td>
+<td>0.30</td>
+<td>0.45</td>
+</tr>
+</tbody>
+</table>
+<p><img src="../markdown/images/not_all_features_linear/42_not_all_features_linear.pdf-0032-01.jpg" alt="" /></p>
+<!-- Start of picture text -->
+<p>layer 13 layer 14 layer 15 layer 16 layer 17 layer 18 layer 19 layer 20 layer 21 layer 22 layer 23 layer 24 layer 25 layer 26 layer 27 layer 28 layer 29<br>original original original original original original original original original original original original original original original original original<br>r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0% r2: 0.0%<br>one hot β one hot β one hot β one hot β one hot β one hot β one hot β one hot β one hot β circle γ circle γ circle γ circle γ circle γ γ parity γ parity circle γ<br>r2: 69.7% r2: 72.8% r2: 69.9% r2: 89.0% r2: 76.6% r2: 81.8% r2: 54.1% r2: 47.8% r2: 36.8% r2: 23.6% r2: 24.3% r2: 24.7% r2: 25.5% r2: 25.5% r2: 12.0% r2: 12.2% r2: 23.7%<br>one hot α one hot α one hot α one hot α one hot α one hot α γ parity circle γ circle 2 γ one hot β one hot β one hot β one hot β one hot β circle γ circle γ one hot β<br>r2: 95.7% r2: 96.0% r2: 96.8% r2: 98.7% r2: 99.0% r2: 96.8% r2: 60.2% r2: 60.9% r2: 47.8% r2: 51.6% r2: 48.3% r2: 48.2% r2: 48.2% r2: 48.1% r2: 35.4% r2: 34.2% r2: 43.6%<br>α + 1 = β α + 1 = β α + 1 = β α + 1 = β circle 2 γ γ parity circle 2 γ γ parity circle γ γ parity γ parity γ parity γ parity γ parity one hot β one hot β γ parity<br>r2: 96.4% r2: 96.5% r2: 97.2% r2: 98.9% r2: 99.2% r2: 98.0% r2: 64.7% r2: 68.0% r2: 62.5% r2: 59.5% r2: 57.9% r2: 56.9% r2: 55.6% r2: 55.1% r2: 56.8% r2: 56.5% r2: 54.4%<br>circle γ circle γ circle 2 γ γ parity circle 2 γ circle 2 γ circle 2 γ circle 2 γ circle 2 γ circle 2 γ circle 2 γ circle 2 γ<br>r2: 98.8% r2: 73.4% r2: 73.7% r2: 68.7% r2: 68.6% r2: 66.2% r2: 64.4% r2: 63.6% r2: 64.0% r2: 65.7% r2: 65.6% r2: 65.1%<br>one hot α one hot α one hot α one hot α one hot α one hot α one hot α one hot α one hot α one hot α one hot α<br>r2: 92.0% r2: 89.9% r2: 83.8% r2: 81.4% r2: 80.1% r2: 77.5% r2: 76.2% r2: 75.6% r2: 76.9% r2: 76.6% r2: 74.7%<br>one hot α + β one hot α + β one hot α + β one hot α + β one hot α + β one hot α + β one hot α + β one hot α + β one hot α + β one hot α + β one hot α + β<br>r2: 95.2% r2: 94.3% r2: 91.4% r2: 90.6% r2: 90.9% r2: 90.8% r2: 90.7% r2: 90.6% r2: 90.9% r2: 91.1% r2: 92.4%<br><!-- End of picture text --></p>
+<p>Figure 25: Iterative deconstruction of hidden state representations on the final token on Llama 3 8B, Months.</p>
+
+</article>
+<nav class="pager"><a class="prev" href="41_geometry_of_truth.html"><small>Previous · 41</small>The Geometry of Truth</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="43_sae_feature_geometry.html"><small>Next · 43</small>SAE Feature Geometry and Superposition</a></nav>
+
+</main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
+</body></html>
