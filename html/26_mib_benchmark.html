@@ -3,7 +3,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>26 · MIB: A Mechanistic Interpretability Benchmark — Mechanistic Interpretability</title>
 <link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
 </head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
 <main class="page">
 
 <div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
@@ -2512,4 +2514,5 @@ images; inline mathematics may be garbled — the PDF is authoritative.</p>
 <nav class="pager"><a class="prev" href="25_saebench.html"><small>Previous · 25</small>SAEBench</a><a class="mid" href="index.html#section-D">Contents</a><a class="next" href="27_sae_feature_consistency.html"><small>Next · 27</small>Prioritize Feature Consistency in SAEs</a></nav>
 
 </main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
 </body></html>

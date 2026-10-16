@@ -3,7 +3,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>06 · Softmax Linear Units — Mechanistic Interpretability</title>
 <link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
 </head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
 <main class="page">
 
 <div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
@@ -498,4 +500,5 @@ McCandlish, Sam and Amodei, Dario and Olah, Christopher},
 <nav class="pager"><a class="prev" href="05_induction_heads.html"><small>Previous · 05</small>In-context Learning and Induction Heads</a><a class="mid" href="index.html#section-A">Contents</a><a class="next" href="07_toy_models_of_superposition.html"><small>Next · 07</small>Toy Models of Superposition</a></nav>
 
 </main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
 </body></html>

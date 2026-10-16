@@ -160,7 +160,8 @@ A full build downloads or renders every source and takes several minutes.
   (it is larger than GitHub's 100 MB per-file limit for git, so it cannot live in the repository itself).
 - The original papers, exactly as included, are in `sources/`.
 - Text editions: `markdown/` (one file per paper, `README.md` contents, `anthology.md` all-in-one) and
-  `html/`, published at https://darrenangle.github.io/mechanistic-interpretability-anthology/ by `.github/workflows/pages.yml` on every push that changes it.
+  `html/`, published at https://darren.computer/mech-interp/ (served from https://darrenangle.github.io/mechanistic-interpretability-anthology/, which `.github/workflows/pages.yml`
+  redeploys on every push that changes it).
   Text is extracted from the source PDFs with pymupdf4llm; display
   equations, figures and some tables appear as images, inline maths can be garbled, and the PDF stays
   authoritative.

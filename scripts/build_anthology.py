@@ -50,6 +50,7 @@ PRINT_INDEX = ROOT / "PRINT_INDEX.pdf"
 REPO_URL = "https://github.com/darrenangle/mechanistic-interpretability-anthology"
 RELEASE_PDF_URL = f"{REPO_URL}/releases/latest/download/{MASTER.name}"
 PAGES_URL = "https://darrenangle.github.io/mechanistic-interpretability-anthology/"
+SITE_URL = "https://darren.computer/mech-interp/"  # proxies PAGES_URL (rewrite in the darren.computer repo's vercel.json)
 TITLE = "Mechanistic Interpretability"
 # Master-PDF image recompression: raster images become JPEG at this quality and are downsampled only above
 # IMG_DPI_THRESHOLD (to IMG_DPI_TARGET, still print resolution). Text, fonts and vector art are untouched, so
@@ -2040,13 +2041,18 @@ HTML_STYLE = """
 @font-face{font-family:"Display";font-weight:300;src:url(fonts/SourceSerif4Display-Light.ttf);font-display:swap}
 @font-face{font-family:Inter;src:url(fonts/Inter-Regular.ttf);font-display:swap}
 @font-face{font-family:Inter;font-weight:500;src:url(fonts/Inter-Medium.ttf);font-display:swap}
-:root{--ink:#1b1b1b;--muted:#6b6b6b;--faint:#9a9a9a;--rule:#e2e2e2;--rule-strong:#1b1b1b;
-  --serif:"Source Serif 4",Georgia,serif;--display:"Display","Source Serif 4",Georgia,serif;--sans:Inter,system-ui,sans-serif}
+:root{--bg:#fff;--ink:#1b1b1b;--muted:#6b6b6b;--faint:#9a9a9a;--rule:#e2e2e2;--rule-strong:#1b1b1b;--img:none;
+  --serif:"Source Serif 4",Georgia,serif;--display:"Display","Source Serif 4",Georgia,serif;--sans:Inter,system-ui,sans-serif;
+  color-scheme:light}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;color:var(--ink);background:#fff;font:18px/1.72 var(--serif);font-feature-settings:"onum" 0}
+body{margin:0;color:var(--ink);background:var(--bg);font:18px/1.72 var(--serif);font-feature-settings:"onum" 0}
 a{color:inherit;text-decoration:underline;text-decoration-color:var(--rule);text-decoration-thickness:1px;text-underline-offset:3px}
 a:hover{text-decoration-color:var(--ink)}
+.theme-toggle{position:fixed;top:1.1rem;right:1.3rem;z-index:10;background:none;border:0;padding:.4rem;cursor:pointer;
+  font:500 .62rem/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.theme-toggle:hover{color:var(--ink)}
+article img{filter:var(--img)}
 .page{max-width:44rem;margin:0 auto;padding:clamp(3rem,9vw,7.5rem) 1.5rem 8rem}
 .label{font:500 .68rem/1.4 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .rule{border:0;border-top:1px solid var(--rule);margin:0}
@@ -2125,6 +2131,12 @@ article hr{border:0;border-top:1px solid var(--rule);margin:3rem 0}
   .pager{grid-template-columns:1fr 1fr}.pager .mid{display:none}.topbar a.label{display:none}.topbar{justify-content:flex-end}
   .hero .actions{gap:1.4rem}}
 """
+# Dark palette (matches darren.computer's dark theme). Applies when the system prefers dark and the reader has not
+# chosen light, or when the reader picks dark with the toggle; extracted figures are dimmed slightly to cut glare.
+_DARK_VARS = ("--bg:#1a1a1a;--ink:#e9e9eb;--muted:#a0a0a0;--faint:#7a7a7a;--rule:#333;--rule-strong:#e9e9eb;"
+              "--img:brightness(.86) contrast(1.04);color-scheme:dark")
+HTML_STYLE += (f"@media (prefers-color-scheme:dark){{:root:not(.light){{{_DARK_VARS}}}}}\n"
+               f":root.dark{{{_DARK_VARS}}}\n")
 
 
 def _md_to_html(md: str, inline=False) -> str:
@@ -2138,8 +2150,21 @@ def _md_to_html(md: str, inline=False) -> str:
 def html_shell(title: str, inner: str) -> str:
     return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">\n<title>{title}</title>\n'
-            f'<link rel="stylesheet" href="assets/style.css">\n</head><body>\n<main class="page">\n{inner}\n</main>\n'
+            f'<link rel="stylesheet" href="assets/style.css">\n'
+            # apply a saved theme before first paint (no flash); otherwise the system setting decides
+            "<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>\n"
+            f'</head><body>\n<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>\n'
+            f'<main class="page">\n{inner}\n</main>\n<script>{THEME_JS}</script>\n'
             "</body></html>\n")
+
+
+THEME_JS = (
+    "(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),"
+    "m=window.matchMedia('(prefers-color-scheme: dark)');"
+    "function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}"
+    "function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);"
+    "b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);"
+    "try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();")
 
 
 def pri_html(pri: str) -> str:
@@ -2432,7 +2457,8 @@ def write_readme_and_checksums():
               "  (it is larger than GitHub's 100 MB per-file limit for git, so it cannot live in the repository itself).",
               "- The original papers, exactly as included, are in `sources/`.",
               "- Text editions: `markdown/` (one file per paper, `README.md` contents, `anthology.md` all-in-one) and",
-              f"  `html/`, published at {PAGES_URL} by `.github/workflows/pages.yml` on every push that changes it.",
+              f"  `html/`, published at {SITE_URL} (served from {PAGES_URL}, which `.github/workflows/pages.yml`",
+              "  redeploys on every push that changes it).",
               "  Text is extracted from the source PDFs with pymupdf4llm; display",
               "  equations, figures and some tables appear as images, inline maths can be garbled, and the PDF stays",
               "  authoritative.",

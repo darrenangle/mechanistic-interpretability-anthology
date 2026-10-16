@@ -5,13 +5,18 @@
 @font-face{font-family:"Display";font-weight:300;src:url(fonts/SourceSerif4Display-Light.ttf);font-display:swap}
 @font-face{font-family:Inter;src:url(fonts/Inter-Regular.ttf);font-display:swap}
 @font-face{font-family:Inter;font-weight:500;src:url(fonts/Inter-Medium.ttf);font-display:swap}
-:root{--ink:#1b1b1b;--muted:#6b6b6b;--faint:#9a9a9a;--rule:#e2e2e2;--rule-strong:#1b1b1b;
-  --serif:"Source Serif 4",Georgia,serif;--display:"Display","Source Serif 4",Georgia,serif;--sans:Inter,system-ui,sans-serif}
+:root{--bg:#fff;--ink:#1b1b1b;--muted:#6b6b6b;--faint:#9a9a9a;--rule:#e2e2e2;--rule-strong:#1b1b1b;--img:none;
+  --serif:"Source Serif 4",Georgia,serif;--display:"Display","Source Serif 4",Georgia,serif;--sans:Inter,system-ui,sans-serif;
+  color-scheme:light}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
-body{margin:0;color:var(--ink);background:#fff;font:18px/1.72 var(--serif);font-feature-settings:"onum" 0}
+body{margin:0;color:var(--ink);background:var(--bg);font:18px/1.72 var(--serif);font-feature-settings:"onum" 0}
 a{color:inherit;text-decoration:underline;text-decoration-color:var(--rule);text-decoration-thickness:1px;text-underline-offset:3px}
 a:hover{text-decoration-color:var(--ink)}
+.theme-toggle{position:fixed;top:1.1rem;right:1.3rem;z-index:10;background:none;border:0;padding:.4rem;cursor:pointer;
+  font:500 .62rem/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+.theme-toggle:hover{color:var(--ink)}
+article img{filter:var(--img)}
 .page{max-width:44rem;margin:0 auto;padding:clamp(3rem,9vw,7.5rem) 1.5rem 8rem}
 .label{font:500 .68rem/1.4 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .rule{border:0;border-top:1px solid var(--rule);margin:0}
@@ -89,3 +94,5 @@ article hr{border:0;border-top:1px solid var(--rule);margin:3rem 0}
 @media (max-width:560px){body{font-size:17px}.paper{grid-template-columns:2.2rem .9rem 1fr}dl.meta{grid-template-columns:1fr}
   .pager{grid-template-columns:1fr 1fr}.pager .mid{display:none}.topbar a.label{display:none}.topbar{justify-content:flex-end}
   .hero .actions{gap:1.4rem}}
+@media (prefers-color-scheme:dark){:root:not(.light){--bg:#1a1a1a;--ink:#e9e9eb;--muted:#a0a0a0;--faint:#7a7a7a;--rule:#333;--rule-strong:#e9e9eb;--img:brightness(.86) contrast(1.04);color-scheme:dark}}
+:root.dark{--bg:#1a1a1a;--ink:#e9e9eb;--muted:#a0a0a0;--faint:#7a7a7a;--rule:#333;--rule-strong:#e9e9eb;--img:brightness(.86) contrast(1.04);color-scheme:dark}

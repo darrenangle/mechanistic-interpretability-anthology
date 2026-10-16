@@ -3,7 +3,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>03 · Multimodal Neurons in Artificial Neural Networks — Mechanistic Interpretability</title>
 <link rel="stylesheet" href="assets/style.css">
+<script>try{var t=localStorage.getItem('mi-theme');if(t)document.documentElement.classList.add(t)}catch(e){}</script>
 </head><body>
+<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle dark mode">Dark</button>
 <main class="page">
 
 <div class="topbar"><a class="label" href="index.html">Mechanistic Interpretability</a>
@@ -1398,4 +1400,5 @@ Schubert, Ludwig and Radford, Alec and Olah, Chris},
 <nav class="pager"><a class="prev" href="02_zoom_in.html"><small>Previous · 02</small>Zoom In: An Introduction to Circuits</a><a class="mid" href="index.html#section-A">Contents</a><a class="next" href="04_mathematical_framework.html"><small>Next · 04</small>Mathematical Framework for Transformer Circuits</a></nav>
 
 </main>
+<script>(function(){var r=document.documentElement,b=document.querySelector('[data-theme-toggle]'),m=window.matchMedia('(prefers-color-scheme: dark)');function dark(){return r.classList.contains('dark')||(!r.classList.contains('light')&&m.matches)}function label(){b.textContent=dark()?'Light':'Dark'}label();m.addEventListener('change',label);b.addEventListener('click',function(){var n=dark()?'light':'dark';r.classList.remove('light','dark');r.classList.add(n);try{localStorage.setItem('mi-theme',n)}catch(e){}label()})})();</script>
 </body></html>
