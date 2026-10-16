@@ -7,8 +7,10 @@ Stages (run all by default):
     build   generate covers/dividers/index, iterate until page offsets are
             stable, assemble master PDF, bookmarks, links, manifests, README
     qa      automated validation + preview renders (build/qa/)
+    export  text-extracted Markdown (markdown/) and HTML (html/) editions of every
+            paper; only papers whose source PDF changed are re-extracted
 
-Usage:  python scripts/build_anthology.py [fetch] [build] [qa] [--force]
+Usage:  python scripts/build_anthology.py [fetch] [build] [qa] [export] [--force]
 """
 from __future__ import annotations
 
@@ -48,6 +50,10 @@ PRINT_INDEX = ROOT / "PRINT_INDEX.pdf"
 REPO_URL = "https://github.com/darrenangle/mechanistic-interpretability-anthology"
 RELEASE_PDF_URL = f"{REPO_URL}/releases/latest/download/{MASTER.name}"
 TITLE = "Mechanistic Interpretability"
+# Master-PDF image recompression: raster images become JPEG at this quality and are downsampled only above
+# IMG_DPI_THRESHOLD (to IMG_DPI_TARGET, still print resolution). Text, fonts and vector art are untouched, so
+# everything stays selectable; sources/ keeps the original files byte-for-byte.
+IMG_QUALITY, IMG_DPI_THRESHOLD, IMG_DPI_TARGET = 85, 330, 300
 DISTILL_LICENSE = "CC BY 4.0 (Distill: text and diagrams)"
 UA = {"User-Agent": "mi-anthology-builder/1.0 (personal study print anthology)"}
 W, H = letter  # 612 x 792 pt
@@ -316,6 +322,7 @@ BRIEF = {"composition"}  # informal notes checked against lower length threshold
 _REFS = {k: v["id"] for k, v in BY_KEY.items()}
 for _p in CATALOG:
     _p["context"] = CONTEXT[_p["key"]].format(**_REFS)
+    _p["optional_raw"] = _p["optional"]  # {key} template, re-formatted as links in the Markdown export
     _p["optional"] = _p["optional"].format(**_REFS)
 assert set(CONTEXT) == set(BY_KEY), set(CONTEXT) ^ set(BY_KEY)
 SUBTITLE = f"A Research Anthology — {N - 1} Original Papers and a Conclusion"
@@ -1592,7 +1599,8 @@ def stage_build():
                       "subject": f"Mechanistic interpretability curriculum — {N} original works",
                       "keywords": "mechanistic interpretability, circuits, sparse autoencoders, alignment",
                       "creator": "scripts/build_anthology.py", "producer": f"PyMuPDF {pymupdf.VersionBind} + ReportLab"})
-    out.save(MASTER, garbage=3, deflate=True, deflate_images=False, use_objstms=1)
+    out.rewrite_images(dpi_threshold=IMG_DPI_THRESHOLD, dpi_target=IMG_DPI_TARGET, quality=IMG_QUALITY)
+    out.save(MASTER, garbage=3, deflate=True, use_objstms=1)
     log(f"wrote {MASTER.name}: {L.total} pages, {MASTER.stat().st_size / 1e6:.1f} MB; stamps {stamps}")
 
     # Separate PRINT_INDEX.pdf (same numbers, references the master PDF)
@@ -1935,6 +1943,221 @@ def stage_qa():
 
 
 # --------------------------------------------------------------------------
+# Stage 4: export — Markdown and HTML editions extracted from the source PDFs
+# --------------------------------------------------------------------------
+MD_DIR = ROOT / "markdown"
+HTML_DIR = ROOT / "html"
+MD_CACHE = BUILD / "md_cache"
+# Extraction settings (pymupdf4llm layout mode). Display equations, figures and tables that cannot be read as
+# text are written as images; changing anything here invalidates the cache and re-extracts every paper.
+EXPORT_SETTINGS = dict(image_format="jpg", dpi=150, use_ocr=False, header=False, footer=False)
+PRI_GLYPH = {"P0": "●", "P1": "○", "F": "◇"}
+
+
+def _extract_body(job: tuple[str, str, str]) -> tuple[str, str]:
+    """Worker: Markdown body of one source PDF, images written under markdown/images/<slug>/."""
+    import shutil
+
+    import pymupdf4llm  # imported here: it switches PyMuPDF into layout mode for this process only
+    src, slug, img_dir = job
+    shutil.rmtree(img_dir, ignore_errors=True)
+    Path(img_dir).mkdir(parents=True)
+    body = pymupdf4llm.to_markdown(pymupdf.open(src), write_images=True, image_path=img_dir, filename=slug,
+                                   show_progress=False, **EXPORT_SETTINGS)
+    return slug, body
+
+
+def relink_images(body: str, slug: str) -> str:
+    """pymupdf4llm writes image links relative to the working directory (or absolute); point them at markdown/."""
+    return re.sub(rf"\]\((?:[^)\s]*/)?images/{re.escape(slug)}/", f"](images/{slug}/", body)
+
+
+def md_name(p: dict) -> str:
+    return f"{p['id']}_{p['slug']}.md"
+
+
+def md_refs(text: str) -> str:
+    """Format {key} cross-references as Markdown links to the referenced paper."""
+    return text.format(**{k: f"[{v['id']}]({md_name(v)})" for k, v in BY_KEY.items()})
+
+
+def paper_markdown(p: dict, rec: dict, pl: dict, body: str) -> str:
+    i = CATALOG.index(p)
+    prev_, next_ = (CATALOG[i - 1] if i else None), (CATALOG[i + 1] if i + 1 < N else None)
+    nav = " · ".join(filter(None, [
+        f"[← {prev_['id']} {prev_['short']}]({md_name(prev_)})" if prev_ else "",
+        "[Contents](README.md)",
+        f"[{next_['id']} {next_['short']} →]({md_name(next_)})" if next_ else ""]))
+    url = p["html"] or rec.get("source_url", "")
+    authors = ", ".join(rec.get("authors") or []) or p["cite"]
+    lines = [
+        "<!-- Generated by scripts/build_anthology.py export from the source PDF; edit the catalog, not this file. -->",
+        f"# {p['id']} · {p['title']}", "",
+        f"**{p['cite']} — {p['year']}** · {authors}", "",
+        "| | |", "|---|---|",
+        f"| Priority | {PRI_GLYPH[p['pri']]} {PRIORITY[p['pri']][0].title()}{' · optional' if p['optional'] else ''} |",
+        f"| Section | {p['sec']} — {SECTIONS[p['sec']]} |",
+        f"| Source | [{url}]({url}) ({'arXiv:' + p['arxiv'] if p['arxiv'] else p['venue']}) |",
+        f"| Licence | {rec.get('license', '—')} |",
+        f"| Print anthology | pages {pl['cover']}–{pl['end']} (cover {pl['cover']}, text {pl['start']}–{pl['end']}) |", "",
+        f"**Why read this.** {p['why']}", "",
+        f"**Reading focus.** {p['focus']}", "",
+        f"**In context.** {md_refs(CONTEXT[p['key']])}", "",
+    ]
+    if p["optional"]:
+        lines += [f"**Optional.** {md_refs(p['optional_raw'])}", ""]
+    if p["note"]:
+        lines += [f"**Note.** {p['note']}", ""]
+    lines += [nav, "", "---", "",
+              "*Text extracted automatically from the source PDF. Display equations, figures and some tables appear as "
+              "images; inline mathematics may be garbled — the PDF is authoritative.*", "",
+              body.strip(), "", "---", "", nav, ""]
+    return "\n".join(lines)
+
+
+def contents_markdown(L: Layout, for_single_file=False) -> str:
+    link = (lambda p: f"#{md_name(p)[:-3]}") if for_single_file else md_name
+    lines = [f"# {TITLE}", "", f"*{SUBTITLE}* — text edition", "",
+             f"Text extracted from the source PDFs of the print anthology ([download the PDF]({RELEASE_PDF_URL})). "
+             "Each paper opens with the anthology's reading notes; the PDF remains the authoritative version.", "",
+             "Priority: ● P0 essential · ○ P1 important · ◇ F frontier.", ""]
+    for sec, name in SECTIONS.items():
+        s = L.sections[sec]
+        lines += [f"## {sec} — {name}", "", f"*Print pages {s['divider']}–{s['end']}*", ""]
+        entries = [f"{PRI_GLYPH[p['pri']]} **{p['id']}** [{p['title']}]({link(p)}) — {p['cite']}, {p['year']}"
+                   + (" *(optional)*" if p["optional"] else "") for p in CATALOG if p["sec"] == sec]
+        lines += ["  \n".join(entries), ""]  # hard line breaks: one paper per line, no list bullets
+    return "\n".join(lines)
+
+
+HTML_CSS_PAGE = """
+@font-face{font-family:"Source Serif 4";src:url(assets/fonts/SourceSerif4-Regular.ttf)}
+@font-face{font-family:"Source Serif 4";font-style:italic;src:url(assets/fonts/SourceSerif4-It.ttf)}
+@font-face{font-family:"Source Serif 4";font-weight:600;src:url(assets/fonts/SourceSerif4-Semibold.ttf)}
+@font-face{font-family:"Source Serif 4 Display";font-weight:300;src:url(assets/fonts/SourceSerif4Display-Light.ttf)}
+@font-face{font-family:Inter;src:url(assets/fonts/Inter-Regular.ttf)}
+@font-face{font-family:Inter;font-weight:500;src:url(assets/fonts/Inter-Medium.ttf)}
+:root{--ink:#161616;--muted:#666;--rule:#d8d8d8}
+body{max-width:46rem;margin:3rem auto 6rem;padding:0 1.25rem;font:17px/1.62 "Source Serif 4",Georgia,serif;color:var(--ink)}
+h1{font:300 2.3rem/1.15 "Source Serif 4 Display","Source Serif 4",serif;margin:0 0 1rem}
+h2,h3,h4{font-weight:600;line-height:1.3;margin:2rem 0 .6rem}
+a{color:inherit;text-decoration-color:var(--rule);text-underline-offset:2px}
+nav,.meta,table,figcaption,code{font-family:Inter,system-ui,sans-serif}
+nav{font-size:.78rem;color:var(--muted);margin:1.5rem 0}
+hr{border:0;border-top:1px solid var(--rule);margin:2.5rem 0}
+img{max-width:100%;height:auto;display:block;margin:1rem auto}
+table{border-collapse:collapse;font-size:.8rem;display:block;overflow-x:auto;margin:1rem 0}
+td,th{border-bottom:1px solid var(--rule);padding:.3rem .6rem;text-align:left;vertical-align:top}
+code,pre{font-size:.82rem}pre{overflow-x:auto}
+ul{padding-left:1.2rem}li{margin:.25rem 0}
+"""
+
+
+def html_page(title: str, body_md: str) -> str:
+    from markdown_it import MarkdownIt
+    html = MarkdownIt("commonmark", {"html": True}).enable("table").render(body_md)
+    html = re.sub(r'href="(\d\d_[a-z0-9_]+)\.md', r'href="\1.html', html).replace('href="README.md"', 'href="index.html"')
+    html = html.replace('src="images/', 'src="../markdown/images/')
+    return (f'<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title>'
+            f"<style>{HTML_CSS_PAGE}</style></head><body>\n{html}</body></html>\n")
+
+
+def stage_export():
+    import shutil
+    from concurrent.futures import ProcessPoolExecutor
+
+    meta = load_meta()
+    lay = json.loads((BUILD / "layout.json").read_text())
+    L = Layout(lay["front_pages"], lay["total"], lay["papers"], lay["sections"], lay["bib_start"], lay["bib_pages"],
+               lay["front_toc"])
+    for d in (MD_DIR / "images", HTML_DIR / "assets" / "fonts", MD_CACHE):
+        d.mkdir(parents=True, exist_ok=True)
+    import pymupdf4llm
+    key = json.dumps(dict(EXPORT_SETTINGS, version=pymupdf4llm.VERSION), sort_keys=True)
+    cached, jobs = {}, []
+    for p in CATALOG:
+        cache = MD_CACHE / f"{p['slug']}.json"
+        c = json.loads(cache.read_text()) if cache.exists() else {}
+        if c.get("sha256") == meta[p["id"]]["sha256"] and c.get("settings") == key \
+                and (MD_DIR / "images" / p["slug"]).is_dir():
+            cached[p["slug"]] = c["body"]
+        else:
+            jobs.append((str(SOURCES / p["file"]), p["slug"], str(MD_DIR / "images" / p["slug"])))
+    log(f"export: {len(cached)} papers cached, extracting {len(jobs)}")
+    if jobs:
+        with ProcessPoolExecutor(max_workers=min(8, len(jobs))) as ex:
+            for slug, body in ex.map(_extract_body, jobs):
+                p = next(q for q in CATALOG if q["slug"] == slug)
+                (MD_CACHE / f"{slug}.json").write_text(json.dumps(dict(sha256=meta[p["id"]]["sha256"], settings=key,
+                                                                       body=body)))
+                cached[slug] = body
+                log(f"  [{p['id']}] extracted {len(body):,} chars")
+    # write Markdown + HTML; remove files left over from earlier numbering
+    keep = {md_name(p) for p in CATALOG}
+    for f in MD_DIR.glob("[0-9][0-9]_*.md"):
+        if f.name not in keep:
+            f.unlink()
+    for f in HTML_DIR.glob("[0-9][0-9]_*.html"):
+        if f.name[:-5] + ".md" not in keep:
+            f.unlink()
+    for d in (MD_DIR / "images").iterdir():
+        if d.name not in {p["slug"] for p in CATALOG}:
+            shutil.rmtree(d)
+    for f in ("SourceSerif4-Regular.ttf", "SourceSerif4-It.ttf", "SourceSerif4-Semibold.ttf",
+              "SourceSerif4Display-Light.ttf", "Inter-Regular.ttf", "Inter-Medium.ttf"):
+        shutil.copyfile(FONT_DIR / f, HTML_DIR / "assets" / "fonts" / f)
+    single = [contents_markdown(L, for_single_file=True)]
+    for p in CATALOG:
+        md = paper_markdown(p, meta[p["id"]], L.papers[p["id"]], relink_images(cached[p["slug"]], p["slug"]))
+        (MD_DIR / md_name(p)).write_text(md)
+        (HTML_DIR / f"{md_name(p)[:-3]}.html").write_text(html_page(f"{p['id']} · {p['title']}", md))
+        anchor = md_name(p)[:-3]
+        single.append(f'<a id="{anchor}"></a>\n\n' + re.sub(r"\]\((\d\d_[a-z0-9_]+)\.md\)", r"](#\1)", md)
+                      .replace("(README.md)", "(#top)"))
+    contents = contents_markdown(L)
+    (MD_DIR / "README.md").write_text(contents)
+    (MD_DIR / "anthology.md").write_text('<a id="top"></a>\n\n' + "\n\n".join(single))
+    (HTML_DIR / "index.html").write_text(html_page(TITLE, contents))
+    check_export(meta)
+
+
+def check_export(meta: dict):
+    results = []
+
+    def check(name, ok, detail=""):
+        results.append(dict(check=f"export: {name}", ok=bool(ok), detail=detail))
+        log(f"  [{'PASS' if ok else 'FAIL'}] export: {name}" + (f" — {detail}" if detail else ""))
+
+    missing = [p["id"] for p in CATALOG
+               if not (MD_DIR / md_name(p)).exists() or not (HTML_DIR / f"{md_name(p)[:-3]}.html").exists()]
+    check(f"every paper has a Markdown and an HTML page ({N} each)", not missing, ", ".join(missing))
+    ratios = {}
+    for p in CATALOG:
+        body = json.loads((MD_CACHE / f"{p['slug']}.json").read_text())["body"]
+        pdf_chars = sum(len(re.sub(r"\s", "", pg.get_text())) for pg in pymupdf.open(SOURCES / p["file"]))
+        ratios[p["id"]] = round(len(re.sub(r"\s|!\[[^\]]*\]\([^)]*\)", "", body)) / max(1, pdf_chars), 2)
+    low = {k: v for k, v in ratios.items() if v < 0.6}
+    check("extracted text covers ≥60% of each source PDF's characters (rest: equations/figures kept as images)",
+          not low, f"lowest {min(ratios.items(), key=lambda kv: kv[1])}; below threshold: {low or 'none'}")
+    broken = []
+    for f in MD_DIR.glob("*.md"):
+        for target in re.findall(r"!\[[^\]]*\]\(([^)\s]+)\)", f.read_text()):
+            if not (MD_DIR / target).exists():
+                broken.append(f"{f.name}: {target}")
+    check("every image referenced in the Markdown exists", not broken, "; ".join(broken[:5]))
+    dead = []
+    for f in HTML_DIR.glob("*.html"):
+        for target in re.findall(r'(?:href|src)="([^"#:]+)"', f.read_text()):
+            if not (HTML_DIR / target).resolve().exists():
+                dead.append(f"{f.name}: {target}")
+    check("every local link and image in the HTML resolves", not dead, "; ".join(dead[:5]))
+    report = BUILD / "qa_report.json"
+    prior = [r for r in (json.loads(report.read_text()) if report.exists() else []) if not r["check"].startswith("export:")]
+    report.write_text(json.dumps(prior + results, indent=2, ensure_ascii=False))
+
+
+# --------------------------------------------------------------------------
 # README + checksums
 # --------------------------------------------------------------------------
 
@@ -2004,6 +2227,9 @@ def write_readme_and_checksums():
         f"- `{BY_KEY['repe']['file']}` (and, marginally, {BY_KEY['mib']['id']} and {BY_KEY['weightsparse']['id']}) "
         "trigger non-fatal MuPDF warnings about",
         "  dangling object references inside the original arXiv files; every page still renders without error.",
+        f"- To keep the master PDF downloadable, its raster images are re-encoded as JPEG (quality {IMG_QUALITY}) and",
+        f"  downsampled only where they exceed {IMG_DPI_THRESHOLD} dpi (to {IMG_DPI_TARGET} dpi). Text, fonts and vector",
+        "  graphics are untouched, so everything remains selectable and searchable; `sources/` keeps the original files.",
         "- Licences differ by paper: see `LICENSES.md` and the `license` / `redistribution_note` columns of",
         "  `paper_manifest.csv`. Copyright in every paper remains with its authors.",
         "",
@@ -2016,20 +2242,29 @@ def write_readme_and_checksums():
     for q in qa:
         lines.append(f"- {'PASS' if q['ok'] else 'FAIL'} — {q['check']}")
     lines += ["", "## Rebuild", "", "```bash", "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
-              ".venv/bin/python scripts/build_anthology.py          # fetch + build + qa",
-              ".venv/bin/python scripts/build_anthology.py build qa # re-assemble from cached sources", "```", "",
+              ".venv/bin/python scripts/build_anthology.py          # fetch + build + qa + export",
+              ".venv/bin/python scripts/build_anthology.py build qa # re-assemble the PDF from cached sources",
+              ".venv/bin/python scripts/build_anthology.py export   # refresh the Markdown/HTML editions", "```", "",
+              "To add or update a paper, edit `CATALOG` (and its `CONTEXT` note) in the script and run it again: changed",
+              "sources are downloaded or re-rendered, the PDF is re-laid out with exact page numbers, and only papers whose",
+              "source PDF changed are re-extracted for the Markdown/HTML editions (cache in `build/md_cache/`).",
               "Rendering uses the system Google Chrome/Chromium if present (otherwise `.venv/bin/playwright install chromium`).",
               "A full build downloads or renders every source and takes several minutes.",
               "", "## Where things are", "",
               f"- The compiled anthology is attached to the GitHub release: {RELEASE_PDF_URL}",
               "  (it is larger than GitHub's 100 MB per-file limit for git, so it cannot live in the repository itself).",
               "- The original papers, exactly as included, are in `sources/`.",
+              "- Text editions: `markdown/` (one file per paper, `README.md` contents, `anthology.md` all-in-one) and",
+              "  `html/` (open `html/index.html`). Text is extracted from the source PDFs with pymupdf4llm; display",
+              "  equations, figures and some tables appear as images, inline maths can be garbled, and the PDF stays",
+              "  authoritative.",
               "- `sha256sum -c checksums.sha256` verifies a download or a local rebuild against this README.",
               "", "## Files", "",
               "- `Mechanistic_Interpretability_Complete_Anthology.pdf` — master PDF (GitHub release asset)",
               "- `PRINT_INDEX.pdf` — standalone print index",
               "- `paper_manifest.csv`, `paper_manifest.json` — per-paper sources, licences, checksums, page ranges",
               "- `sources/` — the original PDFs exactly as included",
+              "- `markdown/`, `html/` — text-extracted editions of every paper with the anthology's reading notes",
               "- `LICENSES.md` — licence and copyright of every included work, fonts and editorial material",
               "- `scripts/build_anthology.py` — reproducible build; `requirements.txt` — Python dependencies",
               "- `scripts/fonts/` — Source Serif 4 and Inter (SIL Open Font License) used for covers, dividers and indexes",
@@ -2069,7 +2304,7 @@ def write_licenses(man: dict):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    stages = args or ["fetch", "build", "qa"]
+    stages = args or ["fetch", "build", "qa", "export"]
     if "fetch" in stages:
         stage_fetch(force="--force" in sys.argv)
     if "build" in stages:
@@ -2077,5 +2312,7 @@ if __name__ == "__main__":
     if "qa" in stages:
         register_fonts()
         stage_qa()
-    if "build" in stages or "qa" in stages:
+    if "export" in stages:
+        stage_export()
+    if {"build", "qa", "export"} & set(stages):
         write_readme_and_checksums()

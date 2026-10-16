@@ -1,4 +1,7 @@
 pymupdf==1.28.2
+pymupdf4llm==1.28.2
+pymupdf-layout==1.28.2
+markdown-it-py==4.2.0
 pypdf==6.20.1
 playwright==1.63.0
 reportlab==5.0.1

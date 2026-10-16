@@ -2,7 +2,7 @@
 
 Generated 2026-10-15 by `scripts/build_anthology.py`.
 
-- **Master PDF:** `Mechanistic_Interpretability_Complete_Anthology.pdf` — 1865 pages, 371.1 MB, US Letter
+- **Master PDF:** `Mechanistic_Interpretability_Complete_Anthology.pdf` — 1865 pages, 182.2 MB, US Letter
 - **Complete original works:** 37 / 37; source-access pages: 0
 - **Page numbers:** physical PDF page index (page 1 = title page). Page labels are set so viewers show the same numbers;
   type ranges straight into the print dialog.
@@ -98,6 +98,9 @@ where it does not overlap content.
   cross-references by paper number. These notes are the compiler's commentary, not the authors'.
 - `30_representation_engineering.pdf` (and, marginally, 26 and 29) trigger non-fatal MuPDF warnings about
   dangling object references inside the original arXiv files; every page still renders without error.
+- To keep the master PDF downloadable, its raster images are re-encoded as JPEG (quality 85) and
+  downsampled only where they exceed 330 dpi (to 300 dpi). Text, fonts and vector
+  graphics are untouched, so everything remains selectable and searchable; `sources/` keeps the original files.
 - Licences differ by paper: see `LICENSES.md` and the `license` / `redistribution_note` columns of
   `paper_manifest.csv`. Copyright in every paper remains with its authors.
 
@@ -131,15 +134,23 @@ where it does not overlap content.
 - PASS — rendered paper pages are pixel-identical to their sources (mean gray diff ≤ 3/255)
 - PASS — cover text never overlaps the print-range box
 - PASS — editorial pages keep all text inside the page margins
+- PASS — export: every paper has a Markdown and an HTML page (37 each)
+- PASS — export: extracted text covers ≥60% of each source PDF's characters (rest: equations/figures kept as images)
+- PASS — export: every image referenced in the Markdown exists
+- PASS — export: every local link and image in the HTML resolves
 
 ## Rebuild
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python scripts/build_anthology.py          # fetch + build + qa
-.venv/bin/python scripts/build_anthology.py build qa # re-assemble from cached sources
+.venv/bin/python scripts/build_anthology.py          # fetch + build + qa + export
+.venv/bin/python scripts/build_anthology.py build qa # re-assemble the PDF from cached sources
+.venv/bin/python scripts/build_anthology.py export   # refresh the Markdown/HTML editions
 ```
 
+To add or update a paper, edit `CATALOG` (and its `CONTEXT` note) in the script and run it again: changed
+sources are downloaded or re-rendered, the PDF is re-laid out with exact page numbers, and only papers whose
+source PDF changed are re-extracted for the Markdown/HTML editions (cache in `build/md_cache/`).
 Rendering uses the system Google Chrome/Chromium if present (otherwise `.venv/bin/playwright install chromium`).
 A full build downloads or renders every source and takes several minutes.
 
@@ -148,6 +159,10 @@ A full build downloads or renders every source and takes several minutes.
 - The compiled anthology is attached to the GitHub release: https://github.com/darrenangle/mechanistic-interpretability-anthology/releases/latest/download/Mechanistic_Interpretability_Complete_Anthology.pdf
   (it is larger than GitHub's 100 MB per-file limit for git, so it cannot live in the repository itself).
 - The original papers, exactly as included, are in `sources/`.
+- Text editions: `markdown/` (one file per paper, `README.md` contents, `anthology.md` all-in-one) and
+  `html/` (open `html/index.html`). Text is extracted from the source PDFs with pymupdf4llm; display
+  equations, figures and some tables appear as images, inline maths can be garbled, and the PDF stays
+  authoritative.
 - `sha256sum -c checksums.sha256` verifies a download or a local rebuild against this README.
 
 ## Files
@@ -156,6 +171,7 @@ A full build downloads or renders every source and takes several minutes.
 - `PRINT_INDEX.pdf` — standalone print index
 - `paper_manifest.csv`, `paper_manifest.json` — per-paper sources, licences, checksums, page ranges
 - `sources/` — the original PDFs exactly as included
+- `markdown/`, `html/` — text-extracted editions of every paper with the anthology's reading notes
 - `LICENSES.md` — licence and copyright of every included work, fonts and editorial material
 - `scripts/build_anthology.py` — reproducible build; `requirements.txt` — Python dependencies
 - `scripts/fonts/` — Source Serif 4 and Inter (SIL Open Font License) used for covers, dividers and indexes
