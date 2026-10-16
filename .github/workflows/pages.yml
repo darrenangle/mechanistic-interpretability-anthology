@@ -1,0 +1,38 @@
+# Publishes the HTML edition (html/ plus the images it uses from markdown/images/) to GitHub Pages.
+name: Publish HTML edition
+
+on:
+  push:
+    branches: [main]
+    paths: ["html/**", "markdown/images/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site
+        run: |
+          mkdir -p _site/markdown
+          cp -r html _site/html
+          cp -r markdown/images _site/markdown/images
+          touch _site/.nojekyll
+          printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=html/">\n<link rel="canonical" href="html/"><a href="html/">Mechanistic Interpretability anthology</a>\n' > _site/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

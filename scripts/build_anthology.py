@@ -49,6 +49,7 @@ MASTER = ROOT / "Mechanistic_Interpretability_Complete_Anthology.pdf"
 PRINT_INDEX = ROOT / "PRINT_INDEX.pdf"
 REPO_URL = "https://github.com/darrenangle/mechanistic-interpretability-anthology"
 RELEASE_PDF_URL = f"{REPO_URL}/releases/latest/download/{MASTER.name}"
+PAGES_URL = "https://darrenangle.github.io/mechanistic-interpretability-anthology/"
 TITLE = "Mechanistic Interpretability"
 # Master-PDF image recompression: raster images become JPEG at this quality and are downsampled only above
 # IMG_DPI_THRESHOLD (to IMG_DPI_TARGET, still print resolution). Text, fonts and vector art are untouched, so
@@ -2255,7 +2256,8 @@ def write_readme_and_checksums():
               "  (it is larger than GitHub's 100 MB per-file limit for git, so it cannot live in the repository itself).",
               "- The original papers, exactly as included, are in `sources/`.",
               "- Text editions: `markdown/` (one file per paper, `README.md` contents, `anthology.md` all-in-one) and",
-              "  `html/` (open `html/index.html`). Text is extracted from the source PDFs with pymupdf4llm; display",
+              f"  `html/`, published at {PAGES_URL} by `.github/workflows/pages.yml` on every push that changes it.",
+              "  Text is extracted from the source PDFs with pymupdf4llm; display",
               "  equations, figures and some tables appear as images, inline maths can be garbled, and the PDF stays",
               "  authoritative.",
               "- `sha256sum -c checksums.sha256` verifies a download or a local rebuild against this README.",
